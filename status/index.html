@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Status · {{OFFICE_TITLE}}</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+<script src="./chart.umd.min.js"></script>
+<style>a[href=""]{display:none}</style>
+<style>
+  :root {
+    --bg:#0f0f10; --panel:#17171a; --panel2:#1e1e22; --border:#2a2a30;
+    --text:#e9e9ec; --muted:#8b8b93; --accent:#d97757; --accent2:#c96843;
+    --opus:#a78bfa; --sonnet:#60a5fa; --haiku:#34d399;
+    --good:#4ade80; --warn:#fbbf24; --bad:#f87171;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1320px;margin:0 auto;padding:32px 24px 96px}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:24px;margin-bottom:24px;flex-wrap:wrap}
+  h1{font-size:26px;margin:0;font-weight:600;letter-spacing:-0.01em}
+  h1 .dot{color:var(--accent)}
+  h2{font-size:18px;margin:32px 0 12px;font-weight:600;letter-spacing:-0.01em}
+  h2 .tag{color:var(--accent);font-weight:600}
+  .sub{color:var(--muted);font-size:13px}
+  .grid{display:grid;gap:16px}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .card h3{margin:0 0 8px;font-size:12px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .kpi .val{font-size:28px;font-weight:600;letter-spacing:-0.02em}
+  .kpi .foot{color:var(--muted);font-size:12px;margin-top:4px}
+  .row{display:grid;gap:16px;margin-top:16px}
+  .row.c2{grid-template-columns:2fr 1fr}
+  .row.c3{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:900px){.row.c2,.row.c3{grid-template-columns:1fr}}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+  th{color:var(--muted);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em;position:sticky;top:0;background:var(--panel)}
+  tr:hover td{background:var(--panel2)}
+  td.n{text-align:right;font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;background:var(--panel2);color:var(--muted);border:1px solid var(--border)}
+  .pill.opus{color:var(--opus);border-color:#3d2f5a}
+  .pill.sonnet{color:var(--sonnet);border-color:#1e3a5f}
+  .pill.haiku{color:var(--haiku);border-color:#14432f}
+  .pill.working{color:var(--good);border-color:#14432f;background:#0d1f14}
+  .pill.active{color:var(--good);border-color:#14432f}
+  .pill.idle{color:var(--warn);border-color:#3f2f0a}
+  .pill.napping{color:var(--muted)}
+  .pill.ghost{color:var(--muted);opacity:.6}
+  .scroll{max-height:520px;overflow:auto}
+  .prompt{padding:12px 0;border-bottom:1px solid var(--border)}
+  .prompt:last-child{border-bottom:none}
+  .prompt .meta{display:flex;gap:10px;color:var(--muted);font-size:11px;margin-bottom:4px}
+  .prompt .text{color:var(--text);white-space:pre-wrap;word-break:break-word}
+  .filterbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .filterbar input,.filterbar select{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;font:inherit}
+  .filterbar input{flex:1;min-width:180px}
+  .chart-box{position:relative;height:220px}
+  .chart-box.tall{height:280px}
+  footer{margin-top:48px;color:var(--muted);font-size:12px;text-align:center}
+  .barrow{display:flex;align-items:center;gap:8px}
+  .barrow .bar{flex:1;background:var(--panel2);border-radius:6px;overflow:hidden;height:6px}
+  .barrow .fill{height:100%;background:var(--accent)}
+  .tag{color:var(--accent);font-weight:500}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--muted)}
+  .live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--good);margin-right:6px;box-shadow:0 0 8px var(--good);animation:pulse 1.6s ease-in-out infinite}
+  .live-dot.stale{background:var(--warn);box-shadow:0 0 8px var(--warn);animation:none}
+  .live-dot.off{background:var(--muted);box-shadow:none;animation:none}
+  @keyframes pulse {0%,100%{opacity:1}50%{opacity:.35}}
+  .meter{position:relative;height:10px;background:var(--panel2);border:1px solid var(--border);border-radius:999px;overflow:hidden}
+  .meter .m-fill{height:100%;background:var(--good);transition:width .4s ease}
+  .meter .m-fill.warn{background:var(--warn)}
+  .meter .m-fill.bad{background:var(--bad)}
+  .meter-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .meter-row .n{color:var(--text);font-variant-numeric:tabular-nums;font-weight:500}
+  .meter-block{margin-bottom:14px}
+  .meter-block:last-child{margin-bottom:0}
+  .office{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+  .desk{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;position:relative;transition:transform .15s ease, border-color .15s ease}
+  .desk:hover{transform:translateY(-2px);border-color:var(--accent)}
+  .desk.working{border-color:#1f4d2a;background:linear-gradient(180deg,#122015 0%,var(--panel) 60%)}
+  .desk.napping{opacity:.72}
+  .desk.ghost{opacity:.5;border-style:dashed}
+  .desk-head{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .desk-avatar{width:44px;height:44px;border-radius:12px;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:24px;border:1px solid var(--border)}
+  .desk-name{font-weight:600;font-size:14px}
+  .desk-role{color:var(--muted);font-size:11px;line-height:1.3}
+  .desk-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:12px;color:var(--muted);margin-top:12px}
+  .desk-stats .k{font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+  .desk-stats .v{color:var(--text);font-variant-numeric:tabular-nums;font-weight:500}
+  .desk-bar{margin-top:10px}
+  .desk-bar .bar{background:var(--panel2);border-radius:6px;overflow:hidden;height:5px}
+  .desk-bar .fill{height:100%;background:var(--accent);transition:width .4s ease}
+  .desk-status{position:absolute;top:14px;right:14px}
+  .desk-project{font-size:11px;color:var(--muted);margin-top:8px}
+  .desk-project .p{color:var(--accent)}
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .toolbar .grow{flex:1}
+  .stalebadge{display:inline-block;padding:2px 6px;border-radius:6px;background:#3f2f0a;color:var(--warn);font-size:10px;margin-left:6px}
+  /* Team cards */
+  .team{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(340px,1fr))}
+  .emp{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;transition:transform .15s ease, border-color .15s ease;display:flex;flex-direction:column}
+  .emp:hover{transform:translateY(-2px);border-color:var(--accent)}
+  .emp.working{border-color:#1f4d2a;background:linear-gradient(180deg,#122015 0%,var(--panel) 60%)}
+  .emp.napping{opacity:.78}
+  .emp.dormant{opacity:.55}
+  .emp-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+  .emp-avatar{width:52px;height:52px;border-radius:14px;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:28px;border:1px solid var(--border)}
+  .emp-name{font-weight:600;font-size:15px;letter-spacing:-0.01em}
+  .emp-title{color:var(--muted);font-size:11px}
+  .emp-status{position:absolute;top:16px;right:16px}
+  .emp-focus{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.45;color:var(--text);margin:6px 0 10px;max-height:5.5em;overflow:hidden;position:relative;white-space:pre-wrap;word-break:break-word}
+  .emp-focus::after{content:"";position:absolute;bottom:0;left:0;right:0;height:22px;background:linear-gradient(180deg,rgba(30,30,34,0),var(--panel2))}
+  .emp-focus-empty{color:var(--muted);font-style:italic;background:transparent;border:1px dashed var(--border)}
+  .emp-focus-empty::after{display:none}
+  .emp-focus-label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:4px}
+  .spark{display:flex;align-items:flex-end;gap:3px;height:34px;margin:8px 0}
+  .spark .sb{flex:1;background:var(--panel2);border-radius:2px;min-height:2px;transition:background .2s}
+  .spark .sb.hot{background:var(--accent)}
+  .spark .sb.warm{background:#5a3a2a}
+  .emp-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 12px;font-size:12px;color:var(--muted);margin-top:6px}
+  .emp-stats .k{font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+  .emp-stats .v{color:var(--text);font-variant-numeric:tabular-nums;font-weight:500;font-size:14px}
+  .emp-support{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .emp-support .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-right:4px}
+  .chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;background:var(--panel2);border:1px solid var(--border);font-size:11px;color:var(--muted)}
+  .chip .ct{color:var(--text);font-variant-numeric:tabular-nums}
+  .emp-cost-bar{height:3px;background:var(--panel2);border-radius:2px;overflow:hidden;margin-top:12px}
+  .emp-cost-bar .fill{height:100%;background:var(--accent)}
+  .last-seen{font-size:11px;color:var(--muted);margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Claude <span class="dot">·</span> Status <a href="/" style="font-size:.5em;font-weight:600;color:#63b3ff;text-decoration:none;border:1px solid #2a3240;border-radius:999px;padding:3px 10px;vertical-align:middle;margin-left:8px">🏢 Office →</a><a href="{{OFFICE_FILES_URL}}" style="font-size:.5em;font-weight:600;color:#63b3ff;text-decoration:none;border:1px solid #2a3240;border-radius:999px;padding:3px 10px;vertical-align:middle;margin-left:8px">📁 Files →</a></h1>
+      <div class="sub">
+        <span id="liveDot" class="live-dot off"></span>
+        <span id="liveState">loading…</span> ·
+        personalized for <span class="tag">{{OFFICE_EMAIL}}</span> ·
+        <span id="gen"></span>
+        <span id="refreshCountdown" class="mono"></span>
+      </div>
+    </div>
+    <div class="sub">
+      <a href="./data.json">raw json</a> ·
+      <span id="host" class="mono"></span>
+    </div>
+  </header>
+
+  <div class="row c2">
+    <div class="card" id="liveCard">
+      <h3>Live session <span id="liveStale"></span></h3>
+      <div id="liveMeters"><div class="sub">Waiting for the next statusline tick to capture rate limits…</div></div>
+    </div>
+    <div class="card">
+      <h3>This session</h3>
+      <div id="liveExtras" class="sub">–</div>
+    </div>
+  </div>
+
+  <div class="grid kpis" style="margin-top:16px">
+    <div class="card kpi"><h3>Sessions</h3><div class="val" id="k-sessions">–</div><div class="foot"><span id="k-projects">–</span> projects</div></div>
+    <div class="card kpi"><h3>User turns</h3><div class="val" id="k-user">–</div><div class="foot"><span id="k-asst">–</span> assistant replies</div></div>
+    <div class="card kpi"><h3>Tokens</h3><div class="val" id="k-tokens">–</div><div class="foot"><span id="k-cache">–</span> from cache</div></div>
+    <div class="card kpi"><h3>Est. cost</h3><div class="val" id="k-cost">–</div><div class="foot">public pricing</div></div>
+    <div class="card kpi"><h3>Daily streak</h3><div class="val" id="k-streak">–</div><div class="foot"><span id="k-active">–</span> total active days</div></div>
+  </div>
+
+
+  <div class="row c2" style="margin-top:24px">
+    <div class="card">
+      <h3>Activity — last 30 days</h3>
+      <div class="chart-box tall"><canvas id="chartDays"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>By hour of day</h3>
+      <div class="chart-box tall"><canvas id="chartHours"></canvas></div>
+    </div>
+  </div>
+
+  <div class="row c2">
+    <div class="card">
+      <h3>Projects — by cost</h3>
+      <div class="scroll">
+      <table id="tblProjects">
+        <thead><tr><th>Project</th><th class="n">Sessions</th><th class="n">Msgs</th><th class="n">Tokens</th><th class="n">Cost</th><th>Last</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Model mix</h3>
+      <div class="chart-box"><canvas id="chartModels"></canvas></div>
+      <div id="modelList" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <div class="row c2">
+    <div class="card">
+      <h3>Recent sessions</h3>
+      <div class="filterbar">
+        <input id="sessSearch" placeholder="filter by project or id…"/>
+        <select id="sessSort">
+          <option value="last">Sort: most recent</option>
+          <option value="cost">Sort: highest cost</option>
+          <option value="tokens">Sort: most tokens</option>
+          <option value="user">Sort: most turns</option>
+        </select>
+      </div>
+      <div class="scroll">
+      <table id="tblSessions">
+        <thead><tr><th>When</th><th>Project</th><th>Session</th><th class="n">Turns</th><th class="n">Tokens</th><th class="n">Cost</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Recent prompts</h3>
+      <div class="filterbar">
+        <input id="promptSearch" placeholder="filter prompts…"/>
+      </div>
+      <div class="scroll" id="promptList"></div>
+    </div>
+  </div>
+
+  <footer>
+    <div>First recorded activity <span id="first-ever" class="mono">–</span> · <a href="/">🏢 office</a></div>
+  </footer>
+</div>
+
+<script>
+const REFRESH_MS = 15000;
+const TICK_MS = 1000;
+
+const fmtInt = n => (n||0).toLocaleString();
+const fmtCost = n => "$" + (n||0).toFixed(2);
+const fmtK = n => {
+  n = n||0;
+  if (n >= 1e9) return (n/1e9).toFixed(2)+"B";
+  if (n >= 1e6) return (n/1e6).toFixed(2)+"M";
+  if (n >= 1e3) return (n/1e3).toFixed(1)+"K";
+  return String(n);
+};
+const relTime = iso => {
+  if (!iso) return "–";
+  const t = new Date(iso).getTime();
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 60) return Math.floor(s)+"s ago";
+  if (s < 3600) return Math.floor(s/60)+"m ago";
+  if (s < 86400) return Math.floor(s/3600)+"h ago";
+  if (s < 86400*30) return Math.floor(s/86400)+"d ago";
+  return new Date(iso).toISOString().slice(0,10);
+};
+const untilTime = iso => {
+  if (!iso) return "–";
+  const s = Math.max(0, (new Date(iso).getTime() - Date.now()) / 1000);
+  if (s < 60) return Math.floor(s)+"s";
+  if (s < 3600) return Math.floor(s/60)+"m";
+  if (s < 86400) return Math.floor(s/3600)+"h " + Math.floor((s%3600)/60)+"m";
+  return Math.floor(s/86400)+"d";
+};
+const escapeHtml = s => (""+s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+
+let DATA = null;
+let dayChart=null, hourChart=null, modelChart=null;
+let nextRefreshAt = Date.now() + REFRESH_MS;
+
+async function load() {
+  try {
+    const r = await fetch("./data.json?t=" + Date.now(), {cache:"no-store"});
+    if (!r.ok) throw new Error("HTTP "+r.status);
+    DATA = await r.json();
+    render();
+  } catch(e) {
+    document.getElementById("liveState").textContent = "fetch failed: " + e.message;
+  } finally {
+    nextRefreshAt = Date.now() + REFRESH_MS;
+  }
+}
+
+function meterClass(pct) {
+  if (pct == null) return "";
+  if (pct >= 85) return "bad";
+  if (pct >= 60) return "warn";
+  return "";
+}
+
+function renderLive() {
+  const l = DATA.live;
+  const dot = document.getElementById("liveDot");
+  const state = document.getElementById("liveState");
+  const stale = document.getElementById("liveStale");
+  stale.textContent = "";
+  if (!l) {
+    dot.className = "live-dot off";
+    state.textContent = "no snapshot yet";
+    document.getElementById("liveMeters").innerHTML =
+      '<div class="sub">Snapshot missing. Statusline hasn\'t written <span class="mono">~/.claude/last-usage.json</span> yet — start any Claude Code session to capture it.</div>';
+    document.getElementById("liveExtras").innerHTML = "–";
+    return;
+  }
+  if (l.error) {
+    dot.className = "live-dot off";
+    state.textContent = "snapshot error: " + l.error;
+    return;
+  }
+  const age = l.captured_age_s || 0;
+  const isLive = age < 90;
+  const isStaleShort = age < 3600;
+  if (isLive) { dot.className = "live-dot"; state.textContent = "live"; }
+  else if (isStaleShort) { dot.className = "live-dot stale"; state.textContent = "recent — " + relTime(l.captured_at); stale.innerHTML = '<span class="stalebadge">last seen ' + relTime(l.captured_at) + '</span>'; }
+  else { dot.className = "live-dot off"; state.textContent = "no active session — last snapshot " + relTime(l.captured_at); stale.innerHTML = '<span class="stalebadge">stale · ' + relTime(l.captured_at) + '</span>'; }
+
+  const meter = (label, pct, resets, sub) => {
+    if (pct == null) return "";
+    const cls = meterClass(pct);
+    return `<div class="meter-block">
+      <div class="meter-row"><span>${label}${sub?' <span class="sub">'+sub+'</span>':''}</span><span><span class="n">${pct.toFixed(1)}%</span>${resets?' <span class="sub">· resets in '+untilTime(resets)+'</span>':''}</span></div>
+      <div class="meter"><div class="m-fill ${cls}" style="width:${Math.min(100,pct)}%"></div></div>
+    </div>`;
+  };
+  const meters =
+    meter("Context window", l.context_used_pct, null, l.context_tokens?fmtK(l.context_tokens)+' tokens':'') +
+    meter("5-hour limit", l.five_hour_used_pct, l.five_hour_resets_at) +
+    meter("7-day limit", l.weekly_used_pct, l.weekly_resets_at) +
+    meter("7-day (opus)", l.weekly_opus_used_pct, l.weekly_opus_resets_at);
+  document.getElementById("liveMeters").innerHTML = meters || '<div class="sub">Snapshot present but no rate-limit fields yet.</div>';
+
+  const dur = l.session_duration_ms ? Math.floor(l.session_duration_ms/60000) + "m" : "–";
+  document.getElementById("liveExtras").innerHTML = `
+    <div class="meter-block"><div class="meter-row"><span>Model</span><span class="n">${escapeHtml(l.model||"?")}</span></div></div>
+    <div class="meter-block"><div class="meter-row"><span>Working directory</span><span class="mono">${escapeHtml((l.cwd||"?").split("/").slice(-2).join("/"))}</span></div></div>
+    <div class="meter-block"><div class="meter-row"><span>Session duration</span><span class="n">${dur}</span></div></div>
+    <div class="meter-block"><div class="meter-row"><span>Session cost</span><span class="n">${l.session_cost_usd!=null?fmtCost(l.session_cost_usd):"–"}</span></div></div>
+    <div class="meter-block"><div class="meter-row"><span>Lines changed</span><span><span class="n" style="color:var(--good)">+${l.lines_added||0}</span> / <span class="n" style="color:var(--bad)">-${l.lines_removed||0}</span></span></div></div>
+  `;
+}
+
+function renderKPIs() {
+  const t = DATA.totals;
+  document.getElementById("host").textContent = location.host;
+  document.getElementById("gen").textContent = "updated " + relTime(DATA.generated);
+  document.getElementById("k-sessions").textContent = fmtInt(t.sessions);
+  document.getElementById("k-projects").textContent = t.projects;
+  document.getElementById("k-user").textContent = fmtInt(t.user);
+  document.getElementById("k-asst").textContent = fmtInt(t.asst);
+  document.getElementById("k-tokens").textContent = fmtK(t["in"]+t.out+t.cw+t.cr);
+  document.getElementById("k-cache").textContent = fmtK(t.cr);
+  document.getElementById("k-cost").textContent = fmtCost(t.cost);
+  document.getElementById("k-streak").textContent = DATA.streak + (DATA.streak===1?" day":" days");
+  document.getElementById("k-active").textContent = DATA.active_days_total;
+  document.getElementById("first-ever").textContent = DATA.first_ever || "–";
+}
+
+function renderTeam() { if(!document.getElementById('team')) return;
+  const q = (document.getElementById("teamSearch").value||"").toLowerCase();
+  const key = document.getElementById("teamSort").value;
+  const rank = {working:0,active:1,idle:2,napping:3,dormant:4};
+  const list = DATA.team
+    .filter(t => !q || t.name.toLowerCase().includes(q) || (t.last_prompt||"").toLowerCase().includes(q))
+    .sort((a,b) => {
+      if (key==="status") return rank[a.status]-rank[b.status] || b.cost-a.cost;
+      if (key==="cost") return b.cost - a.cost;
+      if (key==="last") return (b.last||"").localeCompare(a.last||"");
+      if (key==="tokens") return b.tokens - a.tokens;
+      if (key==="days") return b.active_days - a.active_days;
+      return 0;
+    });
+  const statusMap = {working:"working now",active:"active today",idle:"idle",napping:"napping",dormant:"dormant"};
+  const statusPill = {working:"working",active:"active",idle:"idle",napping:"napping",dormant:"ghost"};
+
+  document.getElementById("team").innerHTML = list.map(t => {
+    const mx = Math.max(1, t.spark_max);
+    const spark = t.spark.map(v => {
+      const h = Math.max(2, Math.round((v/mx)*32));
+      const cls = v === 0 ? "" : (v >= mx*0.66 ? "hot" : "warm");
+      return `<div class="sb ${cls}" style="height:${h}px" title="${v} msgs"></div>`;
+    }).join("");
+    const focus = t.last_prompt
+      ? `<div><div class="emp-focus-label">Currently focused on</div><div class="emp-focus">${escapeHtml(t.last_prompt)}</div></div>`
+      : `<div><div class="emp-focus-label">Focus</div><div class="emp-focus emp-focus-empty">no recent prompt captured</div></div>`;
+    const support = t.support.length
+      ? `<div class="emp-support"><span class="lbl">team</span>${t.support.map(a=>`<span class="chip">${a.emoji} ${escapeHtml(a.name)} <span class="ct">${a.count}×</span></span>`).join("")}</div>`
+      : "";
+    return `<div class="emp ${t.status}">
+      <div class="emp-status"><span class="pill ${statusPill[t.status]}">${statusMap[t.status]}</span></div>
+      <div class="emp-head">
+        <div class="emp-avatar">${t.emoji}</div>
+        <div>
+          <div class="emp-name">${escapeHtml(t.short)}</div>
+          <div class="emp-title">Lead · ${t.sessions} session${t.sessions===1?"":"s"} · ${t.active_days} active day${t.active_days===1?"":"s"}</div>
+        </div>
+      </div>
+      <div class="spark">${spark}</div>
+      ${focus}
+      <div class="emp-stats">
+        <div><div class="k">Msgs</div><div class="v">${fmtInt(t.msgs)}</div></div>
+        <div><div class="k">Tokens</div><div class="v">${fmtK(t.tokens)}</div></div>
+        <div><div class="k">Burn</div><div class="v">${fmtCost(t.cost)}</div></div>
+        <div><div class="k">Last</div><div class="v">${t.last?relTime(t.last):"–"}</div></div>
+      </div>
+      <div class="emp-cost-bar"><div class="fill" style="width:${(t.cost_pct*100).toFixed(1)}%"></div></div>
+      ${support}
+    </div>`;
+  }).join("") || '<div class="sub">No projects match.</div>';
+}
+
+function renderOffice() { if(!document.getElementById('office')) return;
+  const q = (document.getElementById("agentSearch").value||"").toLowerCase();
+  const el = document.getElementById("office");
+  const list = DATA.office.filter(a => !q || a.name.toLowerCase().includes(q) || (a.role||"").toLowerCase().includes(q));
+  el.innerHTML = list.map(a => {
+    const statusLabel = {working:"working",active:"active today",idle:"idle",napping:"napping",ghost:"never called"}[a.status];
+    const pct = a.invocations > 0 ? Math.max(6, a.activity_pct*100) : 0;
+    return `<div class="desk ${a.status}">
+      <div class="desk-status"><span class="pill ${a.status}">${statusLabel}</span></div>
+      <div class="desk-head">
+        <div class="desk-avatar">${a.emoji}</div>
+        <div>
+          <div class="desk-name">${escapeHtml(a.name)}${a.user_defined?' <span class="pill" style="font-size:9px">yours</span>':''}</div>
+          <div class="desk-role">${escapeHtml(a.role||"")}</div>
+        </div>
+      </div>
+      <div class="desk-bar">
+        <div class="bar"><div class="fill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="desk-stats">
+        <div><div class="k">Calls</div><div class="v">${fmtInt(a.invocations)}</div></div>
+        <div><div class="k">Tokens</div><div class="v">${fmtK(a.tokens)}</div></div>
+        <div><div class="k">Est. cost</div><div class="v">${fmtCost(a.cost)}</div></div>
+        <div><div class="k">Last seen</div><div class="v">${a.last?relTime(a.last):"–"}</div></div>
+      </div>
+      ${a.top_project ? `<div class="desk-project">mostly on <span class="p">${escapeHtml(a.top_project)}</span> (${a.top_project_ct}× · ${a.projects_count} project${a.projects_count===1?'':'s'})</div>` : ''}
+    </div>`;
+  }).join("") || '<div class="sub">No agents match.</div>';
+}
+
+function renderCharts() {
+  const days = DATA.series_30d;
+  const dayLabels = days.map(d => d.day.slice(5));
+  if (dayChart) dayChart.destroy();
+  dayChart = new Chart(document.getElementById("chartDays"), {
+    type: "bar",
+    data: {
+      labels: dayLabels,
+      datasets: [
+        {label:"User turns", data: days.map(d=>d.user), backgroundColor:"#d97757"},
+        {label:"Assistant replies", data: days.map(d=>d.asst), backgroundColor:"#60a5fa"},
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:false,
+      plugins:{legend:{labels:{color:"#8b8b93"}}, tooltip:{callbacks:{
+        afterBody: (items) => {
+          const i = items[0].dataIndex;
+          return "Cost: " + fmtCost(days[i].cost) + " · Tokens: " + fmtK(days[i].tokens);
+        }
+      }}},
+      scales:{x:{stacked:true,ticks:{color:"#8b8b93",maxRotation:0,autoSkip:true}}, y:{stacked:true,ticks:{color:"#8b8b93"},grid:{color:"#2a2a30"}}}
+    }
+  });
+  if (hourChart) hourChart.destroy();
+  hourChart = new Chart(document.getElementById("chartHours"), {
+    type: "bar",
+    data: { labels: [...Array(24).keys()].map(h=>h+"h"), datasets: [{label:"User turns", data: DATA.hour_series, backgroundColor:"#d97757"}] },
+    options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:"#8b8b93"}},y:{ticks:{color:"#8b8b93"},grid:{color:"#2a2a30"}}}}
+  });
+  const mk = DATA.model_break;
+  if (modelChart) modelChart.destroy();
+  modelChart = new Chart(document.getElementById("chartModels"), {
+    type: "doughnut",
+    data:{labels: mk.map(m=>m.model||"unknown"),
+      datasets:[{data: mk.map(m=>m.asst_msgs),
+        backgroundColor: mk.map(m => {
+          const s = (m.model||"").toLowerCase();
+          return s.includes("opus")?"#a78bfa":s.includes("sonnet")?"#60a5fa":s.includes("haiku")?"#34d399":"#8b8b93";
+        })}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{position:"bottom",labels:{color:"#8b8b93",boxWidth:12}}}}
+  });
+  const totalAsst = mk.reduce((a,m)=>a+m.asst_msgs,0)||1;
+  document.getElementById("modelList").innerHTML = mk.map(m => {
+    const pct = (m.asst_msgs/totalAsst*100).toFixed(1);
+    return `<div class="barrow"><span style="min-width:170px" class="mono">${escapeHtml(m.model||"unknown")}</span><div class="bar"><div class="fill" style="width:${pct}%"></div></div><span class="mono">${pct}%</span></div>`;
+  }).join("");
+}
+
+function renderProjects() {
+  document.querySelector("#tblProjects tbody").innerHTML = DATA.projects.map(p => {
+    const tok = p.tokens_in+p.tokens_out+p.tokens_cache_w+p.tokens_cache_r;
+    return `<tr>
+      <td><span class="tag">${escapeHtml(p.name)}</span></td>
+      <td class="n">${p.sessions}</td>
+      <td class="n">${fmtInt(p.msgs_user+p.msgs_asst)}</td>
+      <td class="n">${fmtK(tok)}</td>
+      <td class="n">${fmtCost(p.cost)}</td>
+      <td class="mono">${relTime(p.last)}</td>
+    </tr>`;
+  }).join("");
+}
+
+function renderSessions() {
+  const sessions = DATA.sessions_recent;
+  const q = document.getElementById("sessSearch").value.toLowerCase();
+  const key = document.getElementById("sessSort").value;
+  const rows = sessions
+    .filter(s => !q || s.project.toLowerCase().includes(q) || s.id.includes(q))
+    .sort((a,b) => {
+      if (key==="last") return (b.last||"").localeCompare(a.last||"");
+      if (key==="cost") return b.cost - a.cost;
+      if (key==="tokens") return (b.in+b.out+b.cw+b.cr) - (a.in+a.out+a.cw+a.cr);
+      if (key==="user") return b.user - a.user;
+    })
+    .map(s => {
+      const tok = s.in+s.out+s.cw+s.cr;
+      return `<tr>
+        <td class="mono">${relTime(s.last)}</td>
+        <td><span class="tag">${escapeHtml(s.project)}</span></td>
+        <td class="mono" title="${escapeHtml(s.id)}">${s.id.slice(0,8)}</td>
+        <td class="n">${s.user}/${s.asst}</td>
+        <td class="n">${fmtK(tok)}</td>
+        <td class="n">${fmtCost(s.cost)}</td>
+      </tr>`;
+    }).join("");
+  document.querySelector("#tblSessions tbody").innerHTML = rows;
+}
+
+function renderPrompts() {
+  const q = document.getElementById("promptSearch").value.toLowerCase();
+  const html = DATA.recent_prompts
+    .filter(p => !q || p[1].toLowerCase().includes(q) || p[2].toLowerCase().includes(q))
+    .map(p => `<div class="prompt">
+      <div class="meta"><span class="mono">${relTime(p[0])}</span> · <span class="tag">${escapeHtml(p[1])}</span></div>
+      <div class="text">${escapeHtml(p[2])}</div>
+    </div>`).join("");
+  document.getElementById("promptList").innerHTML = html || '<div class="sub">no matches</div>';
+}
+
+function render() {
+  renderLive();
+  renderKPIs();
+  try{ renderCharts(); }catch(e){ console.warn("charts failed:", e); }   // a chart error must not abort the rest
+  renderProjects();
+  renderSessions();
+  renderPrompts();
+}
+
+["sessSearch","sessSort"].forEach(id => document.getElementById(id).addEventListener("input", renderSessions));
+document.getElementById("promptSearch").addEventListener("input", renderPrompts);
+
+load();
+setInterval(load, REFRESH_MS);
+setInterval(() => {
+  if (!DATA) return;
+  renderLive();
+  document.getElementById("gen").textContent = "updated " + relTime(DATA.generated);
+  const s = Math.max(0, Math.round((nextRefreshAt - Date.now())/1000));
+  document.getElementById("refreshCountdown").textContent = " · next fetch " + s + "s";
+}, TICK_MS);
+</script>
+</body>
+</html>
