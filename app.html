@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{OFFICE_TITLE}}</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2288%22>🏢</text></svg>">
+<style>
+  :root{
+    --bg:#0c0f14; --bg2:#0f141b; --panel:#151b24; --panel2:#1b2531; --line:#242f3d;
+    --ink:#e8eef6; --dim:#9fb0c3; --faint:#63748a;
+    --wait:#ff8a5b; --wait2:#3a1d10; --pend:#ecc94b; --pend2:#332a0e;
+    --rev:#57d9a3; --rev2:#0e2c21; --work:#63b3ff; --work2:#0d2439; --idle:#6b7a8d;
+    --accent:#8b7bff; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.28);
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#eef1f6; --bg2:#e7ecf3; --panel:#fff; --panel2:#f1f5fa; --line:#dde3ec;
+      --ink:#1a2230; --dim:#54627a; --faint:#8695ab;
+      --wait2:#ffede3; --pend2:#fff6d6; --rev2:#e2f6ee; --work2:#e6f0ff;
+      --wait:#d1600f; --pend:#a67c00; --rev:#0e8a5f; --work:#1f6fd6;
+      --shadow:0 1px 2px rgba(20,30,50,.06),0 6px 18px rgba(20,30,50,.08); }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+
+  header{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--bg) 88%,transparent);
+    backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  .hin{max-width:1180px;margin:0 auto;padding:.85rem 1.1rem .7rem}
+  .titlerow{display:flex;align-items:baseline;gap:.7rem;flex-wrap:wrap}
+  h1{margin:0;font-size:1.35rem;font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:.5rem}
+  h1 .logo{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:.9rem;
+    background:linear-gradient(135deg,var(--accent),var(--work));color:#fff;box-shadow:var(--shadow)}
+  .navlink{color:var(--work);text-decoration:none;font-size:.8rem;font-weight:600;
+    border:1px solid var(--line);border-radius:999px;padding:.2rem .6rem;white-space:nowrap}
+  .navlink:hover{border-color:var(--work);background:var(--work2)}
+  .sub{color:var(--faint);font-size:.8rem;margin-left:auto;display:inline-flex;align-items:center;gap:.4rem}
+  .bell{background:var(--panel);border:1px solid var(--line);border-radius:999px;font-size:.95rem;cursor:pointer;
+    padding:.18rem .5rem;line-height:1.2;opacity:.55;transition:opacity .15s,border-color .15s,background .15s}
+  .bell:hover{opacity:.85}
+  .bell.on{opacity:1;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,var(--panel))}
+  .sub .frozen-note{color:var(--pend);font-weight:600}
+  .live{width:7px;height:7px;border-radius:50%;background:var(--rev);flex:0 0 auto;
+    box-shadow:0 0 0 0 var(--rev);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--rev) 60%,transparent)}
+    70%{box-shadow:0 0 0 6px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+  .controls{display:flex;flex-direction:row;justify-content:space-between;align-items:flex-start;
+    gap:1rem;margin-top:.7rem;flex-wrap:wrap}
+  .filtercol{display:flex;flex-direction:column;gap:.4rem;min-width:0}
+  .actioncol{display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;flex:0 0 auto}
+  .chiprow{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
+  .frow-l{font-size:.66rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--faint);width:3.2rem;flex:0 0 3.2rem}
+  .chips{display:flex;gap:.35rem;flex-wrap:wrap}
+  .chip{border:1px solid var(--line);background:var(--panel);color:var(--dim);
+    border-radius:999px;padding:.28rem .7rem;font-size:.78rem;font-weight:600;cursor:pointer;
+    display:inline-flex;align-items:center;gap:.35rem;transition:all .12s;white-space:nowrap}
+  .chip:hover{border-color:var(--accent)}
+  .chip .c{font-size:.7rem;background:var(--panel2);border-radius:999px;padding:0 .4rem;color:var(--faint)}
+  .chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  .chip.on .c{background:color-mix(in srgb,var(--bg) 25%,transparent);color:var(--bg)}
+  .search{background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    border-radius:999px;padding:.3rem .8rem;font-size:.82rem;font-family:inherit;width:140px;max-width:36vw}
+  .search:focus{outline:none;border-color:var(--accent)}
+  .fsep{width:1px;align-self:stretch;background:var(--line);margin:.1rem .15rem}
+  .chip.cat.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .chip.cat.on .c{background:rgba(255,255,255,.25);color:#fff}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:.4rem 1.1rem 5rem}
+  .glabel{margin:1.4rem 0 .55rem;font-size:.72rem;font-weight:700;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:.5rem}
+  .glabel .n{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
+    padding:0 .5rem;font-size:.68rem;color:var(--faint)}
+  .grid{display:grid;gap:.65rem;grid-template-columns:1fr}
+  @media(min-width:600px){.grid{grid-template-columns:1fr 1fr}}
+  @media(min-width:960px){.grid{grid-template-columns:1fr 1fr 1fr}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:.75rem .85rem;display:flex;flex-direction:column;gap:.55rem;
+    box-shadow:var(--shadow);position:relative;overflow:hidden;transition:transform .12s,border-color .12s}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--idle)}
+  .card:hover{transform:translateY(-1px)}
+  .card.waiting::before{background:var(--wait)} .card.waiting{border-color:color-mix(in srgb,var(--wait) 40%,var(--line))}
+  .card.typed::before{background:var(--pend)}   .card.typed{border-color:color-mix(in srgb,var(--pend) 40%,var(--line))}
+  .card.review::before{background:var(--rev)}
+  .card.working::before{background:var(--work)}
+  .card.working{border-color:var(--work);animation:workframe 1.5s ease-in-out infinite}
+  @keyframes workframe{
+    0%,100%{box-shadow:var(--shadow),0 0 0 0 color-mix(in srgb,var(--work) 55%,transparent)}
+    50%{box-shadow:var(--shadow),0 0 0 4px color-mix(in srgb,var(--work) 30%,transparent)}}
+  .top{display:flex;align-items:center;gap:.55rem}
+  .av{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:1.15rem;
+    flex:0 0 38px;background:var(--panel2);box-shadow:inset 0 0 0 2px var(--ring,var(--line))}
+  .nm{flex:1;min-width:0}
+  .who{font-weight:700;font-size:.95rem;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .proj{color:var(--faint);font-size:.72rem;font-family:ui-monospace,SFMono-Regular,monospace;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .att{width:7px;height:7px;border-radius:50%;background:var(--rev);flex:0 0 7px;
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--rev) 25%,transparent)}
+  .ago{font-size:.74rem;font-weight:700;color:var(--faint);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .ago.fresh{color:var(--rev)}
+  .pill{margin-left:.45rem;font-size:.63rem;font-weight:700;letter-spacing:.02em;
+    padding:.16rem .5rem;border-radius:999px;white-space:nowrap;text-transform:uppercase}
+  .p-waiting{color:var(--wait);background:var(--wait2)} .p-typed{color:var(--pend);background:var(--pend2)}
+  .p-review{color:var(--rev);background:var(--rev2)} .p-working{color:var(--work);background:var(--work2)}
+  .p-idle,.p-busy{color:var(--idle);background:var(--panel2)}
+
+  .youline{font-size:.74rem;color:var(--faint);line-height:1.3;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .youline b{color:var(--dim);font-weight:600}
+  .ask{font-size:.85rem;color:var(--ink);line-height:1.4;font-weight:500}
+  .sent-note,.working-note{font-size:.82rem;color:var(--work);font-weight:600;display:flex;align-items:center;gap:.45rem}
+  .working-note{text-transform:lowercase}
+  .sent-note .dots,.working-note .dots{width:9px;height:9px;border-radius:50%;background:var(--work);flex:0 0 9px;
+    box-shadow:0 0 0 0 var(--work);animation:pulse 1.2s infinite}
+  .typedline{font-size:.82rem;color:var(--pend);font-family:ui-monospace,monospace;line-height:1.4;
+    background:var(--pend2);border:1px solid color-mix(in srgb,var(--pend) 45%,transparent);
+    border-radius:9px;padding:.4rem .55rem;word-break:break-word}
+  .youbox{background:color-mix(in srgb,var(--accent) 14%,var(--panel));border-left:3px solid var(--accent);
+    border-radius:8px;padding:.35rem .55rem;color:var(--ink);font-size:.79rem;line-height:1.42;
+    cursor:pointer;word-break:break-word}
+  .youbox b{color:var(--accent);font-weight:700;text-transform:uppercase;font-size:.66rem;letter-spacing:.05em;margin-right:.2rem}
+  .youbox .yt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .youbox.full .yt{-webkit-line-clamp:unset;overflow:visible}
+  /* focus note — the user's pinned reminder of a session's main task + sub-tasks */
+  .taskbox{background:color-mix(in srgb,var(--accent) 12%,var(--panel));border-left:3px solid var(--accent);
+    border-radius:8px;padding:.38rem .55rem;color:var(--ink);font-size:.78rem;line-height:1.38;word-break:break-word}
+  .taskbox .tmain{font-weight:700;display:flex;gap:.35rem;align-items:baseline}
+  .taskbox .tmain span{flex:1;min-width:0}
+  .taskbox .tsub{list-style:none;margin:.24rem 0 0;padding:0}
+  .taskbox .tsub li{color:var(--dim);font-size:.72rem;line-height:1.32;padding-left:.85rem;position:relative}
+  .taskbox .tsub li::before{content:"›";position:absolute;left:.15rem;color:var(--accent);font-weight:700}
+  .taskedit{display:flex;flex-direction:column;gap:.4rem}
+  .taskedit[hidden]{display:none}
+  .taskedit textarea{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:9px;
+    padding:.42rem .55rem;font-size:.8rem;font-family:inherit;line-height:1.4;resize:vertical;min-height:3.4rem;width:100%}
+  .taskedit textarea:focus{outline:none;border-color:var(--accent);
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .taskbtns{display:flex;gap:.35rem}
+  .taskbtns button{border:0;border-radius:9px;font-weight:700;font-size:.8rem;cursor:pointer;padding:.36rem .7rem}
+  .taskbtns .tsave{background:var(--accent);color:#fff}
+  .taskbtns .tsave:hover{filter:brightness(1.08)}
+  .taskbtns .tcancel{background:var(--panel2);border:1px solid var(--line);color:var(--ink)}
+  .taskbtns .tcancel:hover{border-color:var(--accent)}
+  .iconbtn.task:hover{border-color:var(--accent);color:var(--accent)}
+  .card.editing .iconbtn.task{background:color-mix(in srgb,var(--accent) 25%,var(--panel2));
+    border-color:var(--accent);color:var(--ink)}
+  .card.editing .taskbox{display:none}
+  .ctx{font-size:.79rem;line-height:1.5;color:var(--dim);word-break:break-word;
+    max-height:170px;overflow-y:auto;background:var(--bg2);border:1px solid var(--line);
+    border-radius:10px;padding:.55rem .65rem}
+  .ctx.empty{color:var(--faint);font-style:italic}
+  .ctx::-webkit-scrollbar{width:7px} .ctx::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+  .ctx .you-q{background:color-mix(in srgb,var(--accent) 16%,var(--bg2));
+    border-left:3px solid var(--accent);border-radius:7px;padding:.35rem .55rem;
+    margin-bottom:.55rem;color:var(--ink);line-height:1.4}
+  .ctx .you-q b{color:var(--accent);font-weight:700;margin-right:.3rem;
+    text-transform:uppercase;font-size:.68rem;letter-spacing:.05em}
+  .ctx .mdrow{margin:.12rem 0}
+  .ctx .mdh{font-weight:700;color:var(--ink);margin:.35rem 0 .1rem}
+  .ctx code{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:.03em .3em;font-size:.92em}
+  .ctx pre{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:.4rem .55rem;
+    overflow-x:auto;margin:.3rem 0}
+  .ctx pre code{background:none;border:0;padding:0}
+  .ctx ul,.ctx ol{margin:.2rem 0;padding-left:1.15rem}
+  .ctx li{margin:.08rem 0}
+  .ctx a{color:var(--work)}
+  .ctx strong{color:var(--ink)}
+  .ask code{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:.03em .28em;font-size:.92em}
+  .reply{display:flex;gap:.35rem;flex-wrap:wrap}
+  .reply input{flex:1;min-width:90px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    border-radius:9px;padding:.42rem .6rem;font-size:.83rem;font-family:inherit}
+  .reply input:focus{outline:none;border-color:var(--wait);box-shadow:0 0 0 3px var(--wait2)}
+  .reply button{border:0;border-radius:9px;font-weight:700;font-size:.82rem;cursor:pointer;padding:.42rem .75rem}
+  .reply .alt{background:var(--panel2);border:1px solid var(--line);color:var(--ink)}
+  .reply .alt:hover{border-color:var(--wait)}
+  .reply .draft{background:var(--pend);color:#1a1400}
+  .quick{display:flex;gap:.32rem;flex-wrap:wrap}
+  .quick button{background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:.26rem .6rem;font-size:.76rem;font-weight:600;cursor:pointer}
+  .quick button:hover{border-color:var(--wait);color:var(--wait)}
+  .termbtn{margin-left:.3rem;background:var(--panel2);border:1px solid var(--line);color:var(--dim);
+    border-radius:8px;width:26px;height:26px;font-size:.85rem;cursor:pointer;flex:0 0 26px;
+    display:grid;place-items:center;padding:0}
+  .termbtn:hover{border-color:var(--accent);color:var(--ink)}
+  .modal{position:fixed;inset:0;background:rgba(4,7,12,.72);backdrop-filter:blur(4px);
+    z-index:100;display:none;align-items:center;justify-content:center;padding:2.5vh 2vw}
+  .modal.open{display:flex}
+  .mbox{width:96vw;max-width:1300px;height:95vh;background:#0c0f14;border:1px solid var(--line);
+    border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .mbar{display:flex;align-items:center;gap:.6rem;padding:.5rem .8rem;background:var(--panel);
+    border-bottom:1px solid var(--line);flex:0 0 auto}
+  .mbar .mtitle{font-weight:700;font-size:.9rem}
+  .mbar .mhint{color:var(--faint);font-size:.74rem;margin-left:auto}
+  .mbar .mx{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;
+    width:30px;height:30px;font-size:1rem;cursor:pointer}
+  .mbar .mx:hover{border-color:var(--wait);color:var(--wait)}
+  .modal iframe{flex:1;width:100%;border:0;background:#0c0f14}
+  /* touch key-bar for the phone terminal — mobile only, laptop unchanged */
+  .keybar{display:none;gap:.3rem;padding:.4rem .5rem;background:var(--panel);border-top:1px solid var(--line);
+    overflow-x:auto;flex:0 0 auto;-webkit-overflow-scrolling:touch;align-items:center}
+  .keybar button{flex:0 0 auto;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:.55rem .7rem;font-size:.95rem;font-family:inherit;cursor:pointer;white-space:nowrap;line-height:1}
+  .keybar button:active{background:var(--accent);color:#fff}
+  .keybar .ksep{flex:0 0 auto;width:1px;align-self:stretch;background:var(--line);margin:.15rem .2rem}
+  /* on phones: pin the bar to the viewport bottom; JS lifts it above the keyboard */
+  @media(max-width:760px){body.termkeys .keybar{display:flex;position:fixed;left:0;right:0;bottom:0;
+    z-index:200;box-shadow:0 -6px 18px rgba(0,0,0,.5)}}
+  .cathead{margin:1.8rem 0 .3rem;display:flex;align-items:center;gap:.55rem;
+    font-size:.95rem;font-weight:800;letter-spacing:-.01em;padding-bottom:.4rem;border-bottom:2px solid var(--line)}
+  .cathead .n{font-size:.7rem;font-weight:700;background:var(--panel2);border:1px solid var(--line);
+    border-radius:999px;padding:.05rem .5rem;color:var(--faint)}
+  .cathead:first-child{margin-top:.4rem}
+  .cfoot{display:flex;align-items:center;gap:.4rem;margin-top:.1rem;padding-top:.5rem;border-top:1px solid var(--line)}
+  .grpsel{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:7px;
+    font-size:.72rem;padding:.16rem .3rem;font-family:inherit;cursor:pointer;max-width:120px}
+  .grpsel:focus{outline:none;border-color:var(--accent)}
+  .iconbtn{background:var(--panel2);border:1px solid var(--line);color:var(--faint);border-radius:7px;
+    width:28px;height:26px;cursor:pointer;font-size:.82rem;display:grid;place-items:center;padding:0}
+  .iconbtn:hover{border-color:var(--accent);color:var(--ink)}
+  .iconbtn.kill:hover{border-color:#e5484d;color:#e5484d}
+  .iconbtn.pin.on{background:color-mix(in srgb,var(--accent) 25%,var(--panel2));border-color:var(--accent)}
+  .card.pinned{outline:1.5px solid color-mix(in srgb,var(--accent) 70%,transparent);outline-offset:-1px}
+  .newbtn{background:var(--accent);color:#fff;border:0;border-radius:999px;font-weight:700;
+    font-size:.8rem;padding:.3rem .8rem;cursor:pointer;white-space:nowrap}
+  .newbtn:hover{filter:brightness(1.08)}
+  .empty{color:var(--faint);text-align:center;padding:3rem 1rem;font-size:.9rem}
+  .toast{position:fixed;left:50%;bottom:1.3rem;transform:translateX(-50%) translateY(10px);
+    background:var(--rev);color:#04160e;font-weight:700;font-size:.84rem;padding:.55rem 1rem;
+    border-radius:11px;opacity:0;transition:all .22s;pointer-events:none;box-shadow:var(--shadow)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.err{background:var(--wait);color:#160800}
+
+  /* --- phone: keep the sticky header slim so it doesn't eat the screen --- */
+  @media (max-width:600px){
+    .hin{padding:.5rem .7rem .5rem}
+    .titlerow{gap:.3rem .5rem;align-items:center}
+    h1{font-size:1.05rem;letter-spacing:-.01em}
+    h1 .logo{width:20px;height:20px;font-size:.7rem;border-radius:6px}
+    .navlink{font-size:.68rem;padding:.14rem .45rem}
+    .sub{font-size:.66rem}
+    .controls{flex-direction:column;gap:.45rem;margin-top:.5rem}
+    .filtercol{gap:.35rem;width:100%}
+    /* each filter row stays on ONE line and scrolls sideways instead of stacking tall */
+    .chiprow{flex-wrap:nowrap}
+    .chips{flex:1;min-width:0;flex-wrap:nowrap;overflow-x:auto;
+      scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    .chips::-webkit-scrollbar{display:none}
+    .chip{padding:.22rem .55rem;font-size:.72rem}
+    .frow-l{width:2.7rem;flex:0 0 2.7rem;font-size:.6rem}
+    /* New + search share one compact full-width row */
+    .actioncol{flex-direction:row;align-items:center;align-self:stretch;
+      justify-content:flex-start;gap:.5rem}
+    .newbtn{flex:0 0 auto}
+    .search{flex:1;width:auto;max-width:none}
+  }
+  /* --- Secretary: the chief-of-staff dispatcher (prominent, above the floor) --- */
+  .secretary{display:flex;gap:.9rem;align-items:flex-start;margin:.1rem 0 1.1rem;position:relative;overflow:hidden;
+    background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 13%,var(--panel)),var(--panel));
+    border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));border-radius:16px;padding:.95rem 1.1rem;box-shadow:var(--shadow)}
+  .secretary::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(var(--accent),var(--work))}
+  .sec-ava{width:46px;height:46px;flex:0 0 46px;border-radius:13px;display:grid;place-items:center;font-size:1.55rem;
+    background:linear-gradient(135deg,var(--accent),var(--work));box-shadow:var(--shadow)}
+  .sec-main{flex:1;min-width:0}
+  .sec-head{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;margin-bottom:.55rem}
+  .kbd{margin-left:auto;align-self:center;font:600 .64rem ui-monospace,SFMono-Regular,monospace;
+    color:var(--faint);background:var(--panel);border:1px solid var(--line);border-bottom-width:2px;
+    border-radius:6px;padding:2px 6px;white-space:nowrap}
+  .sec-head b{font-size:1.06rem;letter-spacing:-.01em}
+  .sec-sub{color:var(--faint);font-size:.82rem}
+  .foot{margin:28px 6px 16px;padding-top:14px;border-top:1px solid var(--line);
+    display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:.5rem;
+    color:var(--faint);font-size:.72rem;letter-spacing:.02em}
+  .foot a{color:var(--faint);text-decoration:none;border-bottom:1px solid transparent;transition:color .15s}
+  .foot a:hover{color:var(--dim);border-bottom-color:var(--line)}
+  .foot .dot{opacity:.45}
+  .sec-form{display:flex;gap:.5rem}
+  .sec-in{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:10px;
+    padding:.62rem .8rem;font-size:.93rem;font-family:inherit;height:2.65rem}
+  .sec-in:focus{outline:none;border-color:var(--accent)}
+  .sec-btn{border:1px solid transparent;border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer;padding:.62rem 1.05rem;
+    background:var(--accent);color:#fff;white-space:nowrap;height:2.65rem}
+  .sec-btn:hover{filter:brightness(1.08)}
+  .sec-reply{margin-top:.55rem;font-size:.9rem;min-height:1.1em}
+  .sec-reply.ok{color:var(--rev)} .sec-reply.err{color:var(--wait)} .sec-reply.think{color:var(--faint)}
+  .card.dispatched{animation:dispatch 2.4s ease-out}
+  @keyframes dispatch{0%{box-shadow:0 0 0 3px var(--accent),0 0 22px 4px color-mix(in srgb,var(--accent) 55%,transparent)}
+    100%{box-shadow:0 0 0 0 transparent}}
+  @media(max-width:600px){.secretary{display:block;padding:.8rem .95rem .85rem 1rem}
+    .sec-ava{position:absolute;top:.8rem;left:1rem;width:32px;height:32px;flex:0 0 32px;font-size:1.05rem;border-radius:9px}
+    .sec-head{padding-left:42px;min-height:32px;gap:.2rem .5rem;margin-bottom:.5rem}
+    .sec-sub{font-size:.74rem}.kbd{display:none}
+    .sec-form{flex-direction:column;gap:.45rem}}
+</style>
+</head>
+<body>
+<header><div class="hin">
+  <div class="titlerow">
+    <h1><span class="logo">🏢</span> {{OFFICE_TITLE}}</h1>
+    <a class="navlink" href="{{OFFICE_STATUS_URL}}">📊 Usage &amp; limits →</a>
+    <a class="navlink" href="{{OFFICE_FILES_URL}}">📁 Files →</a>
+    <div class="sub" id="sub">loading…</div>
+    <button class="bell" id="bell" title="notify me when a session needs me">🔔</button>
+  </div>
+  <div class="controls">
+    <div class="filtercol">
+      <div class="chiprow"><span class="frow-l">Team</span><div class="chips" id="catchips"></div></div>
+      <div class="chiprow"><span class="frow-l">Status</span><div class="chips" id="chips"></div></div>
+    </div>
+    <div class="actioncol">
+      <button class="newbtn" id="newbtn">+ New</button>
+      <input class="search" id="search" placeholder="search…" autocomplete="off">
+    </div>
+  </div>
+</div></header>
+<div class="wrap">
+  <div class="secretary" id="sec">
+    <div class="sec-ava">🗂️</div>
+    <div class="sec-main">
+      <div class="sec-head"><b>{{OFFICE_SECRETARY_NAME}}</b><span class="sec-sub">chief of staff — ask anything about the floor, or hand off a task</span><kbd class="kbd" title="focus the secretary (⌘K / Ctrl-K)">⌘K</kbd></div>
+      <form class="sec-form" id="sec-form" autocomplete="off">
+        <input class="sec-in" id="sec-in" placeholder="ask anything  ·  why is Lena stuck?  ·  who needs me most?  ·  ask Mara to draft the release notes">
+        <button class="sec-btn" type="submit">Ask ▶</button>
+      </form>
+      <div class="sec-reply" id="sec-reply"></div>
+    </div>
+  </div>
+  <div id="floor"></div>
+  <footer class="foot">
+    <span><a href="https://github.com/Pyinv/office" target="_blank" rel="noopener">Office</a> v<span id="ver">—</span></span>
+    <span class="dot">·</span>
+    <span>© 2026 <a href="https://pyinv.com/?utm_source=office&utm_medium=footer" target="_blank" rel="noopener">Pyinv GmbH</a></span>
+    <span class="dot">·</span>
+    <a href="https://github.com/Pyinv/office/blob/master/LICENSE" target="_blank" rel="noopener">MIT</a>
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+<div class="modal" id="modal">
+  <div class="mbox">
+    <div class="mbar">
+      <span class="mtitle" id="mtitle"></span>
+      <span class="mhint">Esc or click outside to close · full interactive terminal</span>
+      <button class="mx" id="mpop" title="open in a new tab (run two side by side)">↗</button>
+      <button class="mx" id="mx" title="close">✕</button>
+    </div>
+    <iframe id="termframe" src="about:blank" allow="clipboard-read; clipboard-write"></iframe>
+  </div>
+</div>
+<div class="keybar" id="keybar">
+  <button data-key="esc">esc</button>
+  <button data-key="tab">tab</button>
+  <button data-key="ctrlc">^C</button>
+  <button data-key="up">↑</button><button data-key="down">↓</button>
+  <button data-key="left">←</button><button data-key="right">→</button>
+  <span class="ksep"></span>
+  <button data-key="scroll-up">scroll ↑</button><button data-key="scroll-down">↓</button>
+  <button data-key="scroll-exit">live</button>
+  <button data-key="enter">⏎</button>
+</div>
+
+<script>
+const LABEL = {
+  waiting: {t:"🖐 Your turn — answer a question or send a draft", cls:"waiting"},
+  working: {t:"🔵 Working now", cls:"working"},
+  review:  {t:"🟢 Finished — your move", cls:"review"},
+};
+const GROUPS = ["waiting","working","review"];
+const CATS = [
+  {id:"clients",  short:"💼 Clients",  label:"💼 Clients"},
+  {id:"ventures", short:"🚀 Ventures", label:"🚀 Ventures"},
+  {id:"personal", short:"🏠 Personal", label:"🏠 Personal"},
+];
+const PILL = {working:"working", review:"your move"};
+const pillOf = m => m._sent ? "replying…" : m.typed ? "suggestion" : (m.state==="waiting" ? "question" : (PILL[m.state]||m.state));
+// Generic defaults; your instance's project→emoji map is injected from the
+// gitignored emoji.local.json by the server (falls back to {} if absent).
+const EMOJI = Object.assign(
+  { web:"🌐", app:"📱", api:"🔌", bot:"🤖", site:"🌐", docs:"📄", data:"📊", db:"🗄️" },
+  {{OFFICE_EMOJI_JSON}}
+);
+function emojiFor(p){ p=(p||"").toLowerCase(); for(const k in EMOJI) if(p.includes(k)) return EMOJI[k]; return "👤"; }
+// drop header links whose URL isn't configured (OFFICE_STATUS_URL / OFFICE_FILES_URL empty)
+document.querySelectorAll(".navlink").forEach(a=>{const h=a.getAttribute("href"); if(!h||h.startsWith("{{")) a.remove();});
+// --- Secretary: dispatch plain-language instructions to the team ---
+(function(){
+  const f=document.getElementById("sec-form"), inp=document.getElementById("sec-in"), out=document.getElementById("sec-reply");
+  if(!f) return;
+  window.flashCard=function(session){
+    const sel='[data-session="'+((window.CSS&&CSS.escape)?CSS.escape(session):session)+'"]';
+    const el=document.querySelector(sel);
+    if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.remove("dispatched"); void el.offsetWidth; el.classList.add("dispatched"); }
+  };
+  f.addEventListener("submit", async e=>{
+    e.preventDefault();
+    const text=inp.value.trim(); if(!text) return;
+    out.className="sec-reply think"; out.textContent="…on it";
+    try{
+      const r=await fetch("/api/secretary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
+      const j=await r.json();
+      if(j.ok){
+        out.className="sec-reply ok"; inp.value="";
+        if(j.kind==="answer"){ out.innerHTML=mdHtml(j.reply); }   // the answer is markdown (mdHtml escapes first)
+        else { out.textContent="✓ "+j.reply; }
+        if(typeof load==="function"){ try{ await load(); }catch(_){} }
+        const fl=(j.kind==="answer")?((j.sessions&&j.sessions.length===1)?j.sessions[0]:null):j.session;
+        if(fl) flashCard(fl);
+      } else { out.className="sec-reply err"; out.textContent="⚠ "+(j.error||"couldn't"); }
+    }catch(err){ out.className="sec-reply err"; out.textContent="⚠ "+err.message; }
+  });
+})();
+// --- Notifications: ping me (chime + browser notification) when a session needs me ---
+let NOTIFY = localStorage.getItem("office-notify")!=="0";   // default ON; mute persists as "0"
+let _AC=null;
+function playChime(){
+  try{
+    _AC=_AC||new (window.AudioContext||window.webkitAudioContext)();
+    if(_AC.state==="suspended") _AC.resume();
+    const t=_AC.currentTime;
+    [880,1320].forEach((f,i)=>{
+      const o=_AC.createOscillator(), g=_AC.createGain(); o.type="sine"; o.frequency.value=f;
+      const s=t+i*0.11;
+      g.gain.setValueAtTime(0,s); g.gain.linearRampToValueAtTime(0.16,s+0.02); g.gain.exponentialRampToValueAtTime(0.001,s+0.34);
+      o.connect(g); g.connect(_AC.destination); o.start(s); o.stop(s+0.4);
+    });
+  }catch(e){}
+}
+function notifyUser(title, body, session){
+  if(!NOTIFY) return;
+  playChime();
+  try{ if("Notification" in window && Notification.permission==="granted") new Notification(title,{body:body||"",tag:session||title}); }catch(e){}
+  if(session && typeof flashCard==="function") flashCard(session);
+}
+(function(){
+  const b=document.getElementById("bell"); if(!b) return;
+  const paint=()=>{ b.classList.toggle("on",NOTIFY); b.title=NOTIFY?"notifications on, click to mute":"notify me when a session needs me"; };
+  paint();
+  // default is ON (opt-out). Browsers need a user gesture to unlock audio and to ask for
+  // notification permission, so arm both on the first interaction anywhere on the page.
+  if(NOTIFY){
+    const arm=()=>{
+      try{ if("Notification" in window && Notification.permission==="default") Notification.requestPermission(); }catch(e){}
+      try{ _AC=_AC||new (window.AudioContext||window.webkitAudioContext)(); if(_AC.state==="suspended") _AC.resume(); }catch(e){}
+    };
+    window.addEventListener("pointerdown", arm, {once:true});
+    window.addEventListener("keydown", arm, {once:true});
+  }
+  b.onclick=async()=>{
+    NOTIFY=!NOTIFY; localStorage.setItem("office-notify",NOTIFY?"1":"0");
+    if(NOTIFY){
+      try{ if("Notification" in window && Notification.permission==="default") await Notification.requestPermission(); }catch(e){}
+      playChime();   // the click gesture also unlocks audio on iOS/Safari
+    }
+    paint();
+  };
+})();
+function hueFor(s){ let h=0; for(const c of (s||"")) h=(h*31+c.charCodeAt(0))%360; return h; }
+function esc(s){ return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+// Safe markdown: HTML is escaped FIRST, so the transforms below only ADD known tags —
+// no way for message content to inject markup. Handles what Claude actually emits.
+function mdInline(s){   // s must already be esc()'d
+  return s
+    .replace(/`([^`]+)`/g,(m,c)=>"<code>"+c+"</code>")
+    .replace(/\*\*([^*]+?)\*\*/g,"<strong>$1</strong>")
+    .replace(/\*([^*\n]+?)\*/g,"<em>$1</em>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>')
+    // bare URLs -> clickable. Input is already esc()'d and we pin to https?:// (no javascript:),
+    // so this only adds anchors. (^|\s) so we never re-wrap a URL already inside href="…" or >…<.
+    .replace(/(^|\s)(https?:\/\/[^\s<]*[^\s<.,!?)\]}])/g,'$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+}
+function mdHtml(raw){
+  const lines=esc(raw||"").split("\n");
+  let out="", list=null, i=0;
+  const closeList=()=>{ if(list){ out+="</"+list+">"; list=null; } };
+  while(i<lines.length){
+    const line=lines[i];
+    if(/^\s*```/.test(line)){                       // fenced code block
+      closeList(); const code=[]; i++;
+      while(i<lines.length && !/^\s*```/.test(lines[i])){ code.push(lines[i]); i++; }
+      i++; out+="<pre><code>"+code.join("\n")+"</code></pre>"; continue;
+    }
+    const h=line.match(/^(#{1,6})\s+(.*)$/);
+    if(h){ closeList(); out+='<div class="mdh">'+mdInline(h[2])+"</div>"; i++; continue; }
+    const b=line.match(/^\s*[-*]\s+(.*)$/);
+    if(b){ if(list!=="ul"){ closeList(); out+="<ul>"; list="ul"; } out+="<li>"+mdInline(b[1])+"</li>"; i++; continue; }
+    const n=line.match(/^\s*\d+\.\s+(.*)$/);
+    if(n){ if(list!=="ol"){ closeList(); out+="<ol>"; list="ol"; } out+="<li>"+mdInline(n[1])+"</li>"; i++; continue; }
+    if(line.trim()===""){ closeList(); i++; continue; }
+    closeList(); out+='<div class="mdrow">'+mdInline(line)+"</div>"; i++;
+  }
+  closeList(); return out;
+}
+function agoText(ts){
+  if(!ts) return "—";
+  const s=Math.max(0,Math.floor(Date.now()/1000)-ts);
+  if(s<45) return "now";
+  if(s<3600) return Math.floor(s/60)+"m";
+  if(s<86400) return Math.floor(s/3600)+"h";
+  return Math.floor(s/86400)+"d";
+}
+function refreshAgo(){
+  document.querySelectorAll("#floor .card").forEach(el=>{
+    const a=el.querySelector(".ago"); if(!a) return;
+    const ts=el._ts||0;
+    a.textContent=agoText(ts);
+    a.classList.toggle("fresh", ts>0 && (Date.now()/1000-ts)<3600);  // < 1h = highlighted
+  });
+}
+setInterval(refreshAgo, 15000);   // keep the "time ago" fresh even without a data refresh
+
+// FILTERS: predicate over a member
+const FILTERS = [           // status axis
+  {id:"all",    label:"All",         test:()=>true},
+  {id:"needs",  label:"🖐 Your turn", test:m=>m.state==="waiting"},
+  {id:"working",label:"🔵 Working",   test:m=>m.state==="working"},
+  {id:"review", label:"🟢 Finished",  test:m=>m.state==="review"},
+];
+const CATFILTERS = [        // category axis
+  {id:"all",      label:"Everyone"},
+  {id:"clients",  label:"💼 Clients"},
+  {id:"ventures", label:"🚀 Ventures"},
+  {id:"personal", label:"🏠 Personal"},
+];
+let FILTER="all", CATFILTER="all", SEARCH="", LAST=[], FROZEN=false, CARDS={}, LAYOUT="", SENT={};
+const stateTest=()=>(FILTERS.find(x=>x.id===FILTER)||FILTERS[0]).test;
+const catTest=m=>CATFILTER==="all"||m.group===CATFILTER;
+// focus note: first non-blank line = main task, following lines = sub-tasks
+function taskLines(t){ return (t||"").split("\n").map(x=>x.trim()).filter(x=>x); }
+function taskInner(m){
+  const ls=taskLines(m.task); if(!ls.length) return "";
+  const subs=ls.slice(1);
+  return `<div class="tmain">🎯 <span>${esc(ls[0])}</span></div>`+
+    (subs.length?`<ul class="tsub">${subs.map(s=>`<li>${esc(s)}</li>`).join("")}</ul>`:"");
+}
+function taskBlock(m){ return taskLines(m.task).length?`<div class="taskbox">${taskInner(m)}</div>`:""; }
+// has-task ("T") is part of catOf so GAINING/LOSING the note is a structural rebuild.
+const catOf=m=>(m.pinned?"P":"")+(taskLines(m.task).length?"T":"")+(m._sent?"sent":m.typed?"typed":m.state==="waiting"?("waiting"+((m.options&&m.options.length)?"q":"")):"plain");
+// m.task in the content signature so editing the note refreshes via updateCard.
+const sigOf=m=>[m.state,m.attached,m.ask,m.typed,m.full,m.you,m.ts,m._sent?1:0,m.pinned?1:0,m.task||""].join("");
+// apply optimistic "just sent" overrides + expire them once Claude actually replies
+function applySent(team){
+  const nowMs=Date.now();
+  for(const m of team){
+    const s=SENT[m.session]; if(!s) continue;
+    if(m.ts>Math.floor(s.at/1000) || nowMs-s.at>25000){ delete SENT[m.session]; continue; }  // replied or timed out
+    m.state="working"; m._sent=true; m.ts=Math.floor(s.at/1000);
+    if(s.text) m.you=s.text;
+  }
+}
+const ctxText=m=>(m.you?("You: "+m.you+"\n\n"):"")+(m.full||"");
+// full-message HTML: your prompt as a distinct labeled block, then Claude's reply (markdown)
+const ctxHtml=m=>(m.you?`<div class="you-q"><b>You</b> ${mdInline(esc(m.you))}</div>`:"")+mdHtml(m.full||"");
+
+function composing(){
+  // Only pause while a reply box is actually FOCUSED. Do NOT freeze on stray text
+  // in an unfocused box — that used to freeze the whole board forever if you typed
+  // something and clicked away. Node reuse already preserves the focused input.
+  const a=document.activeElement;
+  return !!(a && (a.tagName==="INPUT"||a.tagName==="TEXTAREA") && a.closest("#floor"));
+}
+function toast(msg,err){ const t=document.getElementById("toast"); t.textContent=msg;
+  t.className="toast show"+(err?" err":""); clearTimeout(t._h); t._h=setTimeout(()=>t.className="toast",1900); }
+
+async function post(body, okmsg, inputEl){
+  try{
+    const r=await fetch("/api/say",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const j=await r.json();
+    if(j.ok){
+      toast(okmsg); if(inputEl) inputEl.value=""; FROZEN=false;
+      if(body.session){                              // instant feedback: flip the card to "sent, replying…"
+        SENT[body.session]={at:Date.now(), text:body.text||""};
+        applySent(LAST); LAYOUT=""; render();
+      }
+      setTimeout(load,700);
+    }
+    else toast("⚠ "+(j.error||"failed"),true);
+  }catch(e){ toast("⚠ "+e.message,true); }
+}
+function say(session,text,inputEl){ if(text.trim()) post({session,text}, "Sent → "+session.split("-")[0], inputEl); }
+function submitDraft(session){ post({session,submit:true}, "Sent draft → "+session.split("-")[0]); }
+
+// your prompt, ABOVE the box. Clamped to 3 lines (some prompts are huge); click to expand.
+function youBlock(m){ return m.you?`<div class="youbox" title="click to expand"><span class="yt"><b>YOU</b> ${mdInline(esc(m.you))}</span></div>`:""; }
+// the box = just Claude's reply (markdown), or a muted placeholder when there's nothing yet.
+function convoBox(m){
+  const inner=mdHtml(m.full||"");
+  if(inner.trim()) return `<div class="ctx">${inner}</div>`;
+  return `<div class="ctx empty">${esc(m.attached?"you're in here now":"· "+pillOf(m))}</div>`;
+}
+
+function card(m){
+  const L=LABEL[m.state]||LABEL.idle, who=m.person||m.project, hue=hueFor(who);
+  const el=document.createElement("div"); el.className="card "+L.cls+(m.pinned?" pinned":""); el._sess=m.session; el.dataset.session=m.session;
+  el.style.setProperty("--ring",`hsl(${hue} 55% 55% / .8)`);
+  let h=`<div class="top">
+      <div class="av" style="background:hsl(${hue} 45% 22% / .5)">${esc(m.emoji||emojiFor(m.project))}</div>
+      <div class="nm"><div class="who">${esc(who)}</div><div class="proj">${esc(m.project)}${m.ghost?" · 👻":""}</div></div>
+      ${m.attached?'<span class="att" title="you are attached"></span>':""}
+      <span class="ago" title="last activity in this session"></span>
+      <span class="pill p-${m.typed?'typed':m.state}">${esc(pillOf(m))}</span>
+    </div>`;
+  // focus note pinned at the very top, then the inline editor (hidden until 🎯),
+  // then your prompt; then the reply box (dropped while a send is in flight — the old
+  // reply is stale until Claude answers again).
+  h+=taskBlock(m);
+  h+=`<div class="taskedit" hidden>
+      <textarea rows="3" placeholder="Main task&#10;sub-task&#10;sub-task">${esc(m.task||"")}</textarea>
+      <div class="taskbtns"><button class="tsave">Save</button><button class="tcancel">Cancel</button></div>
+    </div>`;
+  h+=youBlock(m);
+  if(m._sent){
+    h+=`<div class="sent-note"><span class="dots"></span> Sent — Claude is replying…</div>`;
+  } else if(m.typed){
+    h+=convoBox(m);
+    h+=`<div class="typedline">❯ ${esc(m.typed)}</div>`;
+    h+=`<div class="reply"><button class="draft" title="accept Claude's suggestion and send it">Send this ▶</button>
+        <input placeholder="or type your own…"><button class="alt">Send</button></div>`;
+  } else if(m.state==="waiting"){
+    h+=convoBox(m);
+    if(m.options && m.options.length)
+      h+=`<div class="quick">`+m.options.map(o=>`<button data-say="${esc(o)}">${esc(o)}</button>`).join("")+`</div>`;
+    h+=`<div class="reply"><input placeholder="reply to ${esc(who)}…"><button class="alt">Send</button></div>`;
+  } else {
+    h+=convoBox(m);   // review / working — working shows via the pulsing card frame (CSS)
+  }
+  // footer: category select · terminal · kill
+  h+=`<div class="cfoot">
+      <select class="grpsel" title="category">
+        ${CATS.map(c=>`<option value="${c.id}"${m.group===c.id?" selected":""}>${c.short}</option>`).join("")}
+      </select>
+      <span style="margin-left:auto"></span>
+      <button class="iconbtn task" title="focus note — the session's main task">🎯</button>
+      <button class="iconbtn pin${m.pinned?' on':''}" title="${m.pinned?'unpin':'pin to top'}">📌</button>
+      <button class="iconbtn termbtn" title="open terminal">⛶</button>
+      <button class="iconbtn kill" title="kill this session">🗑</button>
+    </div>`;
+  el.innerHTML=h; el._sig=sigOf(m); el._cat=catOf(m); el._grp=m.group; el._ts=m.ts||0;
+  wireCard(el,m);
+  return el;
+}
+
+function wireCard(el,m){
+  const ctx=el.querySelector(".ctx");
+  // start the box scrolled to the bottom so the latest / the question shows first
+  if(ctx) requestAnimationFrame(()=>{ ctx.scrollTop=ctx.scrollHeight; });
+  const input=el.querySelector(".reply input");
+  if(input){
+    input.addEventListener("focus",()=>{ FROZEN=true; });
+    input.addEventListener("blur",()=>{ FROZEN=false; });   // always unfreeze on blur — no stuck freeze
+    input.addEventListener("keydown",e=>{ if(e.key==="Enter") say(m.session,input.value,input); });
+  }
+  const alt=el.querySelector(".reply .alt"); if(alt) alt.onclick=()=>say(m.session,input.value,input);
+  const draft=el.querySelector(".reply .draft"); if(draft) draft.onclick=()=>submitDraft(m.session);
+  el.querySelectorAll(".quick button").forEach(b=>b.onclick=()=>say(m.session,b.dataset.say,null));
+  const tb=el.querySelector(".termbtn"); if(tb) tb.onclick=()=>openTerm(m.session,(m.person||m.project));
+  const gs=el.querySelector(".grpsel"); if(gs) gs.onchange=()=>setGroup(m.session,gs.value);
+  const kb=el.querySelector(".kill"); if(kb) kb.onclick=()=>killCard(m.session,(m.person||m.project));
+  const pn=el.querySelector(".pin"); if(pn) pn.onclick=()=>pinCard(m.session,!m.pinned);
+  // focus-note editor: 🎯 toggles, textarea pauses polling while focused (same as reply)
+  const taskbtn=el.querySelector(".iconbtn.task");
+  if(taskbtn) taskbtn.onclick=()=>{ const ed=el.querySelector(".taskedit"); ed.hidden ? openTaskEditor(el,m.session) : closeTaskEditor(el); };
+  const tta=el.querySelector(".taskedit textarea");
+  if(tta){
+    tta.addEventListener("focus",()=>{ FROZEN=true; });
+    tta.addEventListener("blur",()=>{ FROZEN=false; });   // always unfreeze on blur
+    tta.addEventListener("keydown",e=>{
+      if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){ e.preventDefault(); saveTask(m.session,tta.value,el); }
+      else if(e.key==="Escape"){ e.preventDefault(); closeTaskEditor(el); }
+    });
+  }
+  const ts=el.querySelector(".tsave"); if(ts) ts.onclick=()=>saveTask(m.session,el.querySelector(".taskedit textarea").value,el);
+  const tc=el.querySelector(".tcancel"); if(tc) tc.onclick=()=>closeTaskEditor(el);
+}
+
+function openTaskEditor(el, session){
+  const cur=(LAST.find(x=>x.session===session)||{}).task||"";   // freshest text, not stale closure
+  const ed=el.querySelector(".taskedit"), ta=ed.querySelector("textarea");
+  ta.value=cur; ed.hidden=false; el.classList.add("editing");
+  ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+function closeTaskEditor(el){
+  const ed=el.querySelector(".taskedit"); if(ed) ed.hidden=true;
+  el.classList.remove("editing"); FROZEN=false;
+}
+async function saveTask(session, text, el){
+  const t=(text||"").trim();
+  if(el) closeTaskEditor(el);                       // close first so a reuse (updateCard) doesn't leave it open
+  const m=LAST.find(x=>x.session===session); if(m) m.task=t;   // optimistic
+  LAYOUT=""; render();
+  try{
+    const r=await fetch("/api/task",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({session,text:t})});
+    const j=await r.json();
+    if(j.ok) toast(t?"🎯 Note saved · "+session.split("-")[0]:"Note cleared · "+session.split("-")[0]);
+    else toast("⚠ "+(j.error||"failed"),true);
+  }catch(e){ toast("⚠ "+e.message,true); }
+}
+
+async function setGroup(session, group){
+  const m=LAST.find(x=>x.session===session); if(m) m.group=group;   // optimistic move
+  LAYOUT=""; render();
+  try{ const r=await fetch("/api/group",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({session,group})}); const j=await r.json();
+    if(j.ok) toast("Moved "+session.split("-")[0]+" → "+group); else toast("⚠ "+(j.error||"move failed"),true); }
+  catch(e){ toast("⚠ "+e.message,true); }
+}
+async function pinCard(session, pinned){
+  const m=LAST.find(x=>x.session===session); if(m) m.pinned=pinned;   // optimistic: jump to top / release
+  LAYOUT=""; render();
+  try{ const r=await fetch("/api/pin",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({session,pinned})}); const j=await r.json();
+    if(j.ok) toast((pinned?"📌 Pinned ":"Unpinned ")+session.split("-")[0]); else toast("⚠ "+(j.error||"failed"),true); }
+  catch(e){ toast("⚠ "+e.message,true); }
+}
+async function killCard(session, who){
+  if(!confirm(`Kill ${who}?\n\nThis runs: tmux kill-session -t ${session}\nThe session and anything running in it will end.`)) return;
+  try{
+    const r=await fetch("/api/kill",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session})});
+    const j=await r.json();
+    if(j.ok){ LAST=LAST.filter(x=>x.session!==session); LAYOUT=""; render(); toast("Killed "+who); }
+    else toast("⚠ "+(j.error||"failed"),true);
+  }catch(e){ toast("⚠ "+e.message,true); }
+}
+async function newSession(){
+  const name=prompt("New session name (e.g. sara-newproject):"); if(!name) return;
+  const dir=prompt("Working directory:", "{{OFFICE_DEV_ROOT}}/"+name.split("-").pop())||"{{OFFICE_DEV_ROOT}}";
+  const group=prompt("Category — clients / ventures / personal:", "personal")||"personal";
+  try{
+    const r=await fetch("/api/new",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name,dir,group})});
+    const j=await r.json();
+    if(j.ok){ toast("Created "+j.created); setTimeout(load,800); }
+    else toast("⚠ "+(j.error||"failed"),true);
+  }catch(e){ toast("⚠ "+e.message,true); }
+}
+document.getElementById("newbtn").onclick=newSession;
+
+// ── full interactive terminal (ttyd on :7681, tailnet-only) ──────────────
+// Seamless copy: mirror tmux's selection to the OS clipboard on drag-end.
+// The terminal iframe is same-origin, so we hook its own mouseup (the real user
+// gesture) and write from inside it — the path ttyd's async OSC 52 can't take.
+function injectAutoCopy(frame){
+  let doc; try{ doc=frame.contentDocument; }catch(e){ return; }
+  if(!doc || doc.__autocopy) return; doc.__autocopy=true;
+  let x0=0,y0=0;
+  doc.addEventListener("mousedown", e=>{ x0=e.clientX; y0=e.clientY; }, true);
+  doc.addEventListener("mouseup", e=>{
+    if(Math.hypot(e.clientX-x0, e.clientY-y0) < 4) return;   // a click, not a drag — don't clobber the clipboard
+    setTimeout(async ()=>{                                    // let tmux finish writing its paste-buffer
+      try{
+        const r=await fetch("/api/buffer",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+        const text=((await r.json())||{}).text||"";
+        if(!text) return;
+        const clip=(frame.contentWindow&&frame.contentWindow.navigator.clipboard)||navigator.clipboard;
+        await clip.writeText(text);
+      }catch(_){/* silent — the 📋 button stays as a fallback */}
+    }, 120);
+  }, true);
+  // ⌘K inside the terminal closes it and jumps to the secretary. Cmd only (never Ctrl), so we don't
+  // steal the terminal's Ctrl-K. Capture + stopPropagation so xterm can't eat it first;
+  // defer so we don't tear down this iframe mid-event.
+  doc.addEventListener("keydown", e=>{
+    if(e.metaKey && (e.key==="k"||e.key==="K")){ e.preventDefault(); e.stopPropagation(); setTimeout(gotoSecretary,0); }
+  }, true);
+}
+let MODAL_OPEN=false, MODAL_SESSION="";
+function openTerm(session, who){
+  MODAL_SESSION=session;
+  const box=document.querySelector(".mbox");
+  const old=document.getElementById("termframe"); if(old) old.remove();
+  const f=document.createElement("iframe"); f.id="termframe";
+  f.allow="clipboard-read; clipboard-write";
+  f.src=`/terminal/?arg=${encodeURIComponent(session)}`;   // same-origin, proxied to localhost ttyd
+  f.addEventListener("load", ()=>injectAutoCopy(f));        // seamless select-to-copy
+  box.appendChild(f);
+  document.getElementById("mtitle").textContent=who+"  ·  "+session;
+  document.getElementById("modal").classList.add("open");
+  MODAL_OPEN=true;
+  document.body.classList.add("termkeys");        // show the phone key-bar
+  if(window.placeKeybar) setTimeout(placeKeybar,60);
+}
+function closeTerm(){
+  document.getElementById("modal").classList.remove("open");
+  const f=document.getElementById("termframe"); if(f) f.remove();  // tear down ttyd fully -> detach tmux
+  MODAL_OPEN=false;
+  document.body.classList.remove("termkeys");
+}
+document.getElementById("modal").addEventListener("mousedown",e=>{ if(e.target.id==="modal") closeTerm(); });
+document.getElementById("mx").onclick=closeTerm;
+document.getElementById("mpop").onclick=()=>{ if(MODAL_SESSION) window.open(`/terminal/?arg=${encodeURIComponent(MODAL_SESSION)}`, "_blank"); };
+// touch key-bar → inject keys / scroll into the attached tmux session
+(function(){
+  const kb=document.getElementById("keybar"); if(!kb) return;
+  // don't take focus off the terminal — keeps the soft keyboard up while you tap keys
+  kb.addEventListener("pointerdown", e=>{ if(e.target.closest("button")) e.preventDefault(); });
+  kb.addEventListener("mousedown", e=>{ if(e.target.closest("button")) e.preventDefault(); });
+  kb.addEventListener("click", async e=>{
+    const btn=e.target.closest("button[data-key]"); if(!btn||!MODAL_SESSION) return;
+    try{ await fetch("/api/key",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,key:btn.dataset.key})}); }catch(_){}
+  });
+  window.placeKeybar=function(){ const vv=window.visualViewport; if(!vv) return;
+    kb.style.bottom=Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))+"px"; };
+  if(window.visualViewport){ visualViewport.addEventListener("resize", ()=>placeKeybar()); visualViewport.addEventListener("scroll", ()=>placeKeybar()); }
+})();
+// ⌘K / Ctrl-K: bring the secretary panel into view from anywhere. It sits at the top, so
+// scroll up to it; if the terminal is open, close it first so you land straight on it.
+function gotoSecretary(){
+  if(MODAL_OPEN) closeTerm();
+  window.scrollTo({top:0, behavior:"smooth"});
+  const s=document.getElementById("sec-in");
+  if(s){ s.focus({preventScroll:true}); s.select(); }
+}
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&MODAL_OPEN){ closeTerm(); return; }
+  if((e.metaKey||e.ctrlKey)&&(e.key==="k"||e.key==="K")){ e.preventDefault(); gotoSecretary(); }
+});
+
+// update a reused card's TEXT in place — never touches the open/closed ctx or the input,
+// so an expanded message stays expanded and typed text is preserved across refreshes.
+function updateCard(el,m){
+  // preserve the transient "editing" class — updateCard only runs when catOf is
+  // unchanged, so an open task editor must survive an in-place refresh.
+  const editing=el.classList.contains("editing");
+  el.className="card "+(LABEL[m.state]||{cls:"review"}).cls+(m.pinned?" pinned":"")+(editing?" editing":"");
+  el.style.setProperty("--ring",`hsl(${hueFor(m.person||m.project)} 55% 55% / .8)`);
+  const pill=el.querySelector(".pill"); if(pill){ pill.className="pill p-"+(m.typed?"typed":m.state); pill.textContent=pillOf(m); }
+  const tl=el.querySelector(".typedline"); if(tl && m.typed) tl.textContent="❯ "+m.typed;
+  // focus-note block (top): task presence is in catOf (structural), so here we only
+  // refresh its content in place — never touching the .taskedit the user may be in.
+  const tbx=el.querySelector(".taskbox"); if(tbx && m.task) tbx.innerHTML=taskInner(m);
+  // you-block (below the note): create/update/remove, keeping its expanded state
+  let yb=el.querySelector(".youbox");
+  if(m.you){ if(!yb){ yb=document.createElement("div"); yb.className="youbox"; yb.title="click to expand"; el.querySelector(".taskedit").after(yb); }
+             yb.innerHTML=`<span class="yt"><b>YOU</b> ${mdInline(esc(m.you))}</span>`; }
+  else if(yb){ yb.remove(); }
+  const ctx=el.querySelector(".ctx");
+  if(ctx){
+    const pinned = ctx.scrollHeight-ctx.scrollTop-ctx.clientHeight < 30;
+    const inner=mdHtml(m.full||"");
+    ctx.innerHTML = inner.trim() ? inner : esc(m.attached?"you're in here now":"· "+pillOf(m));
+    if(pinned) ctx.scrollTop=ctx.scrollHeight;
+  }
+  el._ts=m.ts||0;
+  el._sig=sigOf(m);
+}
+
+function renderChips(team){
+  // category chips — counts respect the current STATUS filter
+  const st=stateTest();
+  const inState=team.filter(st);
+  const cbox=document.getElementById("catchips"); cbox.innerHTML="";
+  CATFILTERS.forEach(cf=>{
+    const n=(cf.id==="all"?inState:inState.filter(m=>m.group===cf.id)).length;
+    const b=document.createElement("button");
+    b.className="chip cat"+(CATFILTER===cf.id?" on":"");
+    b.innerHTML=`${cf.label} <span class="c">${n}</span>`;
+    b.onclick=()=>{ CATFILTER=cf.id; LAYOUT=""; render(); };
+    cbox.appendChild(b);
+  });
+  // status chips — counts respect the current CATEGORY filter
+  const inCat=team.filter(catTest);
+  const box=document.getElementById("chips"); box.innerHTML="";
+  FILTERS.forEach(f=>{
+    const n=inCat.filter(f.test).length;
+    const c=document.createElement("button");
+    c.className="chip"+(FILTER===f.id?" on":"");
+    c.innerHTML=`${f.label} <span class="c">${n}</span>`;
+    c.onclick=()=>{ FILTER=f.id; LAYOUT=""; render(); };
+    box.appendChild(c);
+  });
+}
+function render(){
+  const team=LAST;
+  renderChips(team);
+  const st=stateTest();
+  const s=SEARCH.trim().toLowerCase();
+  // ONE flat list, MOST-RECENTLY-INTERACTED first (ts = last activity, not just Claude's reply).
+  // Category is a filter now, not the layout — the freshest work is always on top.
+  const shown=team.filter(st).filter(catTest)
+    .filter(m=>!s || (m.person+" "+m.project+" "+(m.ask||"")+" "+(m.typed||"")).toLowerCase().includes(s))
+    .sort((a,b)=>
+      ((b.pinned?1:0)-(a.pinned?1:0))                            // pinned block always on top
+      || ((a.ghost?1:0)-(b.ghost?1:0))                           // ghosts always sink below real sessions
+      || ((b.ts||0)-(a.ts||0))                                   // then most-recently-interacted first
+      || (a.person||a.project).localeCompare(b.person||b.project));
+  const floor=document.getElementById("floor");
+
+  if(!shown.length){ floor.innerHTML=`<div class="empty">Nobody here${s?" matches “"+esc(s)+"”":" in this view"}. ✨</div>`; LAYOUT=""; return; }
+
+  // include catOf + group so a STRUCTURE change (gains/loses reply box, moves category)
+  // forces a rebuild via the reconcile path, not just an in-place text update.
+  const layout=FILTER+"|"+CATFILTER+"|"+s+"|"+shown.map(m=>m.session+":"+catOf(m)+":"+m.group).join(",");
+  if(layout===LAYOUT){
+    for(const m of shown){ const c=CARDS[m.session]; if(c && c._sig!==sigOf(m)) updateCard(c,m); }
+    refreshAgo(); return;
+  }
+  LAYOUT=layout;
+
+  const keep=new Set(shown.map(m=>m.session));
+  for(const k in CARDS) if(!keep.has(k)) delete CARDS[k];
+
+  floor.textContent="";
+  const grid=document.createElement("div"); grid.className="grid";
+  for(const m of shown){
+    let el=CARDS[m.session];
+    if(el && el._cat===catOf(m) && el._grp===m.group){ if(el._sig!==sigOf(m)) updateCard(el,m); }
+    else { el=card(m); CARDS[m.session]=el; }
+    grid.appendChild(el);
+  }
+  floor.appendChild(grid);
+  refreshAgo();
+}
+
+async function load(){
+  if(MODAL_OPEN) return;                // terminal open — don't reflow behind it
+  if(FROZEN || composing()){
+    document.getElementById("sub").innerHTML=`<span class="frozen-note">paused while you answer</span> — resumes when you send`;
+    return;
+  }
+  let data;
+  try{ data=await (await fetch("/api/floor",{cache:"no-store"})).json(); }
+  catch(e){ document.getElementById("sub").textContent="offline — retrying"; return; }
+  const _prev={}; (LAST||[]).forEach(m=>_prev[m.session]=m.state);
+  LAST=data.team||[];
+  { const _v=document.getElementById("ver"); if(_v&&data.version) _v.textContent=data.version; }
+  applySent(LAST);   // keep just-sent cards showing "replying…" until Claude's reply lands
+  // feature: ping me when a session newly flips to "your turn"
+  LAST.forEach(m=>{ if(m.state==="waiting" && _prev[m.session] && _prev[m.session]!=="waiting") notifyUser("🖐 "+(m.person||m.project)+" needs you", m.project, m.session); });
+  // feature: follow-up watches that just fired (always shown; chime if notifications on)
+  (data.watch_events||[]).forEach(ev=>{ const o=document.getElementById("sec-reply"); if(o){ o.className="sec-reply ok"; o.textContent="🔔 "+ev.reply; } notifyUser("✅ "+ev.person+" finished", ev.reply, ev.session); });
+  const w=LAST.filter(t=>t.state==="waiting").length, p=LAST.filter(t=>t.state==="typed").length;
+  document.getElementById("sub").innerHTML=
+    `<span class="live"></span>${LAST.length} desks · ${w} question${w===1?"":"s"} · ${p} pending`;
+  render();
+}
+document.getElementById("search").addEventListener("input",e=>{ SEARCH=e.target.value; render(); });
+document.getElementById("floor").addEventListener("click",e=>{ const yb=e.target.closest(".youbox"); if(yb) yb.classList.toggle("full"); });
+load();
+setInterval(()=>{ if(!document.hidden) load(); }, 5000);
+</script>
+</body>
+</html>
