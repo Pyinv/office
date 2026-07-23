@@ -1,0 +1,22 @@
+#!/bin/bash
+# Reload the running office server in place (re-exec with fresh code) by sending
+# it SIGHUP. Safe for Claude to run: it signals an already-running, user-started
+# process rather than spawning a new send-keys-capable server.
+#
+# If the server isn't running, this can't start it (that's the user's call, since
+# it types into live sessions):  ! "$(dirname "$0")/serve.sh" >/tmp/office-server.log 2>&1 &
+DIR="$(cd "$(dirname "$0")" && pwd)"
+pid=$(pgrep -f "[p]ython3 $DIR/server.py" | head -1)
+if [ -z "$pid" ]; then
+  echo "office server not running — start it yourself:"
+  echo "  ! $DIR/serve.sh >/tmp/office-server.log 2>&1 &"
+  exit 1
+fi
+kill -HUP "$pid"
+sleep 1
+newpid=$(pgrep -f "[p]ython3 $DIR/server.py" | head -1)
+if ss -tlnp 2>/dev/null | grep -q ":8899"; then
+  echo "reloaded (pid $newpid) — office server is up"
+else
+  echo "WARNING: port 8899 not listening after reload; server may need a manual start"
+fi
