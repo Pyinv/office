@@ -1,0 +1,86 @@
+[
+  {
+    "session": "lena-cardiobeacon-mdr", "person": "Lena", "project": "cardiobeacon-mdr", "emoji": "🫀",
+    "group": "clients", "pinned": true, "attached": false, "state": "waiting", "ago_s": 180,
+    "you": "the BLE pairing can fail silently — how do we treat that in the risk file?",
+    "full": "Two ways to handle the silent BLE-pairing failure, and they land very differently for the **Class I MDR** file:\n\n1. **Risk control (mitigation):** keep the current design, add a watchdog that raises a pairing-lost banner + audible alert within 10s. Documented as a mitigation in the risk table.\n2. **Safety by design:** move the pairing-state check into firmware so the device can't report a reading it isn't sure is live. Cleaner for the auditor, but it reopens the firmware V&V.\n\nFor a pen-test-hardened submission I'd lean to option 2 — inherent safety beats a bolted-on alert when a reviewer digs in.",
+    "ask": "Risk-control mitigation, or a safety-by-design firmware change?",
+    "options": ["Mitigation + alert (keep design)", "Safety-by-design (firmware)", "Show the risk-table diff first"],
+    "typed": null, "ghost": false, "verb": "",
+    "task": "Class I MDR risk file → CE\nBLE pairing-loss control\nUsability eval report"
+  },
+  {
+    "session": "jonas-dentalflow-records", "person": "Jonas", "project": "dentalflow-records", "emoji": "🦷",
+    "group": "clients", "attached": true, "state": "working", "ago_s": 40, "verb": "Encrypting…",
+    "you": "encrypt the patient-record store at rest with per-practice keys",
+    "full": "", "ask": "", "options": [], "typed": null, "ghost": false
+  },
+  {
+    "session": "mara-gridguard-smgw", "person": "Mara", "project": "gridguard-smgw", "emoji": "⚡",
+    "group": "clients", "attached": false, "state": "review", "ago_s": 900,
+    "you": "wire the smart-meter gateway to the GWA over TLS with the BSI cert profile",
+    "full": "Done. The gateway now talks to the GWA over **TLS 1.2 with the TR-03109-3 cipher suite**, and the client cert is pulled from the HSM (never touches disk).\n\n- mutual-TLS handshake verified against the BSI test profile\n- cert rotation hooked to the PKI, 30-day lead\n- added a replay-protected pairing log\n\nNext: the Common Criteria evaluator wants the key-usage flags spelled out — want me to draft that section?",
+    "ask": "", "options": [], "typed": null, "ghost": false, "verb": ""
+  },
+  {
+    "session": "tobias-aquavolt-scada", "person": "Tobias", "project": "aquavolt-scada", "emoji": "💧",
+    "group": "clients", "attached": false, "state": "waiting", "ago_s": 1500,
+    "you": "the operators want remote access to the pump SCADA — is that safe?",
+    "full": "Short answer: not directly. The pump controllers sit in a KRITIS zone and shouldn't be reachable from the office VLAN at all.\n\nSafe pattern: a hardened jump host in a DMZ, MFA, session recording, and a one-way data diode for the telemetry that only needs to flow *out*. Remote control stays behind the jump host with named approvals.\n\nWant me to draw the segmentation (zones + the diode) before we touch any firewall rules?",
+    "ask": "Draw the network segmentation before changing any firewall rules?",
+    "options": ["Yes, diagram the zones first", "Just list the firewall rules", "Book a call with their OT team"],
+    "typed": null, "ghost": false, "verb": ""
+  },
+  {
+    "session": "sven-hanseat-finanz", "person": "Sven", "project": "hanseat-finanz-dsgvo", "emoji": "💶",
+    "group": "clients", "attached": true, "state": "working", "ago_s": 75, "verb": "Auditing…",
+    "you": "scan the data flows for anything that leaves the EU",
+    "full": "", "ask": "", "options": [], "typed": null, "ghost": false
+  },
+  {
+    "session": "nina-praezision-mes", "person": "Nina", "project": "praezision-mes", "emoji": "⚙️",
+    "group": "clients", "attached": false, "state": "review", "ago_s": 2700,
+    "you": "add offline-first sync so the shop floor keeps running if the network drops",
+    "full": "Shop-floor terminals are now **offline-first**: work orders and scans queue locally in SQLite and reconcile when the link is back, with a conflict view for the supervisor.\n\nTested by pulling the network mid-shift — nothing was lost, and it caught up in ~4s on reconnect. Ready to try on the pilot line.",
+    "ask": "", "options": [], "typed": null, "ghost": false, "verb": ""
+  },
+  {
+    "session": "katrin-marktplatz24-checkout", "person": "Katrin", "project": "marktplatz24-checkout", "emoji": "🛒",
+    "group": "clients", "attached": false, "state": "waiting", "ago_s": 320,
+    "you": "the checkout drops ~8% at the payment step",
+    "full": "Traced the 8% drop: on mobile the payment iframe reloads when the keyboard opens, which resets the card field. It's a layout-shift bug, not a payment-provider issue.\n\nA fix (pin the iframe height + defer the resize) is staged on a branch. Want me to ship it behind a flag so you can A/B the conversion first?",
+    "ask": "Ship the checkout fix behind an A/B flag?",
+    "options": ["Yes, flag it and A/B", "Just ship it to everyone", "Show me the before/after"],
+    "typed": "flag it, roll to 50%", "ghost": false, "verb": ""
+  },
+  {
+    "session": "yara-auditbahn-isms", "person": "Yara", "project": "auditbahn-isms", "emoji": "🛡️",
+    "group": "ventures", "attached": true, "state": "working", "ago_s": 55, "verb": "Mapping…",
+    "you": "map our controls to ISO 27001 Annex A automatically",
+    "full": "", "ask": "", "options": [], "typed": null, "ghost": false,
+    "task": "Auditbahn MVP\nPolicy generator\nISO 27001 control mapping\nEvidence collector"
+  },
+  {
+    "session": "milan-kritis-copilot", "person": "Milan", "project": "kritis-copilot", "emoji": "🤖",
+    "group": "ventures", "pinned": true, "attached": false, "state": "review", "ago_s": 1200,
+    "you": "ground the answers only in the BSI docs we ingested — no invented clauses",
+    "full": "The copilot now answers **only** from the ingested BSI corpus and cites the exact section (e.g. *TR-03109-1 §3.4*). If it can't find a grounded clause it says so instead of guessing.\n\nAdded a 40-question refusal test set — 0 fabricated citations. Demo-ready.",
+    "ask": "", "options": [], "typed": null, "ghost": false, "verb": ""
+  },
+  {
+    "session": "sam-smart-home", "person": "Sam", "project": "smart-home", "emoji": "🏠",
+    "group": "personal", "attached": false, "state": "review", "ago_s": 5400,
+    "you": "make the garden watering skip if rain is forecast",
+    "full": "Watering now checks the forecast each morning and skips if >2mm of rain is expected in the next 12h. Saved ~3 cycles this week — running on the home Pi, no cloud.",
+    "ask": "", "options": [], "typed": null, "ghost": false, "verb": ""
+  },
+  {
+    "session": "leo-reading-list", "person": "Leo", "project": "reading-list", "emoji": "📚",
+    "group": "personal", "attached": false, "state": "waiting", "ago_s": 7200,
+    "you": "turn my half-finished books into a weekly nudge",
+    "full": "I can send a Sunday-evening nudge with the one book you're closest to finishing (by % read) and a 15-minute goal. Should it go to email or Telegram?",
+    "ask": "Email or Telegram for the weekly reading nudge?",
+    "options": ["Email", "Telegram"],
+    "typed": null, "ghost": false, "verb": ""
+  }
+]
