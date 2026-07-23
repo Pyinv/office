@@ -1,0 +1,26 @@
+# --- Runtime state (encodes session / client / venture names) ---
+groups.json
+pins.json
+tasks.json
+ttyd.sock
+
+# --- Generated data (client project names, spend, token counts) ---
+status/data.json
+
+# --- Local config & secrets ---
+.env
+config.local.js
+# per-instance project->emoji map (may encode client names)
+emoji.local.json
+
+# Personal companion CLI (not part of the web app)
+floor
+
+# --- Internal design notes — not for publication ---
+doc/
+
+# --- Logs, caches, local tooling ---
+*.log
+__pycache__/
+*.pyc
+.gstack/
