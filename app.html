@@ -248,6 +248,8 @@
     border-radius:11px;opacity:0;transition:all .22s;pointer-events:none;box-shadow:var(--shadow)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .toast.err{background:var(--wait);color:#160800}
+  .toast.tap{pointer-events:auto;cursor:pointer;background:var(--accent);color:#fff}
+  .toast.tap::after{content:" ›";opacity:.75;font-weight:700}
 
   /* --- phone: keep the sticky header slim so it doesn't eat the screen --- */
   @media (max-width:600px){
@@ -446,6 +448,7 @@ function notifyUser(title, body, session){
   if(!NOTIFY) return;
   playChime();
   try{ if("Notification" in window && Notification.permission==="granted") new Notification(title,{body:body||"",tag:session||title}); }catch(e){}
+  toast(title, false, session);   // name WHO rang, in-app + tap to jump — clear even on http and when several are waiting
   if(session && typeof flashCard==="function") flashCard(session);
 }
 (function(){
@@ -580,8 +583,10 @@ function composing(){
   const a=document.activeElement;
   return !!(a && (a.tagName==="INPUT"||a.tagName==="TEXTAREA") && a.closest("#floor"));
 }
-function toast(msg,err){ const t=document.getElementById("toast"); t.textContent=msg;
-  t.className="toast show"+(err?" err":""); clearTimeout(t._h); t._h=setTimeout(()=>t.className="toast",1900); }
+function toast(msg,err,session){ const t=document.getElementById("toast"); t.textContent=msg;
+  t.className="toast show"+(err?" err":"")+(session?" tap":"");
+  t.onclick = session ? (()=>{ if(typeof flashCard==="function") flashCard(session); }) : null;
+  clearTimeout(t._h); t._h=setTimeout(()=>{ t.className="toast"; t.onclick=null; }, session?6000:1900); }
 
 async function post(body, okmsg, inputEl){
   try{
