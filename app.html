@@ -812,6 +812,7 @@ function closeTerm(){
   const f=document.getElementById("termframe"); if(f) f.remove();  // tear down ttyd fully -> detach tmux
   MODAL_OPEN=false;
   document.body.classList.remove("termkeys");
+  const sb=document.getElementById("search"); if(sb && sb.value){ sb.value=""; SEARCH=""; render(); }  // clear the search used to find this session
 }
 document.getElementById("modal").addEventListener("mousedown",e=>{ if(e.target.id==="modal") closeTerm(); });
 document.getElementById("mx").onclick=closeTerm;
