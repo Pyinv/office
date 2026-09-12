@@ -680,7 +680,7 @@ function wireCard(el,m){
   const alt=el.querySelector(".reply .alt"); if(alt) alt.onclick=()=>say(m.session,input.value,input);
   const draft=el.querySelector(".reply .draft"); if(draft) draft.onclick=()=>submitDraft(m.session);
   el.querySelectorAll(".quick button").forEach(b=>b.onclick=()=>say(m.session,b.dataset.say,null));
-  const tb=el.querySelector(".termbtn"); if(tb) tb.onclick=()=>openTerm(m.session,(m.person||m.project));
+  const tb=el.querySelector(".termbtn"); if(tb) tb.onclick=()=>openTerm(m.session,(m.person||m.project),tabTitle(m));
   const gs=el.querySelector(".grpsel"); if(gs) gs.onchange=()=>setGroup(m.session,gs.value);
   const kb=el.querySelector(".kill"); if(kb) kb.onclick=()=>killCard(m.session,(m.person||m.project));
   const pn=el.querySelector(".pin"); if(pn) pn.onclick=()=>pinCard(m.session,!m.pinned);
@@ -792,7 +792,12 @@ function injectAutoCopy(frame){
   }, true);
 }
 let MODAL_OPEN=false, MODAL_SESSION="";
-function openTerm(session, who){
+// "web-app" + "Alex" -> "Web App | Alex": the project leads so tabs sort by what you're working on
+function tabTitle(m){
+  const proj=(m.project||"").split(/[-_]+/).filter(Boolean).map(w=>w[0].toUpperCase()+w.slice(1)).join(" ");
+  return m.person ? proj+" | "+m.person : proj;
+}
+function openTerm(session, who, title){
   MODAL_SESSION=session;
   const box=document.querySelector(".mbox");
   const old=document.getElementById("termframe"); if(old) old.remove();
@@ -802,13 +807,16 @@ function openTerm(session, who){
   f.addEventListener("load", ()=>injectAutoCopy(f));        // seamless select-to-copy
   box.appendChild(f);
   document.getElementById("mtitle").textContent=who+"  ·  "+session;
+  document.title=title||who;                       // name the tab after the session so several open tabs stay tellable apart
   document.getElementById("modal").classList.add("open");
   MODAL_OPEN=true;
   document.body.classList.add("termkeys");        // show the phone key-bar
   if(window.placeKeybar) setTimeout(placeKeybar,60);
 }
+const BASE_TITLE=document.title;
 function closeTerm(){
   document.getElementById("modal").classList.remove("open");
+  document.title=BASE_TITLE;
   const f=document.getElementById("termframe"); if(f) f.remove();  // tear down ttyd fully -> detach tmux
   MODAL_OPEN=false;
   document.body.classList.remove("termkeys");
