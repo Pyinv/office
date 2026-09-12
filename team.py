@@ -157,6 +157,19 @@ def _transcript_index():
             idx[r["cwd"]] = r
     return idx
 
+def _by_dir(path):
+    # Claude stores a session's transcript under ~/.claude/projects/<cwd with "/" -> "-">,
+    # keyed by where it STARTED. The tmux pane cwd is usually that start dir, so match it
+    # directly. Catches sessions that cd'd away mid-run — their recorded message cwd (and so
+    # the index) then points at a different project, which would otherwise read as a ghost.
+    if not path:
+        return None
+    key = path.replace("/", "-")
+    dp = os.path.join(PROJ, key)
+    if key != HOME_KEY and os.path.isdir(dp):
+        return _parse_latest(dp)
+    return None
+
 def _join(path, idx, project=None):
     """Match a session's cwd to its transcript. Exact wins. Else the closest ANCESTOR
     transcript (the session sits inside a dir Claude was launched in). Else a DESCENDANT
@@ -345,7 +358,7 @@ def snapshot():
     for name, (attached, path, activity, created) in sessions().items():
         person, project = split_name(name)
         working, typed, verb = _pane(name)
-        rec = _join(path, idx, project)
+        rec = _by_dir(path) or _join(path, idx, project)
 
         # ghost = no transcript AND not freshly created (a new session just hasn't
         # written a transcript yet — it's not a retention-deleted ghost).
