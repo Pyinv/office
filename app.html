@@ -84,6 +84,20 @@
     box-shadow:var(--shadow);position:relative;overflow:hidden;transition:transform .12s,border-color .12s}
   .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--idle)}
   .card:hover{transform:translateY(-1px)}
+  /* "live" = touched within RECENT_SEC (see refreshAgo): the few you're actually working with
+     right now. A soft accent wash + lit top edge + glow lifts them out of a crowded wall. */
+  .card.recent{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 11%,var(--panel)),var(--panel) 60%);
+    box-shadow:0 2px 4px rgba(0,0,0,.34),0 8px 26px color-mix(in srgb,var(--accent) 16%,transparent)}
+  .card.recent:not(.working){border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+  .card.recent::after{content:"";position:absolute;left:0;right:0;top:0;height:4px;z-index:2;
+    background:var(--accent);box-shadow:0 0 10px color-mix(in srgb,var(--accent) 55%,transparent)}
+  .rdot{display:none}
+  .card.recent .rdot{display:block;position:absolute;top:5px;left:5px;width:9px;height:9px;border-radius:50%;
+    background:var(--accent);z-index:4;box-shadow:0 0 0 2px var(--panel),0 0 12px 2px color-mix(in srgb,var(--accent) 70%,transparent);
+    animation:rblink 1.2s ease-in-out infinite}
+  @keyframes rblink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.25;transform:scale(.7)}}
+  .card.stale{opacity:.55;transition:opacity .15s}
+  .card.stale:hover{opacity:1}
   .card.waiting::before{background:var(--wait)} .card.waiting{border-color:color-mix(in srgb,var(--wait) 40%,var(--line))}
   .card.typed::before{background:var(--pend)}   .card.typed{border-color:color-mix(in srgb,var(--pend) 40%,var(--line))}
   .card.review::before{background:var(--rev)}
@@ -501,12 +515,17 @@ function agoText(ts){
   if(s<86400) return Math.floor(s/3600)+"h";
   return Math.floor(s/86400)+"d";
 }
+const RECENT_SEC = 3*3600;      // "recent" (lit) window: the sessions you're working with now
+const STALE_SEC  = 7*24*3600;   // older than a week -> dimmed, recedes into the background
 function refreshAgo(){
+  const now=Date.now()/1000;
   document.querySelectorAll("#floor .card").forEach(el=>{
     const a=el.querySelector(".ago"); if(!a) return;
-    const ts=el._ts||0;
+    const ts=el._ts||0, gh=el._ghost;
     a.textContent=agoText(ts);
-    a.classList.toggle("fresh", ts>0 && (Date.now()/1000-ts)<3600);  // < 1h = highlighted
+    a.classList.toggle("fresh", !gh && ts>0 && (now-ts)<3600);            // < 1h = highlighted (not ghosts — their time is tmux noise)
+    el.classList.toggle("recent", !gh && ts>0 && (now-ts)<RECENT_SEC);    // touched < 3h -> lit (ghosts never light up)
+    el.classList.toggle("stale",  (gh || (ts>0 && (now-ts)>STALE_SEC)) && !el.classList.contains("pinned"));  // ghosts + >1 week -> dimmed (pinned never dims; hover restores)
   });
 }
 setInterval(refreshAgo, 15000);   // keep the "time ago" fresh even without a data refresh
@@ -595,7 +614,7 @@ function card(m){
   const L=LABEL[m.state]||LABEL.idle, who=m.person||m.project, hue=hueFor(who);
   const el=document.createElement("div"); el.className="card "+L.cls+(m.pinned?" pinned":""); el._sess=m.session; el.dataset.session=m.session;
   el.style.setProperty("--ring",`hsl(${hue} 55% 55% / .8)`);
-  let h=`<div class="top">
+  let h=`<span class="rdot"></span><div class="top">
       <div class="av" style="background:hsl(${hue} 45% 22% / .5)">${esc(m.emoji||emojiFor(m.project))}</div>
       <div class="nm"><div class="who">${esc(who)}</div><div class="proj">${esc(m.project)}${m.ghost?" · 👻":""}</div></div>
       ${m.attached?'<span class="att" title="you are attached"></span>':""}
@@ -637,7 +656,7 @@ function card(m){
       <button class="iconbtn termbtn" title="open terminal">⛶</button>
       <button class="iconbtn kill" title="kill this session">🗑</button>
     </div>`;
-  el.innerHTML=h; el._sig=sigOf(m); el._cat=catOf(m); el._grp=m.group; el._ts=m.ts||0;
+  el.innerHTML=h; el._sig=sigOf(m); el._cat=catOf(m); el._grp=m.group; el._ts=m.ts||0; el._ghost=!!m.ghost;
   wireCard(el,m);
   return el;
 }
@@ -843,7 +862,7 @@ function updateCard(el,m){
     ctx.innerHTML = inner.trim() ? inner : esc(m.attached?"you're in here now":"· "+pillOf(m));
     if(pinned) ctx.scrollTop=ctx.scrollHeight;
   }
-  el._ts=m.ts||0;
+  el._ts=m.ts||0; el._ghost=!!m.ghost;
   el._sig=sigOf(m);
 }
 
