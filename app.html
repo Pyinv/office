@@ -375,6 +375,7 @@
   <span class="ksep"></span>
   <button data-key="scroll-up">scroll ↑</button><button data-key="scroll-down">↓</button>
   <button data-key="scroll-exit">live</button>
+  <button data-key="paste">paste</button>
   <button data-key="enter">⏎</button>
 </div>
 
@@ -823,6 +824,13 @@ document.getElementById("mpop").onclick=()=>{ if(MODAL_SESSION) window.open(`/te
   kb.addEventListener("mousedown", e=>{ if(e.target.closest("button")) e.preventDefault(); });
   kb.addEventListener("click", async e=>{
     const btn=e.target.closest("button[data-key]"); if(!btn||!MODAL_SESSION) return;
+    if(btn.dataset.key==="paste"){          // read the browser clipboard, paste into the pane
+      try{
+        const t=await navigator.clipboard.readText();
+        if(t) await fetch("/api/paste",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,text:t})});
+      }catch(_){ toast("Paste needs the https:// address (clipboard is blocked on http)"); }
+      return;
+    }
     try{ await fetch("/api/key",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,key:btn.dataset.key})}); }catch(_){}
   });
   window.placeKeybar=function(){ const vv=window.visualViewport; if(!vv) return;

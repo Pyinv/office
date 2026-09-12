@@ -332,6 +332,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/task":  return self._task(data)
         if path == "/api/secretary": return self._secretary(data)
         if path == "/api/key":   return self._key(data)
+        if path == "/api/paste": return self._paste(data)
         if path == "/api/buffer":return self._buffer(data)
         if path == "/api/kill":  return self._kill(data)
         if path == "/api/new":   return self._new(data)
@@ -373,6 +374,21 @@ class Handler(SimpleHTTPRequestHandler):
         except Exception:
             out = ""
         return self._json({"text": out})
+
+    def _paste(self, data):
+        # Paste the browser clipboard into the attached tmux pane via a tmux buffer +
+        # bracketed paste, so multi-line text is inserted as one paste (not run line by line).
+        sess = str(data.get("session", ""))
+        text = str(data.get("text", ""))
+        if not sess or sess not in live_sessions():
+            return self._json({"error": f"no live session '{sess}'"}, 409)
+        if text:
+            try:
+                subprocess.run(["tmux", "set-buffer", "--", text], check=False)
+                subprocess.run(["tmux", "paste-buffer", "-p", "-t", sess], check=False)
+            except Exception as e:
+                return self._json({"error": str(e)}, 500)
+        return self._json({"ok": True})
 
     def _pin(self, data):
         sess = str(data.get("session", ""))
