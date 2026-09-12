@@ -311,6 +311,23 @@ class Handler(SimpleHTTPRequestHandler):
                             w["prev"] = cur
             return self._json({"team": snap, "groups": VALID_GROUPS, "ts": now,
                                 "watch_events": events, "version": __version__})
+        if self.path.split("?")[0] == "/favicon.ico":
+            # Site-root favicon. The office and status pages carry their own inline
+            # icons, so this only reaches tabs whose page has none: files opened
+            # through the /dufs/ mount (PDFs, images, reports), which Chrome otherwise
+            # shows with its blank default. Same 📁 as the header's "Files" link.
+            try:
+                with open(os.path.join(ROOT, "favicon.ico"), "rb") as f:
+                    b = f.read()
+            except OSError:
+                return self._json({"error": "not found"}, 404)
+            self.send_response(200)
+            self.send_header("Content-Type", "image/x-icon")
+            self.send_header("Content-Length", str(len(b)))
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.end_headers()
+            self.wfile.write(b)
+            return
         # Static fallback: serve ONLY the allowlisted dashboard assets; 404 the rest
         # so config/state/source in ROOT is never exposed.
         if self.path.split("?")[0] in STATIC_OK:
