@@ -347,11 +347,11 @@ class Handler(SimpleHTTPRequestHandler):
         NAMED = {"esc": "Escape", "tab": "Tab", "enter": "Enter", "up": "Up", "down": "Down",
                  "left": "Left", "right": "Right", "ctrlc": "C-c", "home": "Home", "end": "End"}
         try:
-            if key == "scroll-up":       # enter copy-mode and page up
+            if key == "scroll-up":       # enter copy-mode and nudge up a few lines (not a whole page)
                 subprocess.run(["tmux", "copy-mode", "-t", sess], check=False)
-                subprocess.run(["tmux", "send-keys", "-X", "-t", sess, "page-up"], check=False)
+                subprocess.run(["tmux", "send-keys", "-X", "-N", "3", "-t", sess, "scroll-up"], check=False)
             elif key == "scroll-down":
-                subprocess.run(["tmux", "send-keys", "-X", "-t", sess, "page-down"], check=False)
+                subprocess.run(["tmux", "send-keys", "-X", "-N", "3", "-t", sess, "scroll-down"], check=False)
             elif key == "scroll-exit":   # leave copy-mode, back to the live prompt
                 subprocess.run(["tmux", "send-keys", "-X", "-t", sess, "cancel"], check=False)
             elif key in NAMED:
