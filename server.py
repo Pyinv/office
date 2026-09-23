@@ -11,7 +11,7 @@ Binds to the Tailscale IP ONLY. Refuses to start without one, so the reply
 endpoint (which can type into live Claude sessions) is never exposed to the LAN
 or the internet — same trust boundary as sitting at the tower.
 """
-import json, subprocess, sys, os, time, importlib, signal, socket, threading, shutil, re
+import json, subprocess, sys, os, time, importlib, signal, socket, threading, shutil, re, tempfile
 from urllib.parse import urlparse
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -56,6 +56,7 @@ PORT       = int(cfg("OFFICE_PORT", "8899"))
 TITLE      = cfg("OFFICE_TITLE", "Office")
 EMAIL      = cfg("OFFICE_EMAIL", "")
 DEV_ROOT   = cfg("OFFICE_DEV_ROOT", os.path.join(HOME, "develop"))
+SEC_CWD    = os.path.join(tempfile.gettempdir(), "office-secretary")   # secretary runs here, not in a project
 CLAUDE_BIN = cfg("OFFICE_CLAUDE_BIN", shutil.which("claude") or os.path.join(HOME, ".local", "bin", "claude"))
 STATUS_URL = cfg("OFFICE_STATUS_URL", "/status/")   # header "Usage & limits" link; "" hides it
 FILES_URL  = cfg("OFFICE_FILES_URL", "")            # header "Files" link (e.g. a dufs mount); "" hides it
@@ -546,12 +547,16 @@ class Handler(SimpleHTTPRequestHandler):
             # --disallowed-tools blocks them structurally (verified: holds even when permission
             # checks are bypassed). Put --model AFTER the list so the variadic flag doesn't
             # swallow the prompt positional.
+            # Run from a scratch dir, never from the office checkout: Claude files each
+            # run's transcript under the cwd's project folder, and a session working in
+            # the office repo would then be shown the secretary's answer as its own.
+            os.makedirs(SEC_CWD, exist_ok=True)
             out = subprocess.run([CLAUDE_BIN, "-p", "--strict-mcp-config",   # --strict-mcp-config: no MCP tools load either
                                   "--disallowed-tools", "Bash", "Edit", "Write", "NotebookEdit",
                                   "Read", "Glob", "Grep", "WebFetch", "WebSearch", "Task",
                                   "SlashCommand", "TodoWrite",
                                   "--model", SEC_MODEL, prompt],
-                                 capture_output=True, text=True, timeout=45)
+                                 capture_output=True, text=True, timeout=45, cwd=SEC_CWD)
             reply = (out.stdout or "").strip()
         except Exception:
             reply = ""
