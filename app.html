@@ -221,9 +221,11 @@
     border-radius:8px;padding:.55rem .7rem;font-size:.95rem;font-family:inherit;cursor:pointer;white-space:nowrap;line-height:1}
   .keybar button:active{background:var(--accent);color:#fff}
   .keybar .ksep{flex:0 0 auto;width:1px;align-self:stretch;background:var(--line);margin:.15rem .2rem}
-  /* on phones: pin the bar to the viewport bottom; JS lifts it above the keyboard */
-  @media(max-width:760px){body.termkeys .keybar{display:flex;position:fixed;left:0;right:0;bottom:0;
-    z-index:200;box-shadow:0 -6px 18px rgba(0,0,0,.5)}}
+  /* on touch devices (phone or tablet, by pointer type, not width): pin the bar to the
+     viewport bottom; JS lifts it above the keyboard. Wrap rather than side-scroll so the
+     scroll / paste / enter keys are never hidden off the right edge of a phone. */
+  @media(max-width:760px),(pointer:coarse){body.termkeys .keybar{display:flex;flex-wrap:wrap;
+    position:fixed;left:0;right:0;bottom:0;z-index:200;box-shadow:0 -6px 18px rgba(0,0,0,.5)}}
   .cathead{margin:1.8rem 0 .3rem;display:flex;align-items:center;gap:.55rem;
     font-size:.95rem;font-weight:800;letter-spacing:-.01em;padding-bottom:.4rem;border-bottom:2px solid var(--line)}
   .cathead .n{font-size:.7rem;font-weight:700;background:var(--panel2);border:1px solid var(--line);
@@ -791,6 +793,29 @@ function injectAutoCopy(frame){
     if(e.metaKey && (e.key==="k"||e.key==="K")){ e.preventDefault(); e.stopPropagation(); setTimeout(gotoSecretary,0); }
   }, true);
 }
+// Touch scrolling for the phone/tablet terminal. xterm.js only turns finger drags into
+// scrolling when the program is NOT tracking the mouse; tmux runs with mouse mode on, so
+// a swipe did nothing at all. Wheel events DO reach tmux (it scrolls its own history and
+// drops back to live at the bottom), so translate vertical drags into wheel ticks on the
+// terminal element. One tick per STEP px of finger travel.
+function injectTouchScroll(frame){
+  let doc; try{ doc=frame.contentDocument; }catch(e){ return; }
+  if(!doc || doc.__touchscroll) return; doc.__touchscroll=true;
+  const win=frame.contentWindow, STEP=24;
+  let y=null, acc=0;
+  doc.addEventListener("touchstart", e=>{ if(e.touches.length!==1){ y=null; return; } y=e.touches[0].clientY; acc=0; }, {passive:true, capture:true});
+  doc.addEventListener("touchmove", e=>{
+    if(y===null || e.touches.length!==1) return;
+    const term=doc.querySelector(".xterm"); if(!term) return;
+    const t=e.touches[0]; acc+=y-t.clientY; y=t.clientY;      // finger up => content scrolls down (natural)
+    e.preventDefault();                                        // we own the gesture: no page bounce
+    const ticks=Math.trunc(acc/STEP); if(!ticks) return; acc-=ticks*STEP;
+    for(let i=0;i<Math.abs(ticks);i++)
+      term.dispatchEvent(new win.WheelEvent("wheel",{deltaY:ticks>0?1:-1, deltaMode:1, bubbles:true, cancelable:true, clientX:t.clientX, clientY:t.clientY}));
+  }, {passive:false, capture:true});
+  doc.addEventListener("touchend", ()=>{ y=null; }, {passive:true, capture:true});
+  doc.addEventListener("touchcancel", ()=>{ y=null; }, {passive:true, capture:true});
+}
 let MODAL_OPEN=false, MODAL_SESSION="";
 // "web-app" + "Alex" -> "Web App | Alex": the project leads so tabs sort by what you're working on
 function tabTitle(m){
@@ -804,7 +829,7 @@ function openTerm(session, who, title){
   const f=document.createElement("iframe"); f.id="termframe";
   f.allow="clipboard-read; clipboard-write";
   f.src=`/terminal/?arg=${encodeURIComponent(session)}`;   // same-origin, proxied to localhost ttyd
-  f.addEventListener("load", ()=>injectAutoCopy(f));        // seamless select-to-copy
+  f.addEventListener("load", ()=>{ injectAutoCopy(f); injectTouchScroll(f); });   // select-to-copy, swipe-to-scroll
   box.appendChild(f);
   document.getElementById("mtitle").textContent=who+"  ·  "+session;
   document.title=title||who;                       // name the tab after the session so several open tabs stay tellable apart
