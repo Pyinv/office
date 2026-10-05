@@ -407,6 +407,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/paste": return self._paste(data)
         if path == "/api/buffer":return self._buffer(data)
         if path == "/api/kill":  return self._kill(data)
+        if path == "/api/rename":return self._rename(data)
         if path == "/api/new":   return self._new(data)
         return self._json({"error": "not found"}, 404)
 
@@ -921,6 +922,42 @@ class Handler(SimpleHTTPRequestHandler):
         g[sess] = grp
         save_groups(g)
         return self._json({"ok": True, "session": sess, "group": grp})
+
+    def _rename(self, data):
+        # Rename a session in tmux and carry its Office state (category, pin, focus note,
+        # history) over to the new name, so the card keeps everything it had.
+        old = str(data.get("session", ""))
+        new = safe_session(data.get("name", ""))
+        if not old or old not in live_sessions():
+            return self._json({"error": f"no live session '{old}'"}, 409)
+        if not new:
+            return self._json({"error": "name required (letters/numbers/-/_)"}, 400)
+        if new == old:
+            return self._json({"ok": True, "session": new})
+        if new in live_sessions():
+            return self._json({"error": f"session '{new}' already exists"}, 409)
+        try:
+            subprocess.run(["tmux", "rename-session", "-t", old, new], check=True)
+        except (subprocess.CalledProcessError, OSError):
+            return self._json({"error": f"couldn't rename '{old}'"}, 502)
+        g = load_groups()
+        if old in g:
+            g[new] = g.pop(old); save_groups(g)
+        p = load_pins()
+        if old in p:
+            p.discard(old); p.add(new); save_pins(p)
+        t = load_tasks()
+        if old in t:
+            t[new] = t.pop(old); save_tasks(t)
+        with _hist_lock:
+            h = load_history()
+            if old in h:
+                h[new] = h.pop(old)
+                tmp = HISTORY_FILE + ".tmp"
+                with open(tmp, "w") as f:
+                    json.dump(h, f, indent=2, sort_keys=True)
+                os.replace(tmp, HISTORY_FILE)
+        return self._json({"ok": True, "session": new})
 
     def _kill(self, data):
         sess = str(data.get("session", ""))

@@ -403,6 +403,14 @@
     <iframe id="termframe" src="about:blank" allow="clipboard-read; clipboard-write"></iframe>
   </div>
 </div>
+<dialog class="newdlg" id="rendlg">
+  <form method="dialog" autocomplete="off">
+    <h2>Rename session</h2>
+    <label>New name <input name="name" required pattern="[A-Za-z0-9_]+-[A-Za-z0-9_-]+" title="person-project, e.g. juno-manasek"></label>
+    <div class="preview">person-project · the part before the first dash is the person</div>
+    <div class="btns"><button type="button" onclick="this.closest('dialog').close()">Cancel</button><button value="rename">Rename</button></div>
+  </form>
+</dialog>
 <dialog class="newdlg" id="newdlg">
   <form method="dialog" id="newform" autocomplete="off">
     <h2>New session</h2>
@@ -719,6 +727,7 @@ function card(m){
         ${CATS.map(c=>`<option value="${c.id}"${m.group===c.id?" selected":""}>${c.short}</option>`).join("")}
       </select>
       <span style="margin-left:auto"></span>
+      <button class="iconbtn rename" title="rename this session">✏️</button>
       <button class="iconbtn task" title="focus note — the session's main task">🎯</button>
       <button class="iconbtn pin${m.pinned?' on':''}" title="${m.pinned?'unpin':'pin to top'}">📌</button>
       <button class="iconbtn termbtn" title="open terminal">⛶</button>
@@ -745,6 +754,7 @@ function wireCard(el,m){
   const tb=el.querySelector(".termbtn"); if(tb) tb.onclick=()=>openTerm(m.session,(m.person||m.project),tabTitle(m));
   const gs=el.querySelector(".grpsel"); if(gs) gs.onchange=()=>setGroup(m.session,gs.value);
   const kb=el.querySelector(".kill"); if(kb) kb.onclick=()=>killCard(m.session,(m.person||m.project));
+  const rn=el.querySelector(".rename"); if(rn) rn.onclick=()=>renameCard(m.session);
   const pn=el.querySelector(".pin"); if(pn) pn.onclick=()=>pinCard(m.session,!m.pinned);
   // focus-note editor: 🎯 toggles, textarea pauses polling while focused (same as reply)
   const taskbtn=el.querySelector(".iconbtn.task");
@@ -801,6 +811,25 @@ async function pinCard(session, pinned){
     body:JSON.stringify({session,pinned})}); const j=await r.json();
     if(j.ok) toast((pinned?"📌 Pinned ":"Unpinned ")+session.split("-")[0]); else toast("⚠ "+(j.error||"failed"),true); }
   catch(e){ toast("⚠ "+e.message,true); }
+}
+// rename: a one-field dialog; tmux + the Office's state files move together on the server
+async function renameCard(session){
+  const dlg=document.getElementById("rendlg"), inp=dlg.querySelector("input"), form=dlg.querySelector("form");
+  inp.value=session; dlg.showModal(); inp.focus(); inp.select();
+  form.onsubmit=async e=>{
+    e.preventDefault();
+    const name=inp.value.trim().toLowerCase(); if(!name||name===session){ dlg.close(); return; }
+    try{
+      const r=await fetch("/api/rename",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session,name})});
+      const j=await r.json();
+      if(!j.ok){ toast("⚠ "+(j.error||"failed"),true); return; }
+      dlg.close();
+      if(SENT[session]){ SENT[j.session]=SENT[session]; delete SENT[session]; }
+      if(MODAL_SESSION===session) MODAL_SESSION=j.session;
+      const sb=document.getElementById("search"); if(sb && sb.value.trim().toLowerCase()===session){ sb.value=j.session; SEARCH=j.session; }  // keep the renamed card in view
+      LAYOUT=""; toast("Renamed to "+j.session); load();
+    }catch(err){ toast("⚠ "+err.message,true); }
+  };
 }
 async function killCard(session, who){
   if(!confirm(`Kill ${who}?\n\nThis runs: tmux kill-session -t ${session}\nThe session and anything running in it will end.`)) return;
@@ -1091,7 +1120,7 @@ function render(){
   // ONE flat list, MOST-RECENTLY-INTERACTED first (ts = last activity, not just Claude's reply).
   // Category is a filter now, not the layout — the freshest work is always on top.
   const shown=team.filter(st).filter(catTest)
-    .filter(m=>!s || (m.person+" "+m.project+" "+(m.ask||"")+" "+(m.typed||"")).toLowerCase().includes(s))
+    .filter(m=>!s || (m.session+" "+m.person+" "+m.project+" "+(m.ask||"")+" "+(m.typed||"")).toLowerCase().includes(s))
     .sort((a,b)=>
       ((b.pinned?1:0)-(a.pinned?1:0))                            // pinned block always on top
       || ((a.ghost?1:0)-(b.ghost?1:0))                           // ghosts always sink below real sessions

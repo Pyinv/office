@@ -15,7 +15,7 @@ It reads tmux + Claude Code transcripts to tell, per session, whether Claude is 
 - **Full terminal** — a real interactive terminal per session (via [ttyd](https://github.com/tsl0922/ttyd)), with seamless select-to-copy and an open-in-new-tab button.
 - **Phone terminal** — on touch devices, swipe to scroll and a key bar above the keyboard with esc, tab, arrows, enter and the Ctrl keys (^B works as the tmux prefix). Paste uses the clipboard when the browser allows it and falls back to a paste box when it doesn't.
 - **Organize** — pin, categorize (clients / ventures / personal), and attach a **focus note** (main task + sub-tasks) that stays pinned to the card.
-- **Manage** — kill a session, or spawn a new one from a form (person, project, folder, category) confined to your dev root. Sessions that died or were killed stay in history, so "+ New" can bring one back by name with its old folder and category.
+- **Manage** — rename a session (tmux and its Office state move together), kill it, or spawn a new one from a form (person, project, folder, category) confined to your dev root. Sessions that died or were killed stay in history, so "+ New" can bring one back by name with its old folder and category.
 - **Secretary** — a chief-of-staff panel above the floor: type *"ask Lena to run the risk file, then have Mara draft the section"* and it finds those sessions and relays the instruction (real `send-keys`).
 - **Usage dashboard** — tokens, spend, and rate-limit meters at `/status/`.
 
