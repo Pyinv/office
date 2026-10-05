@@ -173,6 +173,43 @@ def save_pins(p):
 # Edited by the user as a reminder of what a session set out to do.
 TASKS_FILE = os.path.join(ROOT, "tasks.json")
 
+# ── session history: every session ever seen on the floor, with its folder and
+# category, so one that died (crash, reboot, kill) can be brought back from "+ New".
+HISTORY_FILE = os.path.join(ROOT, "history.json")
+_hist_lock = threading.Lock()
+_hist_written = 0
+
+def load_history():
+    try:
+        with open(HISTORY_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def record_history(snap):
+    # Remember dir + group of each live session. Written at most once a minute, and
+    # only when something changed, so the floor poll stays cheap.
+    global _hist_written
+    now = int(time.time())
+    with _hist_lock:
+        if now - _hist_written < 60:
+            return
+        h = load_history(); changed = False
+        for m in snap:
+            if not m.get("dir"):
+                continue
+            cur = h.get(m["session"]) or {}
+            rec = {"dir": m["dir"], "group": m.get("group", "personal"), "seen": now}
+            if cur.get("dir") != rec["dir"] or cur.get("group") != rec["group"] or now - cur.get("seen", 0) >= 600:
+                h[m["session"]] = rec; changed = True
+        _hist_written = now
+        if not changed:
+            return
+        tmp = HISTORY_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(h, f, indent=2, sort_keys=True)
+        os.replace(tmp, HISTORY_FILE)
+
 def load_tasks():
     try:
         with open(TASKS_FILE) as f:
@@ -256,6 +293,12 @@ class Handler(SimpleHTTPRequestHandler):
             except OSError:
                 dirs = []
             return self._json({"dirs": dirs})
+        if self.path.split("?")[0] == "/api/history":
+            # past sessions that are not running now, newest first: what "+ New" offers to bring back
+            live = live_sessions()
+            gone = [{"session": k, **v} for k, v in load_history().items() if k not in live]
+            gone.sort(key=lambda r: -r.get("seen", 0))
+            return self._json({"history": gone})
         if self.path.split("?")[0] == "/api/floor":
             try:
                 importlib.reload(team)   # pick up team.py edits without a restart
@@ -271,6 +314,9 @@ class Handler(SimpleHTTPRequestHandler):
                 m["group"] = groups.get(m["session"], m.get("group", "personal"))
                 m["pinned"] = (m["session"] in pins) or bool(m.get("pinned"))
                 m["task"] = tasks.get(m["session"], m.get("task", ""))
+            if not cfg("OFFICE_DEMO"):
+                try: record_history(snap)
+                except Exception: pass
             now = int(time.time())
             if _SEC_OVERLAY and cfg("OFFICE_DEMO"):   # show/advance what the Secretary dispatched
                 for m in snap:

@@ -224,6 +224,13 @@
   .newdlg input{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:9px;
     padding:.5rem .6rem;font:inherit;font-size:16px}
   .newdlg input:focus{outline:none;border-color:var(--accent)}
+  /* past-session picker: filters as you type, pick with click / arrows + enter */
+  #recreate{position:relative}
+  .pastlist{position:absolute;top:100%;left:0;right:0;z-index:5;max-height:200px;overflow-y:auto;
+    background:var(--panel);border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);margin-top:.2rem}
+  .pastlist div{padding:.4rem .6rem;cursor:pointer;font-weight:500;color:var(--ink);display:flex;gap:.5rem;align-items:baseline}
+  .pastlist div span{margin-left:auto;font-size:.75rem;color:var(--faint);white-space:nowrap}
+  .pastlist div:hover,.pastlist div.sel{background:var(--work2);color:var(--accent)}
   .newdlg .radios{display:flex;gap:.4rem;flex-wrap:wrap}
   .newdlg .radios label{flex-direction:row;align-items:center;gap:.35rem;border:1px solid var(--line);border-radius:999px;
     padding:.3rem .7rem;cursor:pointer;color:var(--ink);font-weight:600}
@@ -399,6 +406,9 @@
 <dialog class="newdlg" id="newdlg">
   <form method="dialog" id="newform" autocomplete="off">
     <h2>New session</h2>
+    <label id="recreate" hidden>Bring back a past session
+      <input name="past" placeholder="type to search past sessions…" autocomplete="off">
+      <div class="pastlist" id="pastlist" hidden></div></label>
     <label>Person <input name="person" list="people" placeholder="max" required pattern="[A-Za-z0-9_]+" title="letters and digits only"></label>
     <label>Project <input name="project" placeholder="pyinv-tax-accountant" required pattern="[A-Za-z0-9_-]+" title="letters, digits, - and _"></label>
     <label>Folder <input name="dir" list="folders" placeholder="pyinv-tax-accountant"></label>
@@ -802,6 +812,8 @@ async function killCard(session, who){
   }catch(e){ toast("⚠ "+e.message,true); }
 }
 // "+ New": one form — person, project, folder, category — and nothing happens until Create.
+// A session that is gone (crash, reboot, kill) can be picked from history, which fills the
+// form with its old name, folder and category.
 // The folder defaults to the whole project part ("max-pyinv-tax" -> pyinv-tax); existing
 // folders under the dev root are offered as suggestions, people from the cards on the floor.
 const DEV_ROOT="{{OFFICE_DEV_ROOT}}";
@@ -816,11 +828,41 @@ const DEV_ROOT="{{OFFICE_DEV_ROOT}}";
     prev.innerHTML = person&&proj ? `tmux <b>${person}-${proj}</b> &nbsp;in&nbsp; <b>${DEV_ROOT}/${dir}</b>` : "";
   }
   form.addEventListener("input", e=>{ if(e.target.name==="dir") dirTouched=e.target.value!==""; preview(); });
+  let PAST=[], SHOWN=[], SEL=-1;
+  const list=document.getElementById("pastlist");
+  function showPast(q){
+    q=q.trim().toLowerCase();
+    SHOWN=PAST.filter(r=>!q || (r.session+" "+r.group).toLowerCase().includes(q)).slice(0,40); SEL=SHOWN.length?0:-1;
+    list.innerHTML=SHOWN.map((r,i)=>`<div data-i="${i}"${i===SEL?' class="sel"':''}>${r.session}<span>${r.group} · ${ago(r.seen)}</span></div>`).join("");
+    list.hidden=!SHOWN.length;
+  }
+  function pickPast(r){
+    list.hidden=true; F("past").value=r.session;
+    const [person, ...rest]=r.session.split("-");
+    F("person").value=person; F("project").value=rest.join("-");
+    F("dir").value=r.dir.startsWith(DEV_ROOT+"/") ? r.dir.slice(DEV_ROOT.length+1) : r.dir; dirTouched=true;
+    const g=form.querySelector(`input[name=group][value="${r.group}"]`); if(g) g.checked=true;
+    preview(); F("project").focus();
+  }
+  F("past").addEventListener("input", e=>showPast(e.target.value));
+  F("past").addEventListener("focus", e=>showPast(e.target.value));
+  F("past").addEventListener("blur", ()=>setTimeout(()=>{ list.hidden=true; },150));   // let a click on the list land first
+  F("past").addEventListener("keydown", e=>{
+    if(list.hidden) return;
+    if(e.key==="ArrowDown"||e.key==="ArrowUp"){ e.preventDefault(); SEL=(SEL+(e.key==="ArrowDown"?1:-1)+SHOWN.length)%SHOWN.length;
+      [...list.children].forEach((d,i)=>d.classList.toggle("sel",i===SEL)); list.children[SEL]?.scrollIntoView({block:"nearest"}); }
+    else if(e.key==="Enter"){ e.preventDefault(); if(SHOWN[SEL]) pickPast(SHOWN[SEL]); }
+    else if(e.key==="Escape"){ e.stopPropagation(); list.hidden=true; }
+  });
+  list.addEventListener("mousedown", e=>{ const d=e.target.closest("div[data-i]"); if(d) pickPast(SHOWN[+d.dataset.i]); });
+  const ago=s=>{ const d=(Date.now()/1000-s)/86400; return d<1?"today":d<2?"yesterday":Math.round(d)+"d ago"; };
   document.getElementById("newcancel").onclick=()=>dlg.close("cancel");
   async function openNew(){
     form.reset(); dirTouched=false; preview();
     document.getElementById("people").innerHTML=[...new Set(LAST.map(m=>(m.person||"").toLowerCase()).filter(Boolean))].sort().map(p=>`<option value="${p}">`).join("");
     try{ const j=await (await fetch("/api/dirs")).json(); document.getElementById("folders").innerHTML=(j.dirs||[]).map(d=>`<option value="${d}">`).join(""); }catch(_){}
+    try{ const j=await (await fetch("/api/history")).json(); PAST=j.history||[]; }catch(_){ PAST=[]; }
+    document.getElementById("recreate").hidden=!PAST.length;
     dlg.showModal(); F("person").focus();
   }
   form.addEventListener("submit", async e=>{

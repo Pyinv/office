@@ -2,6 +2,7 @@
 groups.json
 pins.json
 tasks.json
+history.json
 ttyd.sock
 
 # --- Generated data (client project names, spend, token counts) ---

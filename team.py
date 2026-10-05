@@ -388,7 +388,7 @@ def snapshot():
 
         team.append({
             "session": name, "person": person, "project": project,
-            "attached": attached, "state": state,
+            "dir": path, "attached": attached, "state": state,
             "ask": ask, "full": full[-2000:] if full else "",
             "you": you[:400] if you else "",
             "options": _options(ask, is_q) if (is_q and not typed) else [],
