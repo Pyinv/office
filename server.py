@@ -357,24 +357,19 @@ class Handler(SimpleHTTPRequestHandler):
         return self._json({"error": "not found"}, 404)
 
     def _key(self, data):
-        # Touch key-bar for the phone terminal: inject special keys / scroll into the
-        # tmux session the terminal is attached to (send-keys + copy-mode).
+        # Touch key-bar for the phone terminal: inject special keys into the tmux
+        # session the terminal is attached to (send-keys). "c-x" is Ctrl-x.
         sess = str(data.get("session", ""))
         key = str(data.get("key", ""))
         if not sess or sess not in live_sessions():
             return self._json({"error": f"no live session '{sess}'"}, 409)
         NAMED = {"esc": "Escape", "tab": "Tab", "enter": "Enter", "up": "Up", "down": "Down",
-                 "left": "Left", "right": "Right", "ctrlc": "C-c", "home": "Home", "end": "End"}
+                 "left": "Left", "right": "Right", "home": "Home", "end": "End"}
         try:
-            if key == "scroll-up":       # enter copy-mode and nudge up a few lines (not a whole page)
-                subprocess.run(["tmux", "copy-mode", "-t", sess], check=False)
-                subprocess.run(["tmux", "send-keys", "-X", "-N", "3", "-t", sess, "scroll-up"], check=False)
-            elif key == "scroll-down":
-                subprocess.run(["tmux", "send-keys", "-X", "-N", "3", "-t", sess, "scroll-down"], check=False)
-            elif key == "scroll-exit":   # leave copy-mode, back to the live prompt
-                subprocess.run(["tmux", "send-keys", "-X", "-t", sess, "cancel"], check=False)
-            elif key in NAMED:
+            if key in NAMED:
                 subprocess.run(["tmux", "send-keys", "-t", sess, NAMED[key]], check=True)
+            elif re.fullmatch(r"c-[a-z]", key):
+                subprocess.run(["tmux", "send-keys", "-t", sess, "C-" + key[2]], check=True)
             else:
                 return self._json({"error": "unknown key"}, 400)
         except Exception as e:

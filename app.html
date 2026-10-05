@@ -221,10 +221,17 @@
     border-radius:8px;padding:.55rem .7rem;font-size:.95rem;font-family:inherit;cursor:pointer;white-space:nowrap;line-height:1}
   .keybar button:active{background:var(--accent);color:#fff}
   .keybar .ksep{flex:0 0 auto;width:1px;align-self:stretch;background:var(--line);margin:.15rem .2rem}
+  /* paste fallback: a box to paste into by hand when the browser won't hand over the clipboard */
+  .keybar .pastebox{display:none;flex:0 0 auto;gap:.3rem;align-items:stretch;width:80vw}
+  .keybar.pasting .pastebox{display:flex}
+  .keybar::-webkit-scrollbar{display:none}
+  .keybar .pastebox textarea{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:.45rem .55rem;font-size:16px;font-family:inherit;resize:none}
   /* on touch devices (phone or tablet, by pointer type, not width): pin the bar to the
-     viewport bottom; JS lifts it above the keyboard. Wrap rather than side-scroll so the
-     scroll / paste / enter keys are never hidden off the right edge of a phone. */
-  @media(max-width:760px),(pointer:coarse){body.termkeys .keybar{display:flex;flex-wrap:wrap;
+     viewport bottom; JS lifts it above the keyboard. One row that scrolls sideways, so the
+     bar never eats more than one line of the terminal. */
+  @media(max-width:760px),(pointer:coarse){body.termkeys .keybar{display:flex;flex-wrap:nowrap;
+    scrollbar-width:none;
     position:fixed;left:0;right:0;bottom:0;z-index:200;box-shadow:0 -6px 18px rgba(0,0,0,.5)}}
   .cathead{margin:1.8rem 0 .3rem;display:flex;align-items:center;gap:.55rem;
     font-size:.95rem;font-weight:800;letter-spacing:-.01em;padding-bottom:.4rem;border-bottom:2px solid var(--line)}
@@ -369,16 +376,21 @@
   </div>
 </div>
 <div class="keybar" id="keybar">
+  <div class="pastebox">
+    <textarea id="pastetext" rows="2" placeholder="Paste here, then send"></textarea>
+    <button id="pastesend">send</button><button id="pasteclose">✕</button>
+  </div>
   <button data-key="esc">esc</button>
   <button data-key="tab">tab</button>
-  <button data-key="ctrlc">^C</button>
+  <button data-key="c-c">^C</button><button data-key="c-b">^B</button><button data-key="c-a">^A</button>
   <button data-key="up">↑</button><button data-key="down">↓</button>
   <button data-key="left">←</button><button data-key="right">→</button>
-  <span class="ksep"></span>
-  <button data-key="scroll-up">scroll ↑</button><button data-key="scroll-down">↓</button>
-  <button data-key="scroll-exit">live</button>
   <button data-key="paste">paste</button>
   <button data-key="enter">⏎</button>
+  <span class="ksep"></span>
+  <button data-key="c-e">^E</button><button data-key="c-d">^D</button><button data-key="c-z">^Z</button>
+  <button data-key="c-l">^L</button><button data-key="c-r">^R</button><button data-key="c-u">^U</button>
+  <button data-key="c-w">^W</button>
 </div>
 
 <script>
@@ -845,28 +857,59 @@ function closeTerm(){
   const f=document.getElementById("termframe"); if(f) f.remove();  // tear down ttyd fully -> detach tmux
   MODAL_OPEN=false;
   document.body.classList.remove("termkeys");
+  document.getElementById("keybar").classList.remove("pasting");
   const sb=document.getElementById("search"); if(sb && sb.value){ sb.value=""; SEARCH=""; render(); }  // clear the search used to find this session
 }
 document.getElementById("modal").addEventListener("mousedown",e=>{ if(e.target.id==="modal") closeTerm(); });
 document.getElementById("mx").onclick=closeTerm;
 document.getElementById("mpop").onclick=()=>{ if(MODAL_SESSION) window.open(`/terminal/?arg=${encodeURIComponent(MODAL_SESSION)}`, "_blank"); };
-// touch key-bar → inject keys / scroll into the attached tmux session
+// touch key-bar → type keys into the terminal. They go in through xterm itself, exactly as
+// if typed on a keyboard, so tmux treats them as client input and Ctrl-b works as its
+// prefix. /api/key (straight to the pane, no prefix) is the fallback if that hook is gone.
+const KEYSEQ={esc:"\x1b", tab:"\t", enter:"\r", up:"\x1b[A", down:"\x1b[B", right:"\x1b[C", left:"\x1b[D"};
+function keySeq(k){ return KEYSEQ[k] || (/^c-[a-z]$/.test(k) ? String.fromCharCode(k.charCodeAt(2)-96) : ""); }
+async function sendKey(key){
+  const seq=keySeq(key);
+  try{
+    const core=document.getElementById("termframe").contentWindow.term._core.coreService;
+    if(seq){ core.triggerDataEvent(seq,true); return; }
+  }catch(_){}
+  try{ await fetch("/api/key",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,key})}); }catch(_){}
+}
 (function(){
   const kb=document.getElementById("keybar"); if(!kb) return;
   // don't take focus off the terminal — keeps the soft keyboard up while you tap keys
   kb.addEventListener("pointerdown", e=>{ if(e.target.closest("button")) e.preventDefault(); });
   kb.addEventListener("mousedown", e=>{ if(e.target.closest("button")) e.preventDefault(); });
   kb.addEventListener("click", async e=>{
-    const btn=e.target.closest("button[data-key]"); if(!btn||!MODAL_SESSION) return;
+    if(!MODAL_SESSION) return;
+    if(e.target.closest("#pastesend")) return sendPaste(box.value);
+    if(e.target.closest("#pasteclose")) return pasteBox(false);
+    const btn=e.target.closest("button[data-key]"); if(!btn) return;
     if(btn.dataset.key==="paste"){          // read the browser clipboard, paste into the pane
-      try{
-        const t=await navigator.clipboard.readText();
-        if(t) await fetch("/api/paste",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,text:t})});
-      }catch(_){ toast("Paste needs the https:// address (clipboard is blocked on http)"); }
+      let t=""; try{ t=await navigator.clipboard.readText(); }catch(_){}
+      // many phone browsers refuse the read (no permission, no API): paste by hand instead
+      if(t) sendPaste(t); else pasteBox(!kb.classList.contains("pasting"));
       return;
     }
-    try{ await fetch("/api/key",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,key:btn.dataset.key})}); }catch(_){}
+    sendKey(btn.dataset.key);
   });
+  const box=document.getElementById("pastetext");
+  function pasteBox(on){
+    kb.classList.toggle("pasting", on); box.value="";
+    if(on){ kb.scrollLeft=0; box.focus(); }
+    else{ try{ document.getElementById("termframe").contentWindow.term.focus(); }catch(_){} }
+    placeKeybar();
+  }
+  async function sendPaste(t){
+    if(!t) return;
+    try{
+      const r=await fetch("/api/paste",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,text:t})});
+      if(!r.ok) throw 0;
+      pasteBox(false);
+    }catch(_){ toast("Paste failed", true); }
+  }
+  box.addEventListener("paste", ()=>setTimeout(()=>sendPaste(box.value),0));   // pasted by hand -> straight in
   window.placeKeybar=function(){ const vv=window.visualViewport; if(!vv) return;
     kb.style.bottom=Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))+"px"; };
   if(window.visualViewport){ visualViewport.addEventListener("resize", ()=>placeKeybar()); visualViewport.addEventListener("scroll", ()=>placeKeybar()); }
