@@ -214,6 +214,27 @@
     width:30px;height:30px;font-size:1rem;cursor:pointer}
   .mbar .mx:hover{border-color:var(--wait);color:var(--wait)}
   .modal iframe{flex:1;width:100%;border:0;background:#0c0f14}
+  /* "+ New" session dialog: a real form, nothing is created until you hit Create */
+  .newdlg{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);
+    padding:0;width:min(92vw,420px);box-shadow:0 20px 60px rgba(0,0,0,.45)}
+  .newdlg::backdrop{background:rgba(4,7,12,.6);backdrop-filter:blur(4px)}
+  .newdlg form{display:flex;flex-direction:column;gap:.75rem;padding:1.1rem 1.2rem 1rem}
+  .newdlg h2{margin:0 0 .2rem;font-size:1.05rem}
+  .newdlg label{display:flex;flex-direction:column;gap:.25rem;font-size:.8rem;font-weight:600;color:var(--faint)}
+  .newdlg input{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:9px;
+    padding:.5rem .6rem;font:inherit;font-size:16px}
+  .newdlg input:focus{outline:none;border-color:var(--accent)}
+  .newdlg .radios{display:flex;gap:.4rem;flex-wrap:wrap}
+  .newdlg .radios label{flex-direction:row;align-items:center;gap:.35rem;border:1px solid var(--line);border-radius:999px;
+    padding:.3rem .7rem;cursor:pointer;color:var(--ink);font-weight:600}
+  .newdlg .radios label:has(:checked){border-color:var(--accent);background:var(--work2);color:var(--accent)}
+  .newdlg .radios input{margin:0;width:1rem;height:1rem;accent-color:var(--accent)}
+  .newdlg .preview{font-size:.8rem;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;min-height:1.2em}
+  .newdlg .preview b{color:var(--ink);font-weight:600}
+  .newdlg .btns{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.3rem}
+  .newdlg .btns button{border-radius:999px;padding:.5rem 1rem;font:inherit;font-weight:700;cursor:pointer;
+    border:1px solid var(--line);background:var(--panel2);color:var(--ink)}
+  .newdlg .btns button[value=create]{background:var(--accent);border-color:var(--accent);color:#fff}
   /* touch key-bar for the phone terminal — mobile only, laptop unchanged */
   .keybar{display:none;gap:.3rem;padding:.4rem .5rem;background:var(--panel);border-top:1px solid var(--line);
     overflow-x:auto;flex:0 0 auto;-webkit-overflow-scrolling:touch;align-items:center}
@@ -375,6 +396,23 @@
     <iframe id="termframe" src="about:blank" allow="clipboard-read; clipboard-write"></iframe>
   </div>
 </div>
+<dialog class="newdlg" id="newdlg">
+  <form method="dialog" id="newform" autocomplete="off">
+    <h2>New session</h2>
+    <label>Person <input name="person" list="people" placeholder="max" required pattern="[A-Za-z0-9_]+" title="letters and digits only"></label>
+    <label>Project <input name="project" placeholder="pyinv-tax-accountant" required pattern="[A-Za-z0-9_-]+" title="letters, digits, - and _"></label>
+    <label>Folder <input name="dir" list="folders" placeholder="pyinv-tax-accountant"></label>
+    <div class="preview" id="newprev"></div>
+    <div class="radios">
+      <label><input type="radio" name="group" value="personal" checked>personal</label>
+      <label><input type="radio" name="group" value="clients">clients</label>
+      <label><input type="radio" name="group" value="ventures">ventures</label>
+    </div>
+    <datalist id="people"></datalist>
+    <datalist id="folders"></datalist>
+    <div class="btns"><button value="cancel" type="button" id="newcancel">Cancel</button><button value="create">Create</button></div>
+  </form>
+</dialog>
 <div class="keybar" id="keybar">
   <div class="pastebox">
     <textarea id="pastetext" rows="2" placeholder="Paste here, then send"></textarea>
@@ -763,19 +801,41 @@ async function killCard(session, who){
     else toast("⚠ "+(j.error||"failed"),true);
   }catch(e){ toast("⚠ "+e.message,true); }
 }
-async function newSession(){
-  const name=prompt("New session name (e.g. sara-newproject):"); if(!name) return;
-  const dir=prompt("Working directory:", "{{OFFICE_DEV_ROOT}}/"+name.split("-").pop())||"{{OFFICE_DEV_ROOT}}";
-  const group=prompt("Category — clients / ventures / personal:", "personal")||"personal";
-  try{
-    const r=await fetch("/api/new",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({name,dir,group})});
-    const j=await r.json();
-    if(j.ok){ toast("Created "+j.created); setTimeout(load,800); }
-    else toast("⚠ "+(j.error||"failed"),true);
-  }catch(e){ toast("⚠ "+e.message,true); }
-}
-document.getElementById("newbtn").onclick=newSession;
+// "+ New": one form — person, project, folder, category — and nothing happens until Create.
+// The folder defaults to the whole project part ("max-pyinv-tax" -> pyinv-tax); existing
+// folders under the dev root are offered as suggestions, people from the cards on the floor.
+const DEV_ROOT="{{OFFICE_DEV_ROOT}}";
+(function(){
+  const dlg=document.getElementById("newdlg"), form=document.getElementById("newform"), prev=document.getElementById("newprev");
+  const F=n=>form.elements[n];
+  let dirTouched=false;
+  function preview(){
+    const person=F("person").value.trim().toLowerCase(), proj=F("project").value.trim().toLowerCase();
+    if(!dirTouched) F("dir").value=proj;
+    const dir=F("dir").value.trim()||"";
+    prev.innerHTML = person&&proj ? `tmux <b>${person}-${proj}</b> &nbsp;in&nbsp; <b>${DEV_ROOT}/${dir}</b>` : "";
+  }
+  form.addEventListener("input", e=>{ if(e.target.name==="dir") dirTouched=e.target.value!==""; preview(); });
+  document.getElementById("newcancel").onclick=()=>dlg.close("cancel");
+  async function openNew(){
+    form.reset(); dirTouched=false; preview();
+    document.getElementById("people").innerHTML=[...new Set(LAST.map(m=>(m.person||"").toLowerCase()).filter(Boolean))].sort().map(p=>`<option value="${p}">`).join("");
+    try{ const j=await (await fetch("/api/dirs")).json(); document.getElementById("folders").innerHTML=(j.dirs||[]).map(d=>`<option value="${d}">`).join(""); }catch(_){}
+    dlg.showModal(); F("person").focus();
+  }
+  form.addEventListener("submit", async e=>{
+    e.preventDefault();                       // Create: stay open on error so you can fix it
+    const person=F("person").value.trim().toLowerCase(), proj=F("project").value.trim().toLowerCase();
+    const name=person+"-"+proj, dir=DEV_ROOT+"/"+(F("dir").value.trim()||proj), group=F("group").value;
+    try{
+      const r=await fetch("/api/new",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,dir,group})});
+      const j=await r.json();
+      if(j.ok){ dlg.close("create"); toast("Created "+j.created); setTimeout(load,800); }
+      else toast("⚠ "+(j.error||"failed"),true);
+    }catch(err){ toast("⚠ "+err.message,true); }
+  });
+  document.getElementById("newbtn").onclick=openNew;
+})();
 
 // ── full interactive terminal (ttyd on :7681, tailnet-only) ──────────────
 // Seamless copy: mirror tmux's selection to the OS clipboard on drag-end.

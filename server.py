@@ -248,6 +248,14 @@ class Handler(SimpleHTTPRequestHandler):
             if cfg("OFFICE_DEMO"):
                 return self._demo_terminal()
             return self._proxy_terminal()
+        if self.path.split("?")[0] == "/api/dirs":
+            # top-level project folders under the dev root, for the "+ New" form's suggestions
+            try:
+                dirs = sorted(d for d in os.listdir(DEV_ROOT)
+                              if not d.startswith(".") and os.path.isdir(os.path.join(DEV_ROOT, d)))
+            except OSError:
+                dirs = []
+            return self._json({"dirs": dirs})
         if self.path.split("?")[0] == "/api/floor":
             try:
                 importlib.reload(team)   # pick up team.py edits without a restart
