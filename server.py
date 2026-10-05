@@ -15,7 +15,7 @@ import json, subprocess, sys, os, time, importlib, signal, socket, threading, sh
 from urllib.parse import urlparse
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 # ── config: derived generically so the repo carries no user/host specifics.
 # A gitignored .env (see .env.example) supplies instance details (title, email,
