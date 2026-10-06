@@ -29,7 +29,7 @@ def _tmux(*a):
 
 def sessions():
     out = _tmux("list-panes", "-a", "-F",
-                "#{session_name}\t#{session_attached}\t#{pane_current_path}\t#{session_activity}\t#{session_created}")
+                "#{session_name}\t#{session_attached}\t#{pane_current_path}\t#{session_activity}\t#{session_created}\t#{pane_pid}")
     seen = {}
     for line in out.strip().splitlines():
         p = line.split("\t")
@@ -38,8 +38,53 @@ def sessions():
         name, att, path = p[0], p[1], p[2]
         act = int(p[3]) if len(p) > 3 and p[3].isdigit() else 0   # tmux last-activity epoch
         crt = int(p[4]) if len(p) > 4 and p[4].isdigit() else 0   # tmux session-created epoch
-        seen.setdefault(name, (att != "0", path, act, crt))
+        pid = int(p[5]) if len(p) > 5 and p[5].isdigit() else 0   # the pane's shell; Claude runs under it
+        seen.setdefault(name, (att != "0", path, act, crt, pid))
     return seen
+
+# ── process side: which transcript is THIS pane's Claude writing? ─────────
+# Claude Code keeps ~/.claude/sessions/<pid>.json for each running process, naming its
+# sessionId and start cwd. Walking from the pane's shell down to that process gives an
+# exact pane -> transcript match, which the directory heuristics below can't when two
+# sessions were launched in the same folder (they'd both show the newer transcript).
+SESS_DIR = os.path.join(HOME, ".claude", "sessions")
+
+def _children():
+    kids = {}
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            with open(f"/proc/{d}/stat") as f:
+                st = f.read()
+            ppid = int(st[st.rindex(")") + 2:].split()[1])
+        except (OSError, ValueError, IndexError):
+            continue
+        kids.setdefault(ppid, []).append(int(d))
+    return kids
+
+def _by_pid(pane_pid, kids):
+    if not pane_pid:
+        return None
+    frontier, depth = [pane_pid], 0
+    while frontier and depth < 4:               # shell -> claude (maybe via a wrapper or two)
+        nxt = []
+        for pid in frontier:
+            sf = os.path.join(SESS_DIR, f"{pid}.json")
+            if os.path.isfile(sf):
+                try:
+                    with open(sf) as f:
+                        meta = json.load(f)
+                    sid = str(meta.get("sessionId", ""))
+                    if re.fullmatch(r"[0-9a-f-]{36}", sid):
+                        hits = glob.glob(os.path.join(PROJ, "*", sid + ".jsonl"))
+                        if hits:
+                            return _parse_one(hits[0])
+                except (OSError, ValueError):
+                    pass
+            nxt.extend(kids.get(pid, []))
+        frontier, depth = nxt, depth + 1
+    return None
 
 def split_name(s):
     if "-" in s:
@@ -355,10 +400,11 @@ def snapshot():
     idx = _transcript_index()
     team = []
     now = int(time.time())
-    for name, (attached, path, activity, created) in sessions().items():
+    kids = _children()
+    for name, (attached, path, activity, created, pid) in sessions().items():
         person, project = split_name(name)
         working, typed, verb = _pane(name)
-        rec = _by_dir(path) or _join(path, idx, project)
+        rec = _by_pid(pid, kids) or _by_dir(path) or _join(path, idx, project)
 
         # ghost = no transcript AND not freshly created (a new session just hasn't
         # written a transcript yet — it's not a retention-deleted ghost).
