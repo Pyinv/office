@@ -82,7 +82,8 @@ for _h in cfg("OFFICE_TAILNET_HOST").split(","):
 # Only these exact paths are servable as raw static files by the fallback handler.
 # Everything else in ROOT (.env, *.json state, source, doc/) must NEVER be web-served.
 # Exact-match — immune to ../ and %2e traversal that a prefix check would allow.
-STATIC_OK = {"/status/chart.umd.min.js", "/status/data.json"}
+STATIC_OK = {"/status/chart.umd.min.js", "/status/data.json", "/manifest.json",
+             "/icons/icon-180.png", "/icons/icon-192.png", "/icons/icon-512.png"}
 _SEC_OVERLAY = {}   # demo: session -> {you,state,verb,ts} set by the Secretary, shown live on the floor
 _WATCHES = []       # follow-ups: [{session,person,act,prev,ts}] — fire when a session finishes
 _WATCHES_LOCK = threading.Lock()   # serialize watch fire+remove across concurrent /api/floor polls
