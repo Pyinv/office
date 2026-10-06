@@ -11,7 +11,7 @@ Binds to the Tailscale IP ONLY. Refuses to start without one, so the reply
 endpoint (which can type into live Claude sessions) is never exposed to the LAN
 or the internet — same trust boundary as sitting at the tower.
 """
-import json, subprocess, sys, os, time, importlib, signal, socket, threading, shutil, re, tempfile
+import json, subprocess, sys, os, time, importlib, signal, socket, threading, shutil, re, tempfile, shlex
 from urllib.parse import urlparse
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -153,6 +153,13 @@ def save_groups(g):
         json.dump(g, f, indent=2, sort_keys=True)
     os.replace(tmp, GROUPS_FILE)
 
+def _login_shell():
+    try:
+        import pwd
+        return pwd.getpwuid(os.getuid()).pw_shell or "/bin/sh"
+    except Exception:
+        return os.environ.get("SHELL") or "/bin/sh"
+
 def safe_session(name):
     # tmux session names can't contain . or : ; keep it simple + shell-safe
     return _re.sub(r'[^a-zA-Z0-9_-]', '-', (name or "").strip())[:48].strip("-")
@@ -204,8 +211,10 @@ def record_history(snap):
             if not m.get("dir"):
                 continue
             cur = h.get(m["session"]) or {}
-            rec = {"dir": m["dir"], "group": m.get("group", "personal"), "seen": now}
-            if cur.get("dir") != rec["dir"] or cur.get("group") != rec["group"] or now - cur.get("seen", 0) >= 600:
+            rec = {"dir": m["dir"], "group": m.get("group", "personal"), "seen": now,
+                   "sid": m.get("sid") or cur.get("sid", "")}
+            if (cur.get("dir"), cur.get("group"), cur.get("sid")) != (rec["dir"], rec["group"], rec["sid"]) \
+                    or now - cur.get("seen", 0) >= 600:
                 h[m["session"]] = rec; changed = True
         _hist_written = now
         if not changed:
@@ -999,6 +1008,13 @@ class Handler(SimpleHTTPRequestHandler):
         except OSError:
             return self._json({"error": "could not create that directory"}, 400)
         launch = CLAUDE_BIN if os.path.exists(CLAUDE_BIN) else "claude"
+        resume = str(data.get("resume", ""))
+        if resume and re.fullmatch(r"[0-9a-f-]{36}", resume):
+            launch += " --resume " + resume          # bring back: pick the conversation up where it was
+        # When Claude exits (Ctrl-D twice, /exit, a crash) drop to a shell instead of
+        # letting tmux close the session — the card stays and `claude --continue` is a
+        # keystroke away. tmux runs the string through the user's default shell.
+        launch += "; exec " + shlex.quote(_login_shell())
         try:
             subprocess.run(["tmux", "new-session", "-d", "-s", name, "-c", d, launch], check=True)
         except (subprocess.CalledProcessError, OSError):

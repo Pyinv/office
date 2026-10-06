@@ -162,7 +162,7 @@ def _parse_one(f):
                 last_role = "tool_result"
             last_ts = o.get("timestamp") or last_ts
     res = {"cwd": cwd, "asst": last_asst, "role": last_role, "ts": last_ts,
-           "asst_ts": asst_ts, "you": you}
+           "asst_ts": asst_ts, "you": you, "file": f}
     _TCACHE[f] = (mt, res)
     return res
 
@@ -444,6 +444,9 @@ def snapshot():
             # exchange, never on merely opening/attaching the tmux session. Falls back to the
             # session's own activity only when no transcript is matched yet.
             "ts": _epoch(rec.get("ts") if rec else None) or activity,
+            # the Claude conversation id (transcript file name): lets a dead session be
+            # brought back with `claude --resume` instead of a blank start
+            "sid": os.path.basename(rec["file"])[:-6] if rec and rec.get("file") else "",
         })
 
     rank = {"waiting": 0, "typed": 1, "review": 2, "working": 3, "idle": 4}

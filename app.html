@@ -425,6 +425,7 @@
     <label>Person <input name="person" list="people" placeholder="max" required pattern="[A-Za-z0-9_]+" title="letters and digits only"></label>
     <label>Project <input name="project" placeholder="pyinv-tax-accountant" required pattern="[A-Za-z0-9_-]+" title="letters, digits, - and _"></label>
     <label>Folder <input name="dir" list="folders" placeholder="pyinv-tax-accountant"></label>
+    <input type="hidden" name="resume">
     <div class="preview" id="newprev"></div>
     <div class="radios">
       <label><input type="radio" name="group" value="personal" checked>personal</label>
@@ -859,7 +860,7 @@ const DEV_ROOT="{{OFFICE_DEV_ROOT}}";
     const person=F("person").value.trim().toLowerCase(), proj=F("project").value.trim().toLowerCase();
     if(!dirTouched) F("dir").value=proj;
     const dir=F("dir").value.trim()||"";
-    prev.innerHTML = person&&proj ? `tmux <b>${person}-${proj}</b> &nbsp;in&nbsp; <b>${DEV_ROOT}/${dir}</b>` : "";
+    prev.innerHTML = person&&proj ? `tmux <b>${person}-${proj}</b> &nbsp;in&nbsp; <b>${DEV_ROOT}/${dir}</b>`+(F("resume").value?` · <b>resumes the previous conversation</b>`:"") : "";
   }
   form.addEventListener("input", e=>{ if(e.target.name==="dir") dirTouched=e.target.value!==""; preview(); });
   let PAST=[], SHOWN=[], SEL=-1;
@@ -875,6 +876,7 @@ const DEV_ROOT="{{OFFICE_DEV_ROOT}}";
     const [person, ...rest]=r.session.split("-");
     F("person").value=person; F("project").value=rest.join("-");
     F("dir").value=r.dir.startsWith(DEV_ROOT+"/") ? r.dir.slice(DEV_ROOT.length+1) : r.dir; dirTouched=true;
+    F("resume").value=r.sid||"";
     const g=form.querySelector(`input[name=group][value="${r.group}"]`); if(g) g.checked=true;
     preview(); F("project").focus();
   }
@@ -902,9 +904,9 @@ const DEV_ROOT="{{OFFICE_DEV_ROOT}}";
   form.addEventListener("submit", async e=>{
     e.preventDefault();                       // Create: stay open on error so you can fix it
     const person=F("person").value.trim().toLowerCase(), proj=F("project").value.trim().toLowerCase();
-    const name=person+"-"+proj, dir=DEV_ROOT+"/"+(F("dir").value.trim()||proj), group=F("group").value;
+    const name=person+"-"+proj, dir=DEV_ROOT+"/"+(F("dir").value.trim()||proj), group=F("group").value, resume=F("resume").value;
     try{
-      const r=await fetch("/api/new",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,dir,group})});
+      const r=await fetch("/api/new",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,dir,group,resume})});
       const j=await r.json();
       if(j.ok){ dlg.close("create"); toast("Created "+j.created); setTimeout(load,800); }
       else toast("⚠ "+(j.error||"failed"),true);
