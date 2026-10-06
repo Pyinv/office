@@ -72,10 +72,12 @@ TTYD_SOCK = os.path.join(ROOT, "ttyd.sock")
 # host check blocks cross-site POST (CSRF) and cross-origin terminal websockets.
 # main() also adds the bound tailnet IP AND the machine's live tailnet DNS name at
 # startup, so this stays correct across a tailnet rename. OFFICE_TAILNET_HOST (.env)
-# is an optional extra fallback for boot before `tailscale status` is readable.
+# adds more: a fallback for boot before `tailscale status` is readable, or any other
+# name a reverse proxy serves the app under (comma-separated).
 ALLOWED_HOSTS = {"localhost", "127.0.0.1"}
-if cfg("OFFICE_TAILNET_HOST"):
-    ALLOWED_HOSTS.add(cfg("OFFICE_TAILNET_HOST"))
+for _h in cfg("OFFICE_TAILNET_HOST").split(","):
+    if _h.strip():
+        ALLOWED_HOSTS.add(_h.strip())
 
 # Only these exact paths are servable as raw static files by the fallback handler.
 # Everything else in ROOT (.env, *.json state, source, doc/) must NEVER be web-served.
@@ -102,6 +104,8 @@ import team  # noqa: E402
 # frees on exec and main() rebinds it. Lets `office/reload` update the running
 # server in place without a manual restart.
 def _reload(*_):
+    for k in _ENV:                 # drop what WE exported from .env, so the new process re-reads
+        os.environ.pop(k, None)    # the file; real environment overrides are not ours to drop
     os.execv(sys.executable, [sys.executable, os.path.abspath(__file__)])
 signal.signal(signal.SIGHUP, _reload)
 
