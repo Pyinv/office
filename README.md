@@ -12,7 +12,7 @@ It reads tmux + Claude Code transcripts to tell, per session, whether Claude is 
 
 - **Live floor** — one card per tmux session (who/what/state), most-recently-active first.
 - **Answer inline** — reply to a session; it's typed in via `tmux send-keys`.
-- **Full terminal** — a real interactive terminal per session (via [ttyd](https://github.com/tsl0922/ttyd)), with seamless select-to-copy and an open-in-new-tab button.
+- **Full terminal** — a real interactive terminal per session (via [ttyd](https://github.com/tsl0922/ttyd)), with seamless select-to-copy and an open-in-new-tab button. Each terminal has its own address (`/<session-name>`), so a refresh, a bookmark or a shared link lands straight in it.
 - **Phone terminal** — on touch devices, swipe to scroll and a key bar above the keyboard with esc, tab, arrows, enter and the Ctrl keys (^B works as the tmux prefix). Paste uses the clipboard when the browser allows it and falls back to a paste box when it doesn't.
 - **Organize** — pin, categorize (clients / ventures / personal), and attach a **focus note** (main task + sub-tasks) that stays pinned to the card.
 - **Manage** — rename a session (tmux and its Office state move together), kill it, or spawn a new one from a form (person, project, folder, category) confined to your dev root. Sessions that died or were killed stay in history, so "+ New" can bring one back by name with its old folder and category.

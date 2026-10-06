@@ -830,7 +830,7 @@ async function renameCard(session){
       if(!j.ok){ toast("⚠ "+(j.error||"failed"),true); return; }
       dlg.close();
       if(SENT[session]){ SENT[j.session]=SENT[session]; delete SENT[session]; }
-      if(MODAL_SESSION===session) MODAL_SESSION=j.session;
+      if(MODAL_SESSION===session){ MODAL_SESSION=j.session; history.replaceState({session:j.session},"","/"+j.session); }
       const sb=document.getElementById("search"); if(sb && sb.value.trim().toLowerCase()===session){ sb.value=j.session; SEARCH=j.session; }  // keep the renamed card in view
       LAYOUT=""; toast("Renamed to "+j.session); load();
     }catch(err){ toast("⚠ "+err.message,true); }
@@ -972,6 +972,7 @@ function tabTitle(m){
 }
 function openTerm(session, who, title){
   MODAL_SESSION=session;
+  if(location.pathname!=="/"+session) history.pushState({session}, "", "/"+session);   // address bar = the terminal; refresh/share lands here
   const box=document.querySelector(".mbox");
   const old=document.getElementById("termframe"); if(old) old.remove();
   const f=document.createElement("iframe"); f.id="termframe";
@@ -988,6 +989,7 @@ function openTerm(session, who, title){
 }
 const BASE_TITLE=document.title;
 function closeTerm(){
+  if(location.pathname!=="/") history.pushState(null, "", "/");
   document.getElementById("modal").classList.remove("open");
   document.title=BASE_TITLE;
   const f=document.getElementById("termframe"); if(f) f.remove();  // tear down ttyd fully -> detach tmux
@@ -997,6 +999,16 @@ function closeTerm(){
   const sb=document.getElementById("search"); if(sb && sb.value){ sb.value=""; SEARCH=""; render(); }  // clear the search used to find this session
 }
 document.getElementById("modal").addEventListener("mousedown",e=>{ if(e.target.id==="modal") closeTerm(); });
+// browser back/forward between the floor and a terminal
+window.addEventListener("popstate", e=>{
+  const s=(e.state&&e.state.session)||(location.pathname.length>1 ? decodeURIComponent(location.pathname.slice(1)) : "");
+  if(s) openTermByName(s); else if(MODAL_OPEN) closeTerm();
+});
+function openTermByName(session){
+  const m=LAST.find(x=>x.session===session);
+  if(m) openTerm(m.session,(m.person||m.project),tabTitle(m));
+  else{ toast("⚠ no session "+session,true); history.replaceState(null,"","/"); if(MODAL_OPEN) closeTerm(); }
+}
 document.getElementById("mx").onclick=closeTerm;
 document.getElementById("mpop").onclick=()=>{ if(MODAL_SESSION) window.open(`/terminal/?arg=${encodeURIComponent(MODAL_SESSION)}`, "_blank"); };
 // touch key-bar → type keys into the terminal. They go in through xterm itself, exactly as
@@ -1183,7 +1195,8 @@ async function load(){
 }
 document.getElementById("search").addEventListener("input",e=>{ SEARCH=e.target.value; render(); });
 document.getElementById("floor").addEventListener("click",e=>{ const yb=e.target.closest(".youbox"); if(yb) yb.classList.toggle("full"); });
-load();
+// deep link: /<session> opens that terminal once the floor is known
+load().then(()=>{ if(location.pathname.length>1 && !MODAL_OPEN) openTermByName(decodeURIComponent(location.pathname.slice(1))); });
 setInterval(()=>{ if(!document.hidden) load(); }, 5000);
 </script>
 </body>

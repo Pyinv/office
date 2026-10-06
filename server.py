@@ -392,6 +392,10 @@ class Handler(SimpleHTTPRequestHandler):
         # so config/state/source in ROOT is never exposed.
         if self.path.split("?")[0] in STATIC_OK:
             return super().do_GET()
+        # /<session-name> deep-links a terminal: the app opens it on load (and puts the
+        # name in the address bar when you open one), so a refresh lands in the same terminal.
+        if _re.fullmatch(r"/[A-Za-z0-9_-]+", self.path.split("?")[0]):
+            return self._serve_html(os.path.join(ROOT, "app.html"))
         return self._json({"error": "not found"}, 404)
 
     def do_POST(self):
