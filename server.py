@@ -85,6 +85,66 @@ for _h in cfg("OFFICE_TAILNET_HOST").split(","):
 STATIC_OK = {"/status/chart.umd.min.js", "/status/data.json", "/manifest.json",
              "/icons/icon-180.png", "/icons/icon-192.png", "/icons/icon-512.png"}
 _SEC_OVERLAY = {}   # demo: session -> {you,state,verb,ts} set by the Secretary, shown live on the floor
+
+# ── phone push (ntfy) ──────────────────────────────────────────────────────
+# When a session turns to you with a question, post it to a private ntfy server so the
+# phone buzzes: "Ahmed needs you" + the question + a tap target straight into that
+# terminal. Nothing is sent without OFFICE_NTFY_URL/TOPIC/TOKEN; the body carries the real
+# text because the server is yours (see README: ntfy.sh only ever relays a wake-up ping).
+NTFY_URL    = cfg("OFFICE_NTFY_URL").rstrip("/")
+NTFY_TOPIC  = cfg("OFFICE_NTFY_TOPIC")
+NTFY_TOKEN  = cfg("OFFICE_NTFY_TOKEN")
+NTFY_EVENTS = {e.strip() for e in cfg("OFFICE_NTFY_EVENTS", "waiting").split(",") if e.strip()}
+OFFICE_URL  = cfg("OFFICE_URL").rstrip("/")       # deep-link base for the tap target
+_NOTIFIED = {}      # session -> key of the last state we pushed, so one question = one push
+_NOTIFY_LOCK = threading.Lock()
+_NOTIFY_SEEDED = False   # the first snapshot after a (re)start only records state: no burst of old questions
+
+def _ntfy_post(title, body, click, tags, priority="default"):
+    import urllib.request
+    req = urllib.request.Request(NTFY_URL + "/" + NTFY_TOPIC, data=body.encode("utf-8"), method="POST")
+    req.add_header("Authorization", "Bearer " + NTFY_TOKEN)
+    req.add_header("Title", title.encode("utf-8").decode("latin-1", "replace"))   # header-safe
+    req.add_header("Tags", tags)
+    req.add_header("Priority", priority)
+    if click:
+        req.add_header("Click", click)
+    try:
+        urllib.request.urlopen(req, timeout=5).read()
+    except Exception as e:
+        sys.stderr.write(f"office/ntfy: {e}\n")
+
+def notify_changes(snap):
+    """Push once per new question (or finish), never on every poll. Runs after each
+    floor snapshot; the HTTP call itself goes to a thread so polls stay fast."""
+    global _NOTIFY_SEEDED
+    if not (NTFY_URL and NTFY_TOPIC and NTFY_TOKEN):
+        return
+    with _NOTIFY_LOCK:
+        quiet = not _NOTIFY_SEEDED; _NOTIFY_SEEDED = True
+        live = set()
+        for m in snap:
+            s = m["session"]; live.add(s)
+            who = m.get("person") or m.get("project") or s
+            st = m.get("state")
+            click = f"{OFFICE_URL}/{s}" if OFFICE_URL else ""
+            if st == "waiting" and "waiting" in NTFY_EVENTS and (m.get("ask") or "").strip():
+                ask = re.sub(r"\s+", " ", m["ask"]).strip()
+                key = "waiting:" + ask[:200]
+                if _NOTIFIED.get(s) != key:
+                    _NOTIFIED[s] = key
+                    if not quiet: threading.Thread(target=_ntfy_post, args=(f"{who} needs you", ask[:400], click, "raising_hand", "high"), daemon=True).start()
+            elif st == "review" and "review" in NTFY_EVENTS and str(_NOTIFIED.get(s, "")).startswith("working"):
+                _NOTIFIED[s] = "review"
+                if not quiet: threading.Thread(target=_ntfy_post, args=(f"{who} is done", (m.get("full") or "")[-300:].strip() or "your move", click, "white_check_mark"), daemon=True).start()
+            elif st == "working":
+                if not str(_NOTIFIED.get(s, "")).startswith("working"):
+                    _NOTIFIED[s] = "working"
+            elif st not in ("waiting", "review"):
+                _NOTIFIED.pop(s, None)
+        for s in list(_NOTIFIED):
+            if s not in live:
+                _NOTIFIED.pop(s, None)
 _WATCHES = []       # follow-ups: [{session,person,act,prev,ts}] — fire when a session finishes
 _WATCHES_LOCK = threading.Lock()   # serialize watch fire+remove across concurrent /api/floor polls
 
@@ -330,6 +390,8 @@ class Handler(SimpleHTTPRequestHandler):
                 m["task"] = tasks.get(m["session"], m.get("task", ""))
             if not cfg("OFFICE_DEMO"):
                 try: record_history(snap)
+                except Exception: pass
+                try: notify_changes(snap)
                 except Exception: pass
             now = int(time.time())
             if _SEC_OVERLAY and cfg("OFFICE_DEMO"):   # show/advance what the Secretary dispatched
