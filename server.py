@@ -94,7 +94,7 @@ _SEC_OVERLAY = {}   # demo: session -> {you,state,verb,ts} set by the Secretary,
 NTFY_URL    = cfg("OFFICE_NTFY_URL").rstrip("/")
 NTFY_TOPIC  = cfg("OFFICE_NTFY_TOPIC")
 NTFY_TOKEN  = cfg("OFFICE_NTFY_TOKEN")
-NTFY_EVENTS = {e.strip() for e in cfg("OFFICE_NTFY_EVENTS", "waiting").split(",") if e.strip()}
+NTFY_EVENTS = {e.strip() for e in cfg("OFFICE_NTFY_EVENTS", "waiting,review,secretary,gone").split(",") if e.strip()}
 OFFICE_URL  = cfg("OFFICE_URL").rstrip("/")       # deep-link base for the tap target
 _NOTIFIED = {}      # session -> key of the last state we pushed, so one question = one push
 _NOTIFY_LOCK = threading.Lock()
@@ -128,23 +128,39 @@ def notify_changes(snap):
             who = m.get("person") or m.get("project") or s
             st = m.get("state")
             click = f"{OFFICE_URL}/{s}" if OFFICE_URL else ""
+            if m.get("muted"):                      # 🔕: track state silently so unmuting doesn't replay
+                quiet_s = True
+            else:
+                quiet_s = quiet
             if st == "waiting" and "waiting" in NTFY_EVENTS and (m.get("ask") or "").strip():
                 ask = re.sub(r"\s+", " ", m["ask"]).strip()
                 key = "waiting:" + ask[:200]
                 if _NOTIFIED.get(s) != key:
                     _NOTIFIED[s] = key
-                    if not quiet: threading.Thread(target=_ntfy_post, args=(f"{who} needs you", ask[:400], click, "raising_hand", "high"), daemon=True).start()
+                    if not quiet_s: threading.Thread(target=_ntfy_post, args=(f"{who} needs you", ask[:400], click, "raising_hand", "high"), daemon=True).start()
             elif st == "review" and "review" in NTFY_EVENTS and str(_NOTIFIED.get(s, "")).startswith("working"):
                 _NOTIFIED[s] = "review"
-                if not quiet: threading.Thread(target=_ntfy_post, args=(f"{who} is done", (m.get("full") or "")[-300:].strip() or "your move", click, "white_check_mark"), daemon=True).start()
+                if not quiet_s: threading.Thread(target=_ntfy_post, args=(f"{who} is done", (m.get("full") or "")[-300:].strip() or "your move", click, "white_check_mark"), daemon=True).start()
             elif st == "working":
                 if not str(_NOTIFIED.get(s, "")).startswith("working"):
                     _NOTIFIED[s] = "working"
             elif st not in ("waiting", "review"):
                 _NOTIFIED.pop(s, None)
         for s in list(_NOTIFIED):
-            if s not in live:
+            if s not in live:                       # was on the floor, now isn't: closed, crashed, killed
                 _NOTIFIED.pop(s, None)
+                if "gone" in NTFY_EVENTS and not quiet:
+                    who = s.split("-")[0].capitalize()
+                    threading.Thread(target=_ntfy_post, args=(f"{who} is gone", f"session {s} is no longer running", OFFICE_URL or "", "wave", "low"), daemon=True).start()
+
+def notify_event(person, session, text):
+    # the Secretary's follow-ups ("ping me when Mara's done") also reach the phone
+    if not (NTFY_URL and NTFY_TOPIC and NTFY_TOKEN) or "secretary" not in NTFY_EVENTS:
+        return
+    if session in load_mutes():
+        return
+    click = f"{OFFICE_URL}/{session}" if OFFICE_URL else ""
+    threading.Thread(target=_ntfy_post, args=(f"{person}: follow-up", text, click, "bell"), daemon=True).start()
 _WATCHES = []       # follow-ups: [{session,person,act,prev,ts}] — fire when a session finishes
 _WATCHES_LOCK = threading.Lock()   # serialize watch fire+remove across concurrent /api/floor polls
 
@@ -239,6 +255,22 @@ def save_pins(p):
     with open(tmp, "w") as f:
         json.dump(sorted(p), f, indent=2)
     os.replace(tmp, PINS_FILE)
+
+# ── per-session phone-push mute (🔕 on the card) ─────────────────────────
+MUTES_FILE = os.path.join(ROOT, "mutes.json")
+
+def load_mutes():
+    try:
+        with open(MUTES_FILE) as f:
+            return set(json.load(f))
+    except Exception:
+        return set()
+
+def save_mutes(m):
+    tmp = MUTES_FILE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(sorted(m), f, indent=2)
+    os.replace(tmp, MUTES_FILE)
 
 # ── per-session focus note (main task + sub-tasks, pinned atop the card) ──
 # { "<session-name>": "<note text>" } — first line = main task, rest = sub-tasks.
@@ -381,12 +413,14 @@ class Handler(SimpleHTTPRequestHandler):
             snap = team.snapshot()
             groups = load_groups()
             pins = load_pins()
+            mutes = load_mutes()
             tasks = load_tasks()
             for m in snap:
                 # state files win; otherwise fall back to any value the snapshot
                 # already carries (lets demo.json fixtures set group/task/pinned).
                 m["group"] = groups.get(m["session"], m.get("group", "personal"))
                 m["pinned"] = (m["session"] in pins) or bool(m.get("pinned"))
+                m["muted"] = m["session"] in mutes
                 m["task"] = tasks.get(m["session"], m.get("task", ""))
             if not cfg("OFFICE_DEMO"):
                 try: record_history(snap)
@@ -431,9 +465,11 @@ class Handler(SimpleHTTPRequestHandler):
                                         pass
                                 events.append({"person": w["person"], "session": w["session"],
                                                "reply": f'{w["person"]} finished — I sent: "{dm}"'})
+                                notify_event(w["person"], w["session"], f'finished — I sent: "{dm}"')
                             else:
                                 events.append({"person": w["person"], "session": w["session"],
                                                "reply": f'{w["person"]} just finished — your move.'})
+                                notify_event(w["person"], w["session"], "just finished — your move")
                             try:
                                 _WATCHES.remove(w)
                             except ValueError:
@@ -481,6 +517,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/say":   return self._say(data)
         if path == "/api/group": return self._group(data)
         if path == "/api/pin":   return self._pin(data)
+        if path == "/api/mute":  return self._mute(data)
         if path == "/api/task":  return self._task(data)
         if path == "/api/secretary": return self._secretary(data)
         if path == "/api/key":   return self._key(data)
@@ -549,6 +586,19 @@ class Handler(SimpleHTTPRequestHandler):
             pins.discard(sess)
         save_pins(pins)
         return self._json({"ok": True, "session": sess, "pinned": sess in pins})
+
+    def _mute(self, data):
+        # 🔕 on a card: no phone pushes for this session until unmuted
+        sess = str(data.get("session", ""))
+        if not sess or sess not in live_sessions():
+            return self._json({"error": f"no live session '{sess}'"}, 409)
+        mutes = load_mutes()
+        if data.get("muted"):
+            mutes.add(sess)
+        else:
+            mutes.discard(sess)
+        save_mutes(mutes)
+        return self._json({"ok": True, "session": sess, "muted": sess in mutes})
 
     def _task(self, data):
         # Set/clear a session's focus note. Blank text removes the note (delete key).
@@ -1026,6 +1076,9 @@ class Handler(SimpleHTTPRequestHandler):
         p = load_pins()
         if old in p:
             p.discard(old); p.add(new); save_pins(p)
+        mu = load_mutes()
+        if old in mu:
+            mu.discard(old); mu.add(new); save_mutes(mu)
         t = load_tasks()
         if old in t:
             t[new] = t.pop(old); save_tasks(t)

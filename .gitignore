@@ -1,6 +1,7 @@
 # --- Runtime state (encodes session / client / venture names) ---
 groups.json
 pins.json
+mutes.json
 tasks.json
 history.json
 ttyd.sock

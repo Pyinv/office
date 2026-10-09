@@ -280,6 +280,7 @@
   .iconbtn:hover{border-color:var(--accent);color:var(--ink)}
   .iconbtn.kill:hover{border-color:#e5484d;color:#e5484d}
   .iconbtn.pin.on{background:color-mix(in srgb,var(--accent) 25%,var(--panel2));border-color:var(--accent)}
+  .iconbtn.mute.on{background:color-mix(in srgb,var(--wait) 22%,var(--panel2));border-color:var(--wait)}
   .card.pinned{outline:1.5px solid color-mix(in srgb,var(--accent) 70%,transparent);outline-offset:-1px}
   .newbtn{background:var(--accent);color:#fff;border:0;border-radius:999px;font-weight:700;
     font-size:.8rem;padding:.3rem .8rem;cursor:pointer;white-space:nowrap}
@@ -638,7 +639,7 @@ function taskBlock(m){ return taskLines(m.task).length?`<div class="taskbox">${t
 // has-task ("T") is part of catOf so GAINING/LOSING the note is a structural rebuild.
 const catOf=m=>(m.pinned?"P":"")+(taskLines(m.task).length?"T":"")+(m._sent?"sent":m.typed?"typed":m.state==="waiting"?("waiting"+((m.options&&m.options.length)?"q":"")):"plain");
 // m.task in the content signature so editing the note refreshes via updateCard.
-const sigOf=m=>[m.state,m.attached,m.ask,m.typed,m.full,m.you,m.ts,m._sent?1:0,m.pinned?1:0,m.task||""].join("");
+const sigOf=m=>[m.state,m.attached,m.ask,m.typed,m.full,m.you,m.ts,m._sent?1:0,m.pinned?1:0,m.muted?1:0,m.task||""].join("");
 // apply optimistic "just sent" overrides + expire them once Claude actually replies
 function applySent(team){
   const nowMs=Date.now();
@@ -736,6 +737,7 @@ function card(m){
       <button class="iconbtn rename" title="rename this session">✏️</button>
       <button class="iconbtn task" title="focus note — the session's main task">🎯</button>
       <button class="iconbtn pin${m.pinned?' on':''}" title="${m.pinned?'unpin':'pin to top'}">📌</button>
+      <button class="iconbtn mute${m.muted?' on':''}" title="${m.muted?'muted — no phone pushes; click to unmute':'mute phone pushes for this session'}">${m.muted?'🔕':'🔔'}</button>
       <button class="iconbtn termbtn" title="open terminal">⛶</button>
       <button class="iconbtn kill" title="kill this session">🗑</button>
     </div>`;
@@ -762,6 +764,7 @@ function wireCard(el,m){
   const kb=el.querySelector(".kill"); if(kb) kb.onclick=()=>killCard(m.session,(m.person||m.project));
   const rn=el.querySelector(".rename"); if(rn) rn.onclick=()=>renameCard(m.session);
   const pn=el.querySelector(".pin"); if(pn) pn.onclick=()=>pinCard(m.session,!m.pinned);
+  const mu=el.querySelector(".mute"); if(mu) mu.onclick=()=>muteCard(m.session,!m.muted);
   // focus-note editor: 🎯 toggles, textarea pauses polling while focused (same as reply)
   const taskbtn=el.querySelector(".iconbtn.task");
   if(taskbtn) taskbtn.onclick=()=>{ const ed=el.querySelector(".taskedit"); ed.hidden ? openTaskEditor(el,m.session) : closeTaskEditor(el); };
@@ -816,6 +819,12 @@ async function pinCard(session, pinned){
   try{ const r=await fetch("/api/pin",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({session,pinned})}); const j=await r.json();
     if(j.ok) toast((pinned?"📌 Pinned ":"Unpinned ")+session.split("-")[0]); else toast("⚠ "+(j.error||"failed"),true); }
+  catch(e){ toast("⚠ "+e.message,true); }
+}
+async function muteCard(session, muted){
+  try{ const r=await fetch("/api/mute",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session,muted})}); const j=await r.json();
+    if(j.ok){ const m=LAST.find(x=>x.session===session); if(m) m.muted=muted; render(); toast((muted?"🔕 Muted ":"🔔 Unmuted ")+session.split("-")[0]); }
+    else toast("⚠ "+(j.error||"failed"),true); }
   catch(e){ toast("⚠ "+e.message,true); }
 }
 // rename: a one-field dialog; tmux + the Office's state files move together on the server
@@ -1084,6 +1093,9 @@ function updateCard(el,m){
   // unchanged, so an open task editor must survive an in-place refresh.
   const editing=el.classList.contains("editing");
   el.className="card "+(LABEL[m.state]||{cls:"review"}).cls+(m.pinned?" pinned":"")+(editing?" editing":"");
+  const mb=el.querySelector(".iconbtn.mute");   // 🔔/🔕 follows the server's mute state
+  if(mb){ mb.classList.toggle("on",!!m.muted); mb.textContent=m.muted?"🔕":"🔔";
+          mb.title=m.muted?"muted — no phone pushes; click to unmute":"mute phone pushes for this session"; mb.onclick=()=>muteCard(m.session,!m.muted); }
   el.style.setProperty("--ring",`hsl(${hueFor(m.person||m.project)} 55% 55% / .8)`);
   const pill=el.querySelector(".pill"); if(pill){ pill.className="pill p-"+(m.typed?"typed":m.state); pill.textContent=pillOf(m); }
   const tl=el.querySelector(".typedline"); if(tl && m.typed) tl.textContent="❯ "+m.typed;

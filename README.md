@@ -18,7 +18,7 @@ It reads tmux + Claude Code transcripts to tell, per session, whether Claude is 
 - **Manage** — rename a session (tmux and its Office state move together), kill it, or spawn a new one from a form (person, project, folder, category) confined to your dev root. Sessions that died or were killed stay in history, so "+ New" can bring one back by name with its old folder and category — and resume its last Claude conversation. When Claude exits inside a session, the pane drops to a shell instead of closing.
 - **Secretary** — a chief-of-staff panel above the floor: type *"ask Lena to run the risk file, then have Mara draft the section"* and it finds those sessions and relays the instruction (real `send-keys`).
 - **Usage dashboard** — tokens, spend, and rate-limit meters at `/status/`.
-- **Phone push** — optional: when a session turns to you with a question, the server posts "*Name* needs you" plus the question to an [ntfy](https://ntfy.sh) topic, with a tap target straight into that terminal. Point it at your own ntfy server and nothing leaves your network (iOS still gets its wake-up through ntfy.sh, carrying only the topic name and a message id). See `OFFICE_NTFY_*` in `.env.example`.
+- **Phone push** — optional: when a session turns to you with a question, the server posts "*Name* needs you" plus the question to an [ntfy](https://ntfy.sh) topic, with a tap target straight into that terminal; also when it finishes, when a Secretary follow-up fires, and when a session disappears. A 🔔 on each card mutes pushes for that session. Point it at your own ntfy server and nothing leaves your network (iOS still gets its wake-up through ntfy.sh, carrying only the topic name and a message id). See `OFFICE_NTFY_*` in `.env.example`.
 
 ## How it works
 
@@ -130,7 +130,7 @@ the assistant with `OFFICE_SECRETARY_NAME`.
 ## What stays local (gitignored)
 
 `.env`, `emoji.local.json`, and the runtime state (`groups.json`, `pins.json`, `tasks.json`,
-`history.json`, `status/data.json`) hold your own config and session data — they are gitignored and never committed.
+`history.json`, `mutes.json`, `status/data.json`) hold your own config and session data — they are gitignored and never committed.
 
 ## Tests
 
