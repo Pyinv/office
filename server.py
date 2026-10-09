@@ -114,6 +114,13 @@ def _ntfy_post(title, body, click, tags, priority="default"):
     except Exception as e:
         sys.stderr.write(f"office/ntfy: {e}\n")
 
+def push_title(session):
+    # "ibrahim-countrol-edi" -> "Countrol Edi | Ibrahim": the project leads, like the browser tab
+    person, _, proj = session.partition("-")
+    words = [w.capitalize() for w in re.split(r"[-_]+", proj) if w]
+    title = " ".join(words) or session
+    return f"{title} | {person.capitalize()}" if proj else person.capitalize()
+
 def notify_changes(snap):
     """Push once per new question (or finish), never on every poll. Runs after each
     floor snapshot; the HTTP call itself goes to a thread so polls stay fast."""
@@ -125,7 +132,6 @@ def notify_changes(snap):
         live = set()
         for m in snap:
             s = m["session"]; live.add(s)
-            who = m.get("person") or m.get("project") or s
             st = m.get("state")
             click = f"{OFFICE_URL}/{s}" if OFFICE_URL else ""
             if m.get("muted"):                      # 🔕: track state silently so unmuting doesn't replay
@@ -137,10 +143,10 @@ def notify_changes(snap):
                 key = "waiting:" + ask[:200]
                 if _NOTIFIED.get(s) != key:
                     _NOTIFIED[s] = key
-                    if not quiet_s: threading.Thread(target=_ntfy_post, args=(f"{who} needs you", ask[:400], click, "raising_hand", "high"), daemon=True).start()
+                    if not quiet_s: threading.Thread(target=_ntfy_post, args=(push_title(s), "needs you: " + ask[:400], click, "raising_hand", "high"), daemon=True).start()
             elif st == "review" and "review" in NTFY_EVENTS and str(_NOTIFIED.get(s, "")).startswith("working"):
                 _NOTIFIED[s] = "review"
-                if not quiet_s: threading.Thread(target=_ntfy_post, args=(f"{who} is done", (m.get("full") or "")[-300:].strip() or "your move", click, "white_check_mark"), daemon=True).start()
+                if not quiet_s: threading.Thread(target=_ntfy_post, args=(push_title(s), "done — " + ((m.get("full") or "")[-300:].strip() or "your move"), click, "white_check_mark"), daemon=True).start()
             elif st == "working":
                 if not str(_NOTIFIED.get(s, "")).startswith("working"):
                     _NOTIFIED[s] = "working"
@@ -150,8 +156,7 @@ def notify_changes(snap):
             if s not in live:                       # was on the floor, now isn't: closed, crashed, killed
                 _NOTIFIED.pop(s, None)
                 if "gone" in NTFY_EVENTS and not quiet:
-                    who = s.split("-")[0].capitalize()
-                    threading.Thread(target=_ntfy_post, args=(f"{who} is gone", f"session {s} is no longer running", OFFICE_URL or "", "wave", "low"), daemon=True).start()
+                    threading.Thread(target=_ntfy_post, args=(push_title(s), "session is gone (closed, crashed or killed)", OFFICE_URL or "", "wave", "low"), daemon=True).start()
 
 def notify_event(person, session, text):
     # the Secretary's follow-ups ("ping me when Mara's done") also reach the phone
@@ -160,7 +165,7 @@ def notify_event(person, session, text):
     if session in load_mutes():
         return
     click = f"{OFFICE_URL}/{session}" if OFFICE_URL else ""
-    threading.Thread(target=_ntfy_post, args=(f"{person}: follow-up", text, click, "bell"), daemon=True).start()
+    threading.Thread(target=_ntfy_post, args=(push_title(session), "follow-up: " + text, click, "bell"), daemon=True).start()
 _WATCHES = []       # follow-ups: [{session,person,act,prev,ts}] — fire when a session finishes
 _WATCHES_LOCK = threading.Lock()   # serialize watch fire+remove across concurrent /api/floor polls
 
