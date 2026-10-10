@@ -286,6 +286,22 @@
     font-size:.8rem;padding:.3rem .8rem;cursor:pointer;white-space:nowrap}
   .newbtn:hover{filter:brightness(1.08)}
   .empty{color:var(--faint);text-align:center;padding:3rem 1rem;font-size:.9rem}
+  /* connectivity: a spinner while the first floor loads, a banner when the poll fails */
+  .spin{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);
+    animation:spin .8s linear infinite;vertical-align:-2px;margin-right:.45rem}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .netbar{display:none;align-items:center;gap:.8rem;margin:0 0 .9rem;padding:.75rem 1rem;border-radius:12px;
+    border:1px solid color-mix(in srgb,var(--wait) 45%,var(--line));background:var(--wait2);font-size:.88rem;line-height:1.35}
+  .netbar.show{display:flex}
+  .netbar .ni{font-size:1.5rem;flex:0 0 auto}
+  .netbar .nt{min-width:0;flex:1}
+  .netbar b{display:block;color:var(--wait)}
+  .netbar .nd{color:var(--dim);font-size:.8rem}
+  .netbar button{flex:0 0 auto;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:9px;
+    padding:.4rem .7rem;font:inherit;font-size:.8rem;font-weight:600;cursor:pointer}
+  .netbar button:hover{border-color:var(--accent)}
+  body.offline #floor{opacity:.45;filter:grayscale(.7);transition:opacity .3s}
+  body.offline .live{background:var(--wait);box-shadow:none;animation:none}
   .toast{position:fixed;left:50%;bottom:1.3rem;transform:translateX(-50%) translateY(10px);
     background:var(--rev);color:#04160e;font-weight:700;font-size:.84rem;padding:.55rem 1rem;
     border-radius:11px;opacity:0;transition:all .22s;pointer-events:none;box-shadow:var(--shadow)}
@@ -388,7 +404,8 @@
       <div class="sec-reply" id="sec-reply"></div>
     </div>
   </div>
-  <div id="floor"></div>
+  <div class="netbar" id="netbar" role="alert"><span class="ni" id="net-i">📵</span><div class="nt"><b id="net-t"></b><span class="nd" id="net-d"></span></div><button id="net-retry">Retry now</button></div>
+  <div id="floor"><div class="empty"><span class="spin"></span>connecting to the office…</div></div>
   <footer class="foot">
     <span><a href="https://github.com/Pyinv/office" target="_blank" rel="noopener">Office</a> v<span id="ver">—</span></span>
     <span class="dot">·</span>
@@ -1185,15 +1202,70 @@ function render(){
   refreshAgo();
 }
 
+// ── connectivity ──────────────────────────────────────────────────────────
+// The floor poll is the heartbeat. When it fails we say WHY as far as a browser
+// can tell: device offline, no internet, DNS/server down, or (the usual one for
+// a tailnet-only host) Tailscale is off — then keep retrying and dim the stale cards.
+const NET={down:false, fails:0, diag:null, diagAt:0, busy:false};
+const FLOOR_TIMEOUT=8000;       // a SYN to an unroutable tailnet IP just hangs — don't wait forever
+function fetchT(url, ms, opts){
+  const c=new AbortController(), t=setTimeout(()=>c.abort(), ms);
+  return fetch(url, Object.assign({}, opts||{}, {signal:c.signal})).finally(()=>clearTimeout(t));
+}
+async function internetUp(){
+  // by IP, no-cors: succeeds (opaque) whenever the public internet is reachable, DNS or not
+  try{ await fetchT("https://1.1.1.1/cdn-cgi/trace", 4000, {mode:"no-cors", cache:"no-store"}); return true; }
+  catch(_){ return false; }
+}
+async function diagnose(err, took, status){
+  const host=location.hostname, ts=/\.ts\.net$/.test(host);
+  if(status) return {i:"🛠️", t:"The Office server isn't answering", d:`The proxy reached this address but got HTTP ${status} — the Office process is probably down. Restart it on the server.`};
+  if(navigator.onLine===false) return {i:"📵", t:"No internet connection", d:"This device is offline (no Wi-Fi or mobile data). The Office comes back by itself when the network does."};
+  if(!(await internetUp())) return {i:"📵", t:"No internet connection", d:"Nothing on the internet is reachable from here right now. Check Wi-Fi or mobile data."};
+  if(err && err.name==="AbortError" || took>=FLOOR_TIMEOUT-500)
+    return {i:"🔒", t:"Tailscale is off on this device", d:`${host} only exists inside the tailnet — the request went nowhere. Turn Tailscale on (or reconnect it) and this page will recover on its own.`};
+  if(ts) return {i:"🔍", t:"Can't resolve "+host, d:"MagicDNS isn't answering. In Tailscale enable “Use Tailscale DNS”, or use the public office name instead."};
+  return {i:"🔍", t:"Can't reach "+host, d:"DNS gave no answer, or the connection was refused. Check Tailscale is connected; if it is, the server or its proxy is down."};
+}
+function setNet(down, diag){
+  const bar=document.getElementById("netbar"), sub=document.getElementById("sub");
+  document.body.classList.toggle("offline", down);
+  if(!down){ bar.classList.remove("show"); return; }
+  if(diag){ document.getElementById("net-i").textContent=diag.i; document.getElementById("net-t").textContent=diag.t; document.getElementById("net-d").textContent=diag.d; }
+  bar.classList.add("show");
+  sub.innerHTML=`<span class="live"></span>${LAST.length?LAST.length+" desks — stale":"offline"} · retrying…`;
+  const f=document.getElementById("floor");
+  if(!LAST.length) f.innerHTML=`<div class="empty"><span class="spin"></span>${diag?esc(diag.t):"offline"} — retrying…</div>`;
+}
+async function floorFail(err, took, status){
+  NET.fails++;
+  const first=!NET.down; NET.down=true;
+  // re-diagnose at most every 30s — the probe itself costs a few seconds
+  if(!NET.diag || Date.now()-NET.diagAt>30000){ NET.diag=await diagnose(err, took, status); NET.diagAt=Date.now(); }
+  setNet(true, NET.diag);
+  if(first && LAST.length) toast("⚠ "+NET.diag.t, true);
+}
+document.getElementById("net-retry").addEventListener("click", ()=>{ NET.diag=null; load(); });
+window.addEventListener("online", ()=>{ NET.diag=null; load(); });
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) load(); });
+
 async function load(){
   if(MODAL_OPEN) return;                // terminal open — don't reflow behind it
   if(FROZEN || composing()){
     document.getElementById("sub").innerHTML=`<span class="frozen-note">paused while you answer</span> — resumes when you send`;
     return;
   }
-  let data;
-  try{ data=await (await fetch("/api/floor",{cache:"no-store"})).json(); }
-  catch(e){ document.getElementById("sub").textContent="offline — retrying"; return; }
+  if(NET.busy) return;                  // one poll in flight at a time (timeouts outlive the interval)
+  NET.busy=true;
+  let data; const t0=Date.now();
+  try{
+    const r=await fetchT("/api/floor", FLOOR_TIMEOUT, {cache:"no-store"});
+    if(!r.ok){ await floorFail(null, Date.now()-t0, r.status); return; }
+    data=await r.json();
+  }
+  catch(e){ await floorFail(e, Date.now()-t0, 0); return; }
+  finally{ NET.busy=false; }
+  if(NET.down){ NET.down=false; NET.fails=0; NET.diag=null; setNet(false); toast("✅ back online"); }
   const _prev={}; (LAST||[]).forEach(m=>_prev[m.session]=m.state);
   LAST=data.team||[];
   { const _v=document.getElementById("ver"); if(_v&&data.version) _v.textContent=data.version; }
