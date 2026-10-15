@@ -371,6 +371,26 @@
     .newbtn{flex:0 0 auto}
     .search{flex:1;width:auto;max-width:none}
   }
+  .navlink .shr{display:none}
+  .filtertoggle{display:none}
+  @media (max-width:600px){
+    /* phone: what you use all the time (New + search) comes first; the filter rows and the
+       secretary fold away behind a tap and remember their state */
+    .navlink .lng{display:none} .navlink .shr{display:inline}
+    .actioncol{order:-1}
+    .filtertoggle{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:2.1rem;height:2.1rem;
+      border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--dim);font:inherit;font-size:.95rem;cursor:pointer}
+    .filtertoggle.active{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--panel))}
+    body.filters-open .filtertoggle{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .filtercol{display:none} body.filters-open .filtercol{display:flex}
+    .controls{gap:.4rem}
+    .secretary:not(.open){padding:.5rem .9rem .5rem 1rem;margin-bottom:.8rem;cursor:pointer}
+    .secretary:not(.open) .sec-form, .secretary:not(.open) .sec-sub, .secretary:not(.open) .sec-reply:empty{display:none}
+    .secretary:not(.open) .sec-ava{top:.45rem;width:26px;height:26px;font-size:.9rem}
+    .secretary:not(.open) .sec-head{min-height:26px;margin-bottom:0;padding-left:36px;align-items:center}
+    .secretary:not(.open) .sec-head::after{content:"ask anything ▸";color:var(--faint);font-size:.76rem;font-weight:500;margin-left:auto}
+    .secretary.open .sec-head{cursor:pointer}
+  }
   /* --- Secretary: the chief-of-staff dispatcher (prominent, above the floor) --- */
   .secretary{display:flex;gap:.9rem;align-items:flex-start;margin:.1rem 0 1.1rem;position:relative;overflow:hidden;
     background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 13%,var(--panel)),var(--panel));
@@ -414,7 +434,7 @@
 <header><div class="hin">
   <div class="titlerow">
     <h1><span class="logo">🏢</span> {{OFFICE_TITLE}}</h1>
-    <a class="navlink" href="{{OFFICE_STATUS_URL}}">📊 Usage &amp; limits →</a>
+    <a class="navlink" href="{{OFFICE_STATUS_URL}}">📊 <span class="lng">Usage &amp; limits</span><span class="shr">Usage</span> →</a>
     <a class="navlink" href="{{OFFICE_FILES_URL}}">📁 Files →</a>
     <div class="sub" id="sub">loading…</div>
     <button class="bell" id="bell" title="notify me when a session needs me">🔔</button>
@@ -427,6 +447,7 @@
     <div class="actioncol">
       <button class="newbtn" id="newbtn">+ New</button>
       <input class="search" id="search" placeholder="search…" autocomplete="off">
+      <button class="filtertoggle" id="filtertoggle" title="show / hide the team and status filters">⚙</button>
     </div>
   </div>
 </div></header>
@@ -434,7 +455,7 @@
   <div class="secretary" id="sec">
     <div class="sec-ava">🗂️</div>
     <div class="sec-main">
-      <div class="sec-head"><b>{{OFFICE_SECRETARY_NAME}}</b><span class="sec-sub">chief of staff — ask anything about the floor, or hand off a task</span><kbd class="kbd" title="focus the secretary (⌘K / Ctrl-K)">⌘K</kbd></div>
+      <div class="sec-head" id="sec-head"><b>{{OFFICE_SECRETARY_NAME}}</b><span class="sec-sub">chief of staff — ask anything about the floor, or hand off a task</span><kbd class="kbd" title="focus the secretary (⌘K / Ctrl-K)">⌘K</kbd></div>
       <form class="sec-form" id="sec-form" autocomplete="off">
         <input class="sec-in" id="sec-in" placeholder="ask anything  ·  why is Lena stuck?  ·  who needs me most?  ·  ask Mara to draft the release notes">
         <button class="sec-btn" type="submit">Ask ▶</button>
@@ -1268,6 +1289,21 @@ function updateCard(el,m){
   el._sig=sigOf(m);
 }
 
+// phone: the filter rows and the secretary fold away (remembered per device)
+const PREF=k=>{ try{ return localStorage.getItem(k); }catch(_){ return null; } };
+const setPref=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(_){} };
+document.body.classList.toggle("filters-open", PREF("filters")==="1");
+document.getElementById("filtertoggle").onclick=()=>{ const on=document.body.classList.toggle("filters-open"); setPref("filters", on?"1":"0"); };
+function markFilters(){ const t=document.getElementById("filtertoggle"); const on=FILTER!=="all"||CATFILTER!=="all"; t.classList.toggle("active",on);
+  t.title=on?"filters on: "+[CATFILTER!=="all"?CATFILTERS.find(c=>c.id===CATFILTER).label:"", FILTER!=="all"?FILTERS.find(f=>f.id===FILTER).label:""].filter(Boolean).join(" · "):"show / hide the team and status filters"; }
+{ const sec=document.getElementById("sec"); sec.classList.toggle("open", PREF("sec")==="1");
+  const toggleSec=()=>{ const on=sec.classList.toggle("open"); setPref("sec", on?"1":"0"); if(on) setTimeout(()=>document.getElementById("sec-in").focus(),50); };
+  sec.addEventListener("click", e=>{ if(!sec.classList.contains("open")) toggleSec(); else if(e.target.closest("#sec-head")) toggleSec(); });
+  // ⌘K / a reply arriving opens it
+  const _open=()=>{ if(!sec.classList.contains("open")){ sec.classList.add("open"); setPref("sec","1"); } };
+  document.getElementById("sec-in").addEventListener("focus", _open);
+  new MutationObserver(()=>{ if(document.getElementById("sec-reply").textContent.trim()) _open(); }).observe(document.getElementById("sec-reply"),{childList:true,characterData:true,subtree:true});
+}
 function renderChips(team){
   // category chips — counts respect the current STATUS filter
   const st=stateTest();
@@ -1292,6 +1328,7 @@ function renderChips(team){
     c.onclick=()=>{ FILTER=f.id; LAYOUT=""; render(); };
     box.appendChild(c);
   });
+  markFilters();
 }
 // the agents you touched most recently, as one row of chips under the secretary
 let RECENT_SIG="";
