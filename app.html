@@ -642,6 +642,8 @@ function hueFor(s){ let h=0; for(const c of (s||"")) h=(h*31+c.charCodeAt(0))%36
 function esc(s){ return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 // Safe markdown: HTML is escaped FIRST, so the transforms below only ADD known tags —
 // no way for message content to inject markup. Handles what Claude actually emits.
+// a ")" at the end of a URL belongs to it only if it closes a "(" inside it: "…(short).pdf" yes, "(see …/x)" no
+function trimUrl(u){ while(u.endsWith(")") && (u.split("(").length<u.split(")").length)) u=u.slice(0,-1); return u; }
 function mdInline(s){   // s must already be esc()'d
   return s
     .replace(/`([^`]+)`/g,(m,c)=>"<code>"+c+"</code>")
@@ -650,7 +652,7 @@ function mdInline(s){   // s must already be esc()'d
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>')
     // bare URLs -> clickable. Input is already esc()'d and we pin to https?:// (no javascript:),
     // so this only adds anchors. (^|\s) so we never re-wrap a URL already inside href="…" or >…<.
-    .replace(/(^|\s)(https?:\/\/[^\s<]*[^\s<.,!?)\]}])/g,'$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+    .replace(/(^|\s)(https?:\/\/[^\s<]*[^\s<.,!?\]}])/g,(m,pre,u)=>{ u=trimUrl(u); return pre+'<a href="'+u+'" target="_blank" rel="noopener">'+u+'</a>'+m.slice(pre.length+u.length); });
 }
 function mdHtml(raw){
   const lines=esc(raw||"").split("\n");
@@ -1100,7 +1102,7 @@ function injectLinks(frame){
     const fake={opener:null, focus(){}, close(){}};
     Object.defineProperty(fake,"location",{get(){ return {set href(v){ openOut(v); }}; }, set(v){ openOut(String(v)); }});
     return fake; };
-  const RE=/https?:\/\/[^\s"'!*(){}|\\^<>`]*[^\s"':,.!?{}|\\^~\[\]`()<>]/g;
+  const RE=/https?:\/\/[^\s"'!*{}|\\^<>`]*[^\s"':,.!?{}|\\^~\[\]`(<>]/g;
   const hook=()=>{
     const term=win.term, lk=term&&term._core&&term._core.linkifier2; if(!lk||!lk._linkProviders) return false;
     const buf=()=>term.buffer.active;
@@ -1117,9 +1119,10 @@ function injectLinks(frame){
       }
       const links=[]; let m;
       while((m=RE.exec(joined))){
-        const a=map[m.index], b=map[m.index+m[0].length-1]; if(!a||!b) continue;
+        const url=trimUrl(m[0]);
+        const a=map[m.index], b=map[m.index+url.length-1]; if(!a||!b) continue;
         if(a.row>row || b.row<row) continue;
-        links.push({ text:m[0], range:{start:{x:a.col+1,y:a.row+1}, end:{x:b.col+1,y:b.row+1}},
+        links.push({ text:url, range:{start:{x:a.col+1,y:a.row+1}, end:{x:b.col+1,y:b.row+1}},
           decorations:{underline:true,pointerCursor:true}, activate:(e,u)=>openOut(u) });
       }
       cb(links.length?links:undefined);
