@@ -799,13 +799,13 @@ function card(m){
         ${CATS.map(c=>`<option value="${c.id}"${m.group===c.id?" selected":""}>${c.short}</option>`).join("")}
       </select>
       <span style="margin-left:auto"></span>
-      <button class="iconbtn termbtn" title="open terminal">⛶</button>
-      <button class="iconbtn rename" title="rename this session">✏️</button>
-      <button class="iconbtn task" title="focus note — the session's main task">🎯</button>
-      <button class="iconbtn pin${m.pinned?' on':''}" title="${m.pinned?'unpin':'pin to top'}">📌</button>
-      <button class="iconbtn mute${m.muted?' on':''}" title="${m.muted?'muted — no phone pushes; click to unmute':'mute phone pushes for this session'}">${m.muted?'🔕':'🔔'}</button>
-      <button class="iconbtn kill" title="kill this session">🗑</button>
       <button class="iconbtn erase" title="erase — the session, its folder and every trace Claude keeps of it (dry run first)">🔥</button>
+      <button class="iconbtn kill" title="kill this session">🗑</button>
+      <button class="iconbtn mute${m.muted?' on':''}" title="${m.muted?'muted — no phone pushes; click to unmute':'mute phone pushes for this session'}">${m.muted?'🔕':'🔔'}</button>
+      <button class="iconbtn pin${m.pinned?' on':''}" title="${m.pinned?'unpin':'pin to top'}">📌</button>
+      <button class="iconbtn task" title="focus note — the session's main task">🎯</button>
+      <button class="iconbtn rename" title="rename this session">✏️</button>
+      <button class="iconbtn termbtn" title="open terminal">⛶</button>
     </div>`;
   el.innerHTML=h; el._sig=sigOf(m); el._cat=catOf(m); el._grp=m.group; el._ts=m.ts||0; el._ghost=!!m.ghost;
   wireCard(el,m);
