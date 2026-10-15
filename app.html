@@ -287,11 +287,11 @@
   .newbtn:hover{filter:brightness(1.08)}
   .empty{color:var(--faint);text-align:center;padding:3rem 1rem;font-size:.9rem}
   /* recent agents: one scrolling row right under the secretary */
-  .recent{display:flex;align-items:center;gap:.4rem;overflow-x:auto;margin:-.55rem 0 1rem;padding:.15rem .1rem .35rem;
+  .recentrow{display:flex;align-items:center;gap:.4rem;overflow-x:auto;margin:-.55rem 0 1rem;padding:.15rem .1rem .35rem;
     scrollbar-width:none;-webkit-overflow-scrolling:touch}
-  .recent::-webkit-scrollbar{display:none}
-  .recent:empty{display:none}
-  .recent .rl{font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);flex:0 0 auto;margin-right:.2rem}
+  .recentrow::-webkit-scrollbar{display:none}
+  .recentrow:empty{display:none}
+  .recentrow .rl{font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);flex:0 0 auto;margin-right:.2rem}
   .rchip{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:.3rem .75rem .3rem .6rem;
     font-size:.78rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap;flex:0 0 auto;transition:all .12s}
   .rchip:hover{border-color:var(--accent)}
@@ -428,7 +428,7 @@
       <div class="sec-reply" id="sec-reply"></div>
     </div>
   </div>
-  <div class="recent" id="recent"></div>
+  <div class="recentrow" id="recent"></div>
   <div class="netbar" id="netbar" role="alert"><span class="ni" id="net-i">📵</span><div class="nt"><b id="net-t"></b><span class="nd" id="net-d"></span></div><button id="net-retry">Retry now</button></div>
   <div id="floor"><div class="empty"><span class="spin"></span>connecting to the office…</div></div>
   <footer class="foot">
