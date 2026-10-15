@@ -84,7 +84,7 @@
   @media(min-width:600px){.grid{grid-template-columns:1fr 1fr}}
   @media(min-width:960px){.grid{grid-template-columns:1fr 1fr 1fr}}
 
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  .card{cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:14px;
     padding:.75rem .85rem;display:flex;flex-direction:column;gap:.55rem;
     box-shadow:var(--shadow);position:relative;overflow:hidden;transition:transform .12s,border-color .12s}
   .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--idle)}
@@ -1502,7 +1502,16 @@ async function load(){
   render();
 }
 document.getElementById("search").addEventListener("input",e=>{ SEARCH=e.target.value; render(); });
-document.getElementById("floor").addEventListener("click",e=>{ const yb=e.target.closest(".youbox"); if(yb) yb.classList.toggle("full"); });
+// click anywhere on a card to open its terminal — except on things that do their own job
+// (buttons, the reply box, the note editor, the category select, links) and the YOU box,
+// which expands; a drag that selected text is not a click.
+document.getElementById("floor").addEventListener("click",e=>{
+  const yb=e.target.closest(".youbox"); if(yb){ yb.classList.toggle("full"); return; }
+  if(e.target.closest("button, a, input, textarea, select, label, .reply, .taskedit, .quick, .grpsel")) return;
+  const card=e.target.closest(".card"); if(!card) return;
+  try{ if(String(getSelection()).length) return; }catch(_){}
+  const m=LAST.find(x=>x.session===card.dataset.session); if(m) openTerm(m.session,(m.person||m.project),tabTitle(m));
+});
 // deep link: /<session> opens that terminal once the floor is known
 load().then(()=>{ if(location.pathname.length>1 && !MODAL_OPEN) openTermByName(decodeURIComponent(location.pathname.slice(1))); });
 setInterval(()=>{ if(!document.hidden) load(); }, 5000);
