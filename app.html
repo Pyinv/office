@@ -286,6 +286,21 @@
     font-size:.8rem;padding:.3rem .8rem;cursor:pointer;white-space:nowrap}
   .newbtn:hover{filter:brightness(1.08)}
   .empty{color:var(--faint);text-align:center;padding:3rem 1rem;font-size:.9rem}
+  /* recent agents: one scrolling row right under the secretary */
+  .recent{display:flex;align-items:center;gap:.4rem;overflow-x:auto;margin:-.55rem 0 1rem;padding:.15rem .1rem .35rem;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .recent::-webkit-scrollbar{display:none}
+  .recent:empty{display:none}
+  .recent .rl{font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);flex:0 0 auto;margin-right:.2rem}
+  .rchip{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:.3rem .75rem .3rem .6rem;
+    font-size:.78rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap;flex:0 0 auto;transition:all .12s}
+  .rchip:hover{border-color:var(--accent)}
+  .rchip .d{width:7px;height:7px;border-radius:50%;background:var(--idle);flex:0 0 auto}
+  .rchip.waiting .d{background:var(--wait);box-shadow:0 0 6px var(--wait)}
+  .rchip.typed .d{background:var(--pend)} .rchip.review .d{background:var(--rev)}
+  .rchip.working .d{background:var(--work);animation:pulse 2.4s infinite}
+  .rchip .p{color:var(--faint);font-weight:500;font-family:ui-monospace,SFMono-Regular,monospace;font-size:.7rem}
+  .rchip .t{color:var(--faint);font-weight:500;font-size:.68rem}
   /* connectivity: a spinner while the first floor loads, a banner when the poll fails */
   .spin{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);
     animation:spin .8s linear infinite;vertical-align:-2px;margin-right:.45rem}
@@ -413,6 +428,7 @@
       <div class="sec-reply" id="sec-reply"></div>
     </div>
   </div>
+  <div class="recent" id="recent"></div>
   <div class="netbar" id="netbar" role="alert"><span class="ni" id="net-i">📵</span><div class="nt"><b id="net-t"></b><span class="nd" id="net-d"></span></div><button id="net-retry">Retry now</button></div>
   <div id="floor"><div class="empty"><span class="spin"></span>connecting to the office…</div></div>
   <footer class="foot">
@@ -1212,9 +1228,26 @@ function renderChips(team){
     box.appendChild(c);
   });
 }
+// the agents you touched most recently, as one row of chips under the secretary
+let RECENT_SIG="";
+function renderRecent(team){
+  const top=team.filter(m=>!m.ghost && m.ts).sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,10);
+  const sig=top.map(m=>m.session+":"+m.state+":"+Math.floor((m.ts||0)/60)).join(",");
+  if(sig===RECENT_SIG) return; RECENT_SIG=sig;
+  const box=document.getElementById("recent"); box.innerHTML="";
+  if(!top.length) return;
+  const l=document.createElement("span"); l.className="rl"; l.textContent="Recent"; box.appendChild(l);
+  top.forEach(m=>{
+    const b=document.createElement("button"); b.className="rchip "+(m.state||""); b.title=tabTitle(m)+" — open terminal";
+    b.innerHTML=`<span class="d"></span>${esc(m.person||m.project)} <span class="p">${esc(m.project)}</span> <span class="t">${esc(agoText(m.ts))}</span>`;
+    b.onclick=()=>openTerm(m.session,(m.person||m.project),tabTitle(m));
+    box.appendChild(b);
+  });
+}
 function render(){
   const team=LAST;
   renderChips(team);
+  renderRecent(team);
   const st=stateTest();
   const s=SEARCH.trim().toLowerCase();
   // ONE flat list, MOST-RECENTLY-INTERACTED first (ts = last activity, not just Claude's reply).
