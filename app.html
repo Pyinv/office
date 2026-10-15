@@ -974,6 +974,48 @@ function injectAutoCopy(frame){
 // a swipe did nothing at all. Wheel events DO reach tmux (it scrolls its own history and
 // drops back to live at the bottom), so translate vertical drags into wheel ticks on the
 // terminal element. One tick per STEP px of finger travel.
+// Links printed in the terminal. Two things break them out of the box:
+//  1. xterm's web-links addon opens with window.open() — which a home-screen app and
+//     some mobile browsers silently refuse. We route it through a real anchor click here.
+//  2. Claude's renderer HARD-wraps long lines (each row is its own line to xterm), so a
+//     long URL — e.g. one with %20s — is cut at the row end and only the first piece is
+//     a link. Our provider joins full-width rows and links the whole thing.
+function openOut(url){ const a=document.createElement("a"); a.href=url; a.target="_blank"; a.rel="noopener"; document.body.appendChild(a); a.click(); a.remove(); }
+function injectLinks(frame){
+  let win; try{ win=frame.contentWindow; }catch(e){ return; }
+  if(!win || win.__links) return; win.__links=true;
+  win.open=function(u){ if(u) openOut(u);        // the addon does w=open(); w.location.href=url
+    const fake={opener:null, focus(){}, close(){}};
+    Object.defineProperty(fake,"location",{get(){ return {set href(v){ openOut(v); }}; }, set(v){ openOut(String(v)); }});
+    return fake; };
+  const RE=/https?:\/\/[^\s"'!*(){}|\\^<>`]*[^\s"':,.!?{}|\\^~\[\]`()<>]/g;
+  const hook=()=>{
+    const term=win.term, lk=term&&term._core&&term._core.linkifier2; if(!lk||!lk._linkProviders) return false;
+    const buf=()=>term.buffer.active;
+    const text=i=>{ const l=buf().getLine(i); return l?l.translateToString(true):""; };
+    const full=i=>text(i).length>=term.cols-1;   // a row that runs to the edge may continue below
+    lk._linkProviders.unshift({ provideLinks(y, cb){
+      const row=y-1; let s=row; while(s>0 && full(s-1) && row-s<8) s--;
+      const map=[]; let joined="";                                  // joined char index -> {row,col}
+      for(let r=s; r<buf().length && r-s<10; r++){
+        let t=text(r), off=0;
+        if(r>s){ const m=t.match(/^\s*/)[0].length; off=m; t=t.slice(m); }  // continuation indent
+        for(let c=0;c<t.length;c++) map.push({row:r,col:off+c});
+        joined+=t; if(!full(r)) break;
+      }
+      const links=[]; let m;
+      while((m=RE.exec(joined))){
+        const a=map[m.index], b=map[m.index+m[0].length-1]; if(!a||!b) continue;
+        if(a.row>row || b.row<row) continue;
+        links.push({ text:m[0], range:{start:{x:a.col+1,y:a.row+1}, end:{x:b.col+1,y:b.row+1}},
+          decorations:{underline:true,pointerCursor:true}, activate:(e,u)=>openOut(u) });
+      }
+      cb(links.length?links:undefined);
+    }});
+    return true;
+  };
+  let n=0; const t=setInterval(()=>{ if(hook()||++n>40) clearInterval(t); },150);
+}
 function injectTouchScroll(frame){
   let doc; try{ doc=frame.contentDocument; }catch(e){ return; }
   if(!doc || doc.__touchscroll) return; doc.__touchscroll=true;
@@ -1006,7 +1048,7 @@ function openTerm(session, who, title){
   const f=document.createElement("iframe"); f.id="termframe";
   f.allow="clipboard-read; clipboard-write";
   f.src=`/terminal/?arg=${encodeURIComponent(session)}`;   // same-origin, proxied to localhost ttyd
-  f.addEventListener("load", ()=>{ injectAutoCopy(f); injectTouchScroll(f); });   // select-to-copy, swipe-to-scroll
+  f.addEventListener("load", ()=>{ injectAutoCopy(f); injectTouchScroll(f); injectLinks(f); });   // select-to-copy, swipe-to-scroll, clickable links
   box.appendChild(f);
   document.getElementById("mtitle").textContent=who+"  ·  "+session;
   document.title=title||who;                       // name the tab after the session so several open tabs stay tellable apart
