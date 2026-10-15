@@ -538,6 +538,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/paste": return self._paste(data)
         if path == "/api/buffer":return self._buffer(data)
         if path == "/api/kill":  return self._kill(data)
+        if path == "/api/erase": return self._erase(data)
         if path == "/api/rename":return self._rename(data)
         if path == "/api/new":   return self._new(data)
         return self._json({"error": "not found"}, 404)
@@ -1118,6 +1119,186 @@ class Handler(SimpleHTTPRequestHandler):
         if g.pop(sess, None) is not None:
             save_groups(g)
         return self._json({"ok": True, "killed": sess})
+
+
+    # ── erase: an agent, its folder, and every trace Claude keeps of it ──────
+    # Two calls. {session} alone is a DRY RUN: it reports what would go, and lists every
+    # place the agent wrote OUTSIDE its own folder (read from its transcripts — every
+    # tool call is recorded there). {session, confirm:true, also:[paths]} does it, and
+    # additionally removes the chosen outside paths. The order is deliberate: audit
+    # first, delete transcripts last, so the record of where it reached is never lost
+    # before you have seen it.
+    def _erase_plan(self, sess):
+        hist = load_history().get(sess) or {}
+        live = team.sessions().get(sess)
+        d = (live[1] if live else "") or hist.get("dir", "")
+        if not d:
+            return None, f"don't know the folder of '{sess}'"
+        d = os.path.realpath(d)
+        home = os.path.expanduser("~")
+        if d in ("/", home) or not d.startswith(home + os.sep):
+            return None, f"refusing: '{d}' is not a project folder under your home"
+        # who else lives in this folder? then the folder and its Claude memory stay
+        others = sorted({n for n, v in team.sessions().items() if n != sess and os.path.realpath(v[1] or "") == d}
+                        | {n for n, v in load_history().items() if n != sess and os.path.realpath(v.get("dir", "")) == d})
+        key = d.replace("/", "-")
+        pdir = os.path.join(team.PROJ, key)
+        files = []; sids = set()
+        if os.path.isdir(pdir):
+            for n in os.listdir(pdir):
+                fp = os.path.join(pdir, n)
+                if n.endswith(".jsonl"):
+                    files.append(fp); sids.add(n[:-6])
+        size = sum(os.path.getsize(f) for f in files if os.path.exists(f))
+        audit = self._erase_audit(files, d)
+        fh = os.path.join(home, ".claude", "file-history")
+        fhist = [os.path.join(fh, x) for x in sids if os.path.isdir(os.path.join(fh, x))]
+        hl = 0
+        try:
+            with open(os.path.join(home, ".claude", "history.jsonl")) as f:
+                for line in f:
+                    if f'"project":"{d}"' in line or any(x in line for x in sids):
+                        hl += 1
+        except OSError:
+            pass
+        state = [n for n, ld in (("groups", load_groups), ("pins", load_pins), ("mutes", load_mutes),
+                                 ("tasks", load_tasks), ("history", load_history)) if sess in ld()]
+        try:
+            dsize = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(d) for f in fs)
+        except OSError:
+            dsize = 0
+        plan = {"session": sess, "dir": d, "dir_exists": os.path.isdir(d), "dir_bytes": dsize,
+                "tmux": sess in live_sessions(), "shared_with": others,
+                "transcripts": len(files), "transcript_bytes": size,
+                "memory": os.path.isdir(os.path.join(pdir, "memory")),
+                "file_history": len(fhist), "prompt_lines": hl, "office_state": state,
+                "outside": audit["outside"], "commands": audit["commands"], "external": audit["external"],
+                "_pdir": pdir, "_files": files, "_fhist": fhist, "_sids": sorted(sids)}
+        return plan, None
+
+    def _erase_audit(self, files, d):
+        # Every Write/Edit outside the folder, and every shell command that names a path
+        # outside it next to something that writes; plus effects nobody can undo.
+        home = os.path.expanduser("~")
+        inside = lambda p: p == d or p.startswith(d + os.sep)
+        outside = {}; cmds = []; ext = []
+        WRITE = re.compile(r"\b(>|>>|tee|cp|mv|mkdir|rm|ln|chmod|chown|touch|sed -i|install|rsync|unzip|tar|git clone|crontab|systemctl|docker)\b")
+        EXT = re.compile(r"\b(git push|gh (pr|release|repo)|ssh|scp|curl|wget|mail|sendmail|ntfy|rclone)\b")
+        for fp in files:
+            try:
+                with open(fp, errors="replace") as f:
+                    for line in f:
+                        if '"tool_use"' not in line:
+                            continue
+                        try:
+                            j = json.loads(line)
+                        except Exception:
+                            continue
+                        c = (j.get("message") or {}).get("content") or []
+                        ts = j.get("timestamp", "")
+                        for it in c if isinstance(c, list) else []:
+                            if it.get("type") != "tool_use":
+                                continue
+                            name, inp = it.get("name", ""), it.get("input") or {}
+                            if name in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+                                fpth = str(inp.get("file_path") or inp.get("notebook_path") or "")
+                                if fpth.startswith("/") and not inside(fpth):
+                                    o = outside.setdefault(fpth, {"path": fpth, "n": 0, "last": ""})
+                                    o["n"] += 1; o["last"] = ts
+                            elif name == "Bash":
+                                cmd = str(inp.get("command") or "")
+                                if EXT.search(cmd):
+                                    ext.append({"cmd": cmd[:300], "ts": ts})
+                                paths = [p for p in re.findall(r"(?<![\w.])(/[\w./@-]{3,})", cmd)
+                                         if not inside(p) and not p.startswith(("/dev/", "/proc/", "/usr/bin/", "/bin/", "/tmp/"))]
+                                if paths and WRITE.search(cmd):
+                                    cmds.append({"cmd": cmd[:300], "ts": ts, "paths": sorted(set(paths))[:8]})
+            except OSError:
+                continue
+        for o in outside.values():
+            o["exists"] = os.path.exists(o["path"])
+            o["claude"] = o["path"].startswith(os.path.join(home, ".claude") + os.sep)
+        return {"outside": sorted(outside.values(), key=lambda o: o["path"]), "commands": cmds[-60:], "external": ext[-40:]}
+
+    def _erase(self, data):
+        sess = str(data.get("session", ""))
+        plan, err = self._erase_plan(sess)
+        if err:
+            return self._json({"error": err}, 400)
+        pub = {k: v for k, v in plan.items() if not k.startswith("_")}
+        if not data.get("confirm"):
+            return self._json({"ok": True, "dry_run": True, "plan": pub})
+        if str(data.get("typed", "")) != sess:
+            return self._json({"error": "type the session name to confirm"}, 400)
+        also = [a for a in map(str, data.get("also") or []) if a in {o["path"] for o in plan["outside"]}]
+        done = []; failed = []
+        def rm(path, label):
+            try:
+                if os.path.isdir(path) and not os.path.islink(path):
+                    shutil.rmtree(path)
+                elif os.path.lexists(path):
+                    os.remove(path)
+                else:
+                    return
+                done.append(label)
+            except OSError as e:
+                failed.append(f"{label}: {e}")
+        home = os.path.expanduser("~")
+        # 1. the running agent
+        if plan["tmux"]:
+            try:
+                subprocess.run(["tmux", "kill-session", "-t", sess], check=True); done.append("tmux session")
+            except (subprocess.CalledProcessError, OSError) as e:
+                failed.append(f"tmux: {e}")
+        # 2. Office state
+        for n, ld, sv in (("groups", load_groups, save_groups), ("pins", load_pins, save_pins),
+                          ("mutes", load_mutes, save_mutes), ("tasks", load_tasks, save_tasks)):
+            x = ld()                      # pins/mutes are sets, the others dicts
+            if sess in x:
+                x.discard(sess) if isinstance(x, set) else x.pop(sess)
+                sv(x); done.append(f"office {n}")
+        with _hist_lock:
+            h = load_history()
+            if h.pop(sess, None) is not None:
+                tmp = HISTORY_FILE + ".tmp"
+                with open(tmp, "w") as f:
+                    json.dump(h, f, indent=2, sort_keys=True)
+                os.replace(tmp, HISTORY_FILE); done.append("office history")
+        # 3. what it wrote elsewhere — only the paths you ticked
+        for a in also:
+            rm(a, "outside: " + a)
+        # 4. Claude's record of this folder — unless someone else works there too
+        if not plan["shared_with"]:
+            for pid_file in os.listdir(os.path.join(home, ".claude", "sessions")) if os.path.isdir(os.path.join(home, ".claude", "sessions")) else []:
+                fp = os.path.join(home, ".claude", "sessions", pid_file)
+                try:
+                    if pid_file.endswith(".json") and json.load(open(fp)).get("cwd", "") == plan["dir"]:
+                        rm(fp, "claude session file")
+                except Exception:
+                    pass
+            for fh in plan["_fhist"]:
+                rm(fh, "file history")
+            hp = os.path.join(home, ".claude", "history.jsonl")
+            if plan["prompt_lines"]:
+                try:
+                    with open(hp) as f:
+                        lines = f.readlines()
+                    keep = [l for l in lines if f'"project":"{plan["dir"]}"' not in l and not any(x in l for x in plan["_sids"])]
+                    tmp = hp + ".tmp"
+                    with open(tmp, "w") as f:
+                        f.writelines(keep)
+                    os.replace(tmp, hp); done.append(f"{len(lines)-len(keep)} prompt-history lines")
+                except OSError as e:
+                    failed.append(f"history.jsonl: {e}")
+            rm(plan["_pdir"], "transcripts + memory")
+            # 5. the folder itself, last
+            if plan["dir_exists"]:
+                rm(plan["dir"], "project folder")
+        try:
+            team._TCACHE.clear()
+        except Exception:
+            pass
+        return self._json({"ok": True, "erased": sess, "done": done, "failed": failed, "kept_shared": plan["shared_with"]})
 
     def _new(self, data):
         name = safe_session(data.get("name", ""))

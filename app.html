@@ -244,6 +244,20 @@
   .newdlg .preview{font-size:.8rem;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;min-height:1.2em}
   .newdlg .preview b{color:var(--ink);font-weight:600}
   .newdlg .btns{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.3rem}
+  .erasedlg{max-width:620px}
+  .er-body{font-size:.84rem;line-height:1.5;max-height:55vh;overflow:auto;margin:.2rem 0 .6rem}
+  .er-body h4{margin:.7rem 0 .2rem;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+  .er-body ul{margin:.1rem 0;padding-left:1.1rem} .er-body li{margin:.1rem 0}
+  .er-body code{font:.86em ui-monospace,SFMono-Regular,monospace;word-break:break-all}
+  .er-body .warn{border-left:3px solid var(--wait);padding:.3rem .6rem;background:var(--wait2);border-radius:6px;margin:.4rem 0}
+  .er-body .ok{color:var(--rev)} .er-body .no{color:var(--faint)}
+  .er-body label{display:flex;flex-direction:row;gap:.45rem;align-items:flex-start;font-weight:500;margin:.15rem 0;font-size:inherit}
+  .er-body label input[type=checkbox]{width:auto;flex:0 0 auto}
+  .er-body label input{margin-top:.25rem}
+  .er-body .cmd{display:block;font:.76em ui-monospace,SFMono-Regular,monospace;color:var(--dim);white-space:pre-wrap;word-break:break-all;
+    background:var(--panel2);border-radius:6px;padding:.25rem .45rem;margin:.15rem 0}
+  .newdlg .btns button.danger{background:var(--wait);border-color:var(--wait);color:#fff}
+  .newdlg .btns button.danger:disabled{opacity:.45;cursor:not-allowed}
   .newdlg .btns button{border-radius:999px;padding:.5rem 1rem;font:inherit;font-weight:700;cursor:pointer;
     border:1px solid var(--line);background:var(--panel2);color:var(--ink)}
   .newdlg .btns button[value=create]{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -458,6 +472,14 @@
     <label>New name <input name="name" required pattern="[A-Za-z0-9_]+-[A-Za-z0-9_-]+" title="person-project, e.g. juno-manasek"></label>
     <div class="preview">person-project · the part before the first dash is the person</div>
     <div class="btns"><button type="button" onclick="this.closest('dialog').close()">Cancel</button><button value="rename">Rename</button></div>
+  </form>
+</dialog>
+<dialog class="newdlg erasedlg" id="erasedlg">
+  <form method="dialog" id="eraseform" autocomplete="off">
+    <h2>🔥 Erase <span id="er-who"></span></h2>
+    <div id="er-body" class="er-body">looking…</div>
+    <label id="er-confirm" hidden>Type the session name to confirm <input name="typed" placeholder="" autocapitalize="off" spellcheck="false"></label>
+    <div class="btns"><button type="button" onclick="this.closest('dialog').close()">Cancel</button><button value="erase" id="er-go" class="danger" disabled>Erase everything</button></div>
   </form>
 </dialog>
 <dialog class="newdlg" id="newdlg">
@@ -783,6 +805,7 @@ function card(m){
       <button class="iconbtn mute${m.muted?' on':''}" title="${m.muted?'muted — no phone pushes; click to unmute':'mute phone pushes for this session'}">${m.muted?'🔕':'🔔'}</button>
       <button class="iconbtn termbtn" title="open terminal">⛶</button>
       <button class="iconbtn kill" title="kill this session">🗑</button>
+      <button class="iconbtn erase" title="erase — the session, its folder and every trace Claude keeps of it (dry run first)">🔥</button>
     </div>`;
   el.innerHTML=h; el._sig=sigOf(m); el._cat=catOf(m); el._grp=m.group; el._ts=m.ts||0; el._ghost=!!m.ghost;
   wireCard(el,m);
@@ -805,6 +828,7 @@ function wireCard(el,m){
   const tb=el.querySelector(".termbtn"); if(tb) tb.onclick=()=>openTerm(m.session,(m.person||m.project),tabTitle(m));
   const gs=el.querySelector(".grpsel"); if(gs) gs.onchange=()=>setGroup(m.session,gs.value);
   const kb=el.querySelector(".kill"); if(kb) kb.onclick=()=>killCard(m.session,(m.person||m.project));
+  const eb=el.querySelector(".erase"); if(eb) eb.onclick=()=>eraseCard(m.session,(m.person||m.project));
   const rn=el.querySelector(".rename"); if(rn) rn.onclick=()=>renameCard(m.session);
   const pn=el.querySelector(".pin"); if(pn) pn.onclick=()=>pinCard(m.session,!m.pinned);
   const mu=el.querySelector(".mute"); if(mu) mu.onclick=()=>muteCard(m.session,!m.muted);
@@ -887,6 +911,47 @@ async function renameCard(session){
       const sb=document.getElementById("search"); if(sb && sb.value.trim().toLowerCase()===session){ sb.value=j.session; SEARCH=j.session; }  // keep the renamed card in view
       LAYOUT=""; toast("Renamed to "+j.session); load();
     }catch(err){ toast("⚠ "+err.message,true); }
+  };
+}
+// 🔥 Erase: dry run first — the server reports what would go and every place the agent
+// wrote outside its folder (from its transcripts). Nothing happens until the name is typed.
+function fmtB(n){ return n>1e9?(n/1e9).toFixed(1)+" GB":n>1e6?(n/1e6).toFixed(1)+" MB":n>1e3?Math.round(n/1e3)+" KB":n+" B"; }
+async function eraseCard(session, who){
+  const dlg=document.getElementById("erasedlg"), body=document.getElementById("er-body"), go=document.getElementById("er-go"),
+        conf=document.getElementById("er-confirm"), form=document.getElementById("eraseform");
+  document.getElementById("er-who").textContent=who+" · "+session; body.innerHTML="looking…"; go.disabled=true; conf.hidden=true;
+  form.typed.value=""; form.typed.placeholder=session; dlg.showModal();
+  let plan;
+  try{ const r=await fetch("/api/erase",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session})});
+    const j=await r.json(); if(!j.ok){ body.innerHTML=`<div class="warn">⚠ ${esc(j.error||"failed")}</div>`; return; } plan=j.plan; }
+  catch(e){ body.innerHTML=`<div class="warn">⚠ ${esc(e.message)}</div>`; return; }
+  const shared=plan.shared_with.length;
+  let h=`<h4>Will be removed</h4><ul>`;
+  h+=`<li>${plan.tmux?"running tmux session (Claude ends)":"<span class=no>no running session</span>"}</li>`;
+  h+=`<li>Office entries: ${plan.office_state.length?esc(plan.office_state.join(", ")):"<span class=no>none</span>"} — it can no longer be brought back from history</li>`;
+  if(shared){
+    h+=`</ul><div class="warn">Folder <code>${esc(plan.dir)}</code> is also used by <b>${esc(plan.shared_with.join(", "))}</b> — the folder and Claude's memory of it are <b>kept</b>. Only this session, its Office entries and the ticked paths go.</div>`;
+  }else{
+    h+=`<li>folder <code>${esc(plan.dir)}</code> ${plan.dir_exists?"("+fmtB(plan.dir_bytes)+")":"<span class=no>— already gone</span>"}</li>`;
+    h+=`<li>Claude's memory of that folder: ${plan.transcripts} transcript${plan.transcripts===1?"":"s"} (${fmtB(plan.transcript_bytes)})${plan.memory?", the memory directory":""}${plan.file_history?", "+plan.file_history+" file-history snapshot"+(plan.file_history===1?"":"s"):""}${plan.prompt_lines?", "+plan.prompt_lines+" prompt-history lines":""}</li>`;
+    h+=`</ul>`;
+  }
+  h+=`<h4>Written outside its folder — tick what should go too</h4>`;
+  if(!plan.outside.length) h+=`<div class="ok">✓ nothing — every file it wrote is inside its own folder</div>`;
+  else h+=plan.outside.map((o,i)=>`<label><input type="checkbox" name="also" value="${esc(o.path)}" ${o.exists?"":"disabled"}><span><code>${esc(o.path)}</code> <span class="no">· ${o.n}× ${o.claude?"· Claude memory/config":""}${o.exists?"":"· no longer exists"}</span></span></label>`).join("");
+  if(plan.commands.length){ h+=`<h4>Shell commands that touched paths outside — review by hand</h4>`+plan.commands.slice(-15).map(c=>`<span class="cmd">${esc(c.cmd)}</span>`).join(""); if(plan.commands.length>15) h+=`<div class="no">… and ${plan.commands.length-15} more</div>`; }
+  if(plan.external.length){ h+=`<h4>Effects nobody can undo (pushes, uploads, messages)</h4>`+plan.external.slice(-10).map(c=>`<span class="cmd">${esc(c.cmd)}</span>`).join(""); if(plan.external.length>10) h+=`<div class="no">… and ${plan.external.length-10} more</div>`; }
+  body.innerHTML=h; conf.hidden=false; form.typed.oninput=()=>{ go.disabled=form.typed.value!==session; };
+  form.onsubmit=async e=>{
+    if(e.submitter!==go) return; e.preventDefault(); go.disabled=true; go.textContent="erasing…";
+    const also=[...form.querySelectorAll("input[name=also]:checked")].map(i=>i.value);
+    try{ const r=await fetch("/api/erase",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session,confirm:true,typed:form.typed.value,also})});
+      const j=await r.json();
+      if(!j.ok){ toast("⚠ "+(j.error||"failed"),true); go.disabled=false; go.textContent="Erase everything"; return; }
+      dlg.close(); LAST=LAST.filter(x=>x.session!==session); LAYOUT=""; RECENT_SIG=""; render();
+      toast("🔥 Erased "+who+(j.failed.length?" — "+j.failed.length+" step(s) failed":""), !!j.failed.length);
+      if(j.failed.length) console.warn("erase failures", j.failed);
+    }catch(err){ toast("⚠ "+err.message,true); go.disabled=false; go.textContent="Erase everything"; }
   };
 }
 async function killCard(session, who){
