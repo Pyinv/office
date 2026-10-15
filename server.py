@@ -17,6 +17,14 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 __version__ = "0.0.2"
 
+
+def _build_id():
+    """Changes whenever the client page changes; the page reloads itself when it sees a new one."""
+    try:
+        return str(int(os.stat(os.path.join(ROOT, "app.html")).st_mtime))
+    except OSError:
+        return ""
+
 # ── config: derived generically so the repo carries no user/host specifics.
 # A gitignored .env (see .env.example) supplies instance details (title, email,
 # tailnet host) and optional path overrides.
@@ -482,7 +490,8 @@ class Handler(SimpleHTTPRequestHandler):
                         elif tm:
                             w["prev"] = cur
             return self._json({"team": snap, "groups": VALID_GROUPS, "ts": now,
-                                "watch_events": events, "version": __version__})
+                                "watch_events": events, "version": __version__,
+                                "build": _build_id()})
         if self.path.split("?")[0] == "/favicon.ico":
             # Site-root favicon. The office and status pages carry their own inline
             # icons, so this only reaches tabs whose page has none: files opened

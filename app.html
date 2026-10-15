@@ -302,6 +302,15 @@
   .netbar button:hover{border-color:var(--accent)}
   body.offline #floor{opacity:.45;filter:grayscale(.7);transition:opacity .3s}
   body.offline .live{background:var(--wait);box-shadow:none;animation:none}
+  /* pull-to-refresh (home-screen app has no reload button) */
+  .ptr{position:fixed;left:50%;top:0;transform:translate(-50%,-120%);z-index:50;background:var(--panel);color:var(--dim);
+    border:1px solid var(--line);border-radius:999px;padding:.4rem .9rem;font-size:.8rem;font-weight:600;box-shadow:var(--shadow);
+    display:flex;align-items:center;gap:.4rem;pointer-events:none;transition:transform .15s,opacity .15s;opacity:0;
+    top:env(safe-area-inset-top,0)}
+  .ptr.show{opacity:1}
+  .ptr.ready{color:var(--accent);border-color:var(--accent)}
+  .ptr .spin{margin:0}
+  html{overscroll-behavior-y:contain}
   .toast{position:fixed;left:50%;bottom:1.3rem;transform:translateX(-50%) translateY(10px);
     background:var(--rev);color:#04160e;font-weight:700;font-size:.84rem;padding:.55rem 1rem;
     border-radius:11px;opacity:0;transition:all .22s;pointer-events:none;box-shadow:var(--shadow)}
@@ -415,6 +424,7 @@
   </footer>
 </div>
 <div class="toast" id="toast"></div>
+<div class="ptr" id="ptr"></div>
 <div class="modal" id="modal">
   <div class="mbox">
     <div class="mbar">
@@ -1288,6 +1298,41 @@ async function floorFail(err, took, status){
   if(first && LAST.length) toast("⚠ "+NET.diag.t, true);
 }
 document.getElementById("net-retry").addEventListener("click", ()=>{ NET.diag=null; load(); });
+
+// ── pull to refresh ───────────────────────────────────────────────────────
+// Added to the home screen there is no address bar and no reload button, so a pull
+// from the very top of the floor reloads the page (fresh app.html = newest version).
+(function(){
+  const el=document.getElementById("ptr"), THRESH=90; let y0=null, dy=0, armed=false;
+  const show=d=>{ dy=d; const r=d>=THRESH; el.textContent=r?"↻  release to refresh":"↓  pull to refresh"; el.classList.toggle("ready",r);
+    el.classList.add("show"); el.style.transform=`translate(-50%, ${Math.min(d,THRESH)*0.6}px)`; };
+  const hide=()=>{ el.classList.remove("show","ready"); el.style.transform=""; y0=null; dy=0; armed=false; };
+  document.addEventListener("touchstart", e=>{
+    if(MODAL_OPEN || e.touches.length!==1 || window.scrollY>0 || document.querySelector("dialog[open]")) { y0=null; return; }
+    y0=e.touches[0].clientY; dy=0; armed=false;
+  }, {passive:true});
+  document.addEventListener("touchmove", e=>{
+    if(y0===null) return;
+    const d=e.touches[0].clientY-y0;
+    if(d<10 || window.scrollY>0){ if(armed) hide(); return; }
+    armed=true; e.preventDefault(); show(d);     // we own the gesture once pulling: no rubber-band
+  }, {passive:false});
+  document.addEventListener("touchend", ()=>{
+    if(!armed) { y0=null; return; }
+    if(dy>=THRESH){ el.innerHTML=`<span class="spin"></span>refreshing…`; el.classList.add("show"); el.style.transform=`translate(-50%, ${THRESH*0.6}px)`;
+      setTimeout(()=>location.reload(), 120); return; }
+    hide();
+  });
+  document.addEventListener("touchcancel", hide);
+})();
+// A newer Office on the server than the one running here: say so once, tap to reload
+let RUNNING_VER=null;
+function checkVersion(v){
+  if(!v) return;
+  if(RUNNING_VER===null){ RUNNING_VER=v; return; }
+  if(v!==RUNNING_VER && !checkVersion.said){ checkVersion.said=true; const t=document.getElementById("toast");
+    toast("⬆ a newer Office is live — tap to reload"); t.classList.add("tap"); t.onclick=()=>location.reload(); clearTimeout(t._h); }
+}
 window.addEventListener("online", ()=>{ NET.diag=null; load(); });
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) load(); });
 
@@ -1310,7 +1355,7 @@ async function load(){
   if(NET.down){ NET.down=false; NET.fails=0; NET.diag=null; setNet(false); toast("✅ back online"); }
   const _prev={}; (LAST||[]).forEach(m=>_prev[m.session]=m.state);
   LAST=data.team||[];
-  { const _v=document.getElementById("ver"); if(_v&&data.version) _v.textContent=data.version; }
+  { const _v=document.getElementById("ver"); if(_v&&data.version) _v.textContent=data.version; checkVersion(data.build); }
   applySent(LAST);   // keep just-sent cards showing "replying…" until Claude's reply lands
   // feature: ping me when a session newly flips to "your turn"
   LAST.forEach(m=>{ if(m.state==="waiting" && _prev[m.session] && _prev[m.session]!=="waiting") notifyUser("🖐 "+(m.person||m.project)+" needs you", m.project, m.session); });
