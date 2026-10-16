@@ -313,8 +313,9 @@
       background:var(--panel);box-shadow:0 -6px 18px rgba(0,0,0,.5)}
     body.termkeys .keybar{display:flex;flex-wrap:nowrap;scrollbar-width:none;border-top:0}
     /* the terminal fills exactly the visual viewport minus the bottom block */
-    body.termkeys .modal{padding:0;align-items:stretch;inset:auto 0 auto 0;top:var(--vvtop,0px);height:var(--vvh,100%);padding-bottom:var(--barh,0px)}
-    body.termkeys .mbox{width:100%;max-width:none;height:auto;border-radius:0;border:0}
+    body.termkeys .modal{padding:0;display:block;background:#0c0f14}   /* overlay keeps covering the whole screen, floor never shows through */
+    body.termkeys .mbox{position:absolute;left:0;right:0;top:var(--vvtop,0px);height:calc(var(--vvh,100vh) - var(--barh,0px));
+      width:auto;max-width:none;border-radius:0;border:0}
   }
   .cathead{margin:1.8rem 0 .3rem;display:flex;align-items:center;gap:.55rem;
     font-size:.95rem;font-weight:800;letter-spacing:-.01em;padding-bottom:.4rem;border-bottom:2px solid var(--line)}
