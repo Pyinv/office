@@ -72,6 +72,13 @@
     border-radius:999px;padding:.4rem 1rem;font-size:.9rem;font-family:inherit;width:300px;max-width:40vw;transition:width .15s}
   .search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent);width:380px}
   .actioncol{position:relative}
+  /* × in the search box: clears it, shows only when there is something to clear */
+  .searchwrap{position:relative;display:inline-flex;align-items:center}
+  .searchwrap .search{padding-right:2rem}
+  .searchx{position:absolute;right:.45rem;top:50%;transform:translateY(-50%);display:none;align-items:center;justify-content:center;
+    width:1.35rem;height:1.35rem;border-radius:999px;border:0;background:var(--panel2);color:var(--dim);font:inherit;font-size:.95rem;line-height:1;cursor:pointer;padding:0}
+  .searchx:hover{background:var(--ink);color:var(--bg)}
+  .searchwrap.has .searchx{display:inline-flex}
   .search::-webkit-search-decoration,.search::-webkit-search-cancel-button,.sec-in::-webkit-search-decoration,.sec-in::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
   /* search suggestions: the best matches, keyboard-navigable, Enter opens the terminal */
   .sugg{position:absolute;top:100%;right:0;z-index:7;width:min(460px,94vw);max-height:min(50vh,400px);overflow-y:auto;display:none;
@@ -386,7 +393,8 @@
     .actioncol{flex-direction:row;align-items:center;align-self:stretch;
       justify-content:flex-start;gap:.5rem}
     .newbtn{flex:0 0 auto}
-    .search,.search:focus{flex:1 1 0;width:auto;min-width:0;max-width:none}
+    .searchwrap{flex:1 1 0;min-width:0}
+    .search,.search:focus{width:100%;min-width:0;max-width:none}
     .actioncol{min-width:0}
     /* iOS zooms into any field smaller than 16px — keep them at 16px so it stays an app, not a website */
     input:not([type=checkbox]):not([type=radio]),textarea,select{font-size:16px}
@@ -466,7 +474,7 @@
     </div>
     <div class="actioncol">
       <button class="newbtn" id="newbtn">+ New</button>
-      <input type="search" class="search" id="search" placeholder="search  ·  who, project, “waiting”, “clients”…  (⌘F)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+      <span class="searchwrap" id="searchwrap"><input type="search" class="search" id="search" placeholder="search  ·  who, project, “waiting”, “clients”…  (⌘F)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button type="button" class="searchx" id="searchx" title="clear search" aria-label="clear search">×</button></span>
       <div class="sugg" id="sugg" role="listbox"></div>
       <button class="filtertoggle" id="filtertoggle" title="show / hide the team and status filters">⚙</button>
     </div>
@@ -1376,6 +1384,7 @@ function renderRecent(team){
   });
 }
 function render(){
+  document.getElementById("searchwrap").classList.toggle("has", !!SEARCH);
   const team=LAST;
   renderChips(team);
   renderRecent(team);
@@ -1580,6 +1589,7 @@ function hueOf(m){ let h=0; for(const c of (m.session||"")) h=(h*31+c.charCodeAt
     else if(e.key==="Enter"){ e.preventDefault(); openSel(); }
     else if(e.key==="Escape"){ e.preventDefault(); inp.value=""; SEARCH=""; render(); renderSugg(); inp.blur(); }
   });
+  document.getElementById("searchx").addEventListener("click",()=>{ inp.value=""; SEARCH=""; render(); renderSugg(); inp.focus(); });
   box.addEventListener("mousedown",e=>{ const r=e.target.closest(".row"); if(r){ e.preventDefault(); SUGSEL=+r.dataset.i; openSel(); } });
 }
 // click anywhere on a card to open its terminal — except on things that do their own job
