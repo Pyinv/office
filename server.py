@@ -12,7 +12,7 @@ endpoint (which can type into live Claude sessions) is never exposed to the LAN
 or the internet — same trust boundary as sitting at the tower.
 """
 import json, subprocess, sys, os, time, importlib, signal, socket, threading, shutil, re, tempfile, shlex
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs, unquote
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 __version__ = "0.0.2"
@@ -412,6 +412,8 @@ class Handler(SimpleHTTPRequestHandler):
             except OSError:
                 dirs = []
             return self._json({"dirs": dirs})
+        if self.path.split("?")[0] == "/api/drop":
+            return self._drop_list()
         if self.path.split("?")[0] == "/api/history":
             # past sessions that are not running now, newest first: what "+ New" offers to bring back
             live = live_sessions()
@@ -523,6 +525,8 @@ class Handler(SimpleHTTPRequestHandler):
         if not self._origin_ok():   # CSRF gate: reject cross-site POST
             return self._json({"error": "forbidden origin"}, 403)
         path = self.path.split("?")[0]
+        if path == "/api/drop":      # raw file body, not JSON
+            return self._drop()
         try:
             n = int(self.headers.get("Content-Length", 0))
             data = json.loads(self.rfile.read(n) or b"{}")
@@ -574,6 +578,76 @@ class Handler(SimpleHTTPRequestHandler):
         except Exception:
             out = ""
         return self._json({"text": out})
+
+    # ── /api/drop: share a file or text from the phone straight into an agent's chat ──
+    # GET  -> {"Max · demo-app": "max-demo-app", ...}  live agents, most recent
+    #         first; a Shortcuts "Choose from List" shows the keys and hands back the value.
+    # POST ?session=<s>&name=<file>[&note=..]  body = the file  -> saved to <agent dir>/inbox/
+    # POST ?session=<s>&text=1                  body = text      -> typed into the agent's terminal
+    # Either way the agent gets one line in its terminal saying what arrived and where.
+    DROP_MAX = 200 * 1024 * 1024
+
+    def _drop_list(self):
+        live = team.sessions()
+        rows = []
+        for name, v in live.items():
+            if name.startswith("zz-"):
+                continue
+            person, _, proj = name.partition("-")
+            rows.append((v[2], f"{person.capitalize()} · {proj}", name))
+        rows.sort(key=lambda r: -r[0])
+        return self._json({label: sess for _, label, sess in rows})
+
+    def _drop_dir(self, sess):
+        """The agent's working folder, or None if it isn't somewhere we'd put a file."""
+        live = team.sessions().get(sess)
+        d = os.path.realpath(live[1]) if live and live[1] else ""
+        home = os.path.realpath(HOME)
+        if not d or d in ("/", home) or not d.startswith(home + os.sep) or not os.path.isdir(d):
+            return None
+        return d
+
+    def _drop(self):
+        q = parse_qs(urlparse(self.path).query)
+        sess = (q.get("session") or [""])[0]
+        if not sess or sess not in live_sessions():
+            return self._json({"error": f"no live session '{sess}'"}, 409)
+        d = self._drop_dir(sess)
+        if not d:
+            return self._json({"error": "that agent has no folder I'd write into"}, 409)
+        n = int(self.headers.get("Content-Length", 0) or 0)
+        if n <= 0 or n > self.DROP_MAX:
+            return self._json({"error": "empty or too big (200 MB max)"}, 413)
+        body = self.rfile.read(n)
+        note = (q.get("note") or [""])[0].strip().replace("\n", " ")
+        person = sess.partition("-")[0].capitalize()
+        if (q.get("text") or [""])[0]:
+            text = body.decode("utf-8", "replace").strip()
+            if not text:
+                return self._json({"error": "empty text"}, 400)
+            msg = f"📝 shared from phone: {text}" + (f"  — {note}" if note else "")
+            rel = None
+        else:
+            name = os.path.basename(unquote((q.get("name") or [""])[0]).replace("\\", "/")).strip()
+            name = re.sub(r"[\x00-\x1f\x7f]", "", name)[:120] or f"drop-{int(time.time())}"
+            if name.startswith("."):
+                name = "_" + name
+            inbox = os.path.join(d, "inbox")
+            os.makedirs(inbox, exist_ok=True)
+            stem, ext = os.path.splitext(name)
+            dest, k = os.path.join(inbox, name), 2
+            while os.path.exists(dest):              # never overwrite an earlier drop
+                dest, k = os.path.join(inbox, f"{stem}-{k}{ext}"), k + 1
+            with open(dest, "wb") as f:
+                f.write(body)
+            rel = os.path.relpath(dest, d)
+            msg = f"📎 shared from phone: {rel}" + (f"  — {note}" if note else "  — have a look")
+        try:
+            subprocess.run(["tmux", "send-keys", "-t", sess, "-l", "--", msg], check=True)
+            subprocess.run(["tmux", "send-keys", "-t", sess, "Enter"], check=True)
+        except Exception as e:
+            return self._json({"ok": True, "saved": rel, "warning": f"saved but couldn't tell {person}: {e}"})
+        return self._json({"ok": True, "saved": rel, "told": person})
 
     def _paste(self, data):
         # Paste the browser clipboard into the attached tmux pane via a tmux buffer +
