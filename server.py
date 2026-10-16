@@ -595,24 +595,41 @@ class Handler(SimpleHTTPRequestHandler):
         return self._json({"text": out})
 
     # ── /api/drop: share a file or text from the phone straight into an agent's chat ──
-    # GET  -> {"Demo App | Max": "max-demo-app", ...}  live agents, most recent
-    #         first; a Shortcuts "Choose from List" shows the keys and hands back the value.
+    # GET  -> {"Demo App | Max": "max-demo-app", ...}  live agents, most recent first
+    # GET ?lines=1 -> the same labels as text, one per line, order kept
     # POST ?session=<s>&name=<file>[&note=..]  body = the file  -> saved to <agent dir>/inbox/
+    #      <s> is the session name or its label
     # POST ?session=<s>&text=1                  body = text      -> typed into the agent's terminal
     # Either way the agent gets one line in its terminal saying what arrived and where.
     DROP_MAX = 200 * 1024 * 1024
 
-    def _drop_list(self):
-        live = team.sessions()
+    def _drop_rows(self):
+        """[(label, session)] for the live agents, most recently active first. The label is
+        the tab title ("Demo App | Max")."""
         rows = []
-        for name, v in live.items():
+        for name, v in team.sessions().items():
             if name.startswith("zz-"):
                 continue
             person, _, proj = name.partition("-")
             words = " ".join(w.capitalize() for w in re.split(r"[-_]+", proj) if w)
-            rows.append((v[2], f"{words} | {person.capitalize()}" if words else person.capitalize(), name))   # same as the tab title
+            rows.append((v[2], f"{words} | {person.capitalize()}" if words else person.capitalize(), name))
         rows.sort(key=lambda r: -r[0])
-        return self._json({label: sess for _, label, sess in rows})
+        return [(label, sess) for _, label, sess in rows]
+
+    def _drop_list(self):
+        rows = self._drop_rows()
+        if "lines=1" in self.path:
+            # one label per line — a Shortcuts "Choose from List" keeps this order, whereas it
+            # sorts a dictionary's keys alphabetically
+            body = ("\n".join(label for label, _ in rows) + "\n").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        return self._json({label: sess for label, sess in rows})
 
     def _drop_dir(self, sess):
         """The agent's working folder, or None if it isn't somewhere we'd put a file."""
@@ -625,7 +642,9 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _drop(self):
         q = parse_qs(urlparse(self.path).query)
-        sess = (q.get("session") or [""])[0]
+        sess = (q.get("session") or [""])[0].strip()
+        if sess and sess not in live_sessions():          # the label ("Demo App | Max") works too
+            sess = next((s_ for label, s_ in self._drop_rows() if label == sess), sess)
         if not sess or sess not in live_sessions():
             return self._json({"error": f"no live session '{sess}'"}, 409)
         d = self._drop_dir(sess)
