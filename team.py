@@ -376,6 +376,8 @@ def _ghost_full(name):
         m = re.match(r'^\s*[❯›]\s+(.+)$', lines[i])
         if m and m.group(1).strip() and not _NOISE.search(m.group(1)):
             you = re.sub(r'\s+', ' ', m.group(1).strip())
+            if _IMG_NOTE.match(you):
+                you = "📷 image"        # on screen a pasted picture is only the renderer's size note
             break
     return full, ask, is_q, you
 
