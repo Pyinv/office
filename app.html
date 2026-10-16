@@ -1298,12 +1298,15 @@ async function sendKey(key){
   say.addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendSay(); } });
   // pin the block above the keyboard and give the terminal exactly the space that is left
   const bar=document.getElementById("phonebar");
+  // iOS 27 floats its ⌃⌄✓ pill in a strip it reports as "keyboard" — instead of leaving a dark
+  // hole there, the bar keeps its background down to the real keyboard and the pill floats on it
   window.placeKeybar=function(){ const vv=window.visualViewport; if(!vv) return;
     const st=document.documentElement.style;
-    bar.style.bottom=Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))+"px";
+    const off=Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    bar.style.bottom="0px"; bar.style.paddingBottom=off+"px";
     st.setProperty("--vvtop", Math.round(vv.offsetTop)+"px");
     st.setProperty("--vvh", Math.round(vv.height)+"px");
-    st.setProperty("--barh", (document.body.classList.contains("termkeys") ? bar.offsetHeight : 0)+"px"); };
+    st.setProperty("--barh", (document.body.classList.contains("termkeys") ? bar.offsetHeight - off : 0)+"px"); };
   if(window.visualViewport){ visualViewport.addEventListener("resize", ()=>placeKeybar()); visualViewport.addEventListener("scroll", ()=>placeKeybar()); }
   window.addEventListener("resize", ()=>placeKeybar());
 })();
