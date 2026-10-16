@@ -106,7 +106,7 @@ def _text_of(msg):
         return ""
     c = msg.get("content", [])
     if isinstance(c, str):
-        return c
+        return "📷 image" if _IMG_NOTE.match(c) else c
     if not isinstance(c, list):
         return ""
     out = []
