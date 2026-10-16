@@ -69,8 +69,24 @@
   .chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
   .chip.on .c{background:color-mix(in srgb,var(--bg) 25%,transparent);color:var(--bg)}
   .search{background:var(--panel);border:1px solid var(--line);color:var(--ink);
-    border-radius:999px;padding:.3rem .8rem;font-size:.82rem;font-family:inherit;width:140px;max-width:36vw}
-  .search:focus{outline:none;border-color:var(--accent)}
+    border-radius:999px;padding:.4rem 1rem;font-size:.9rem;font-family:inherit;width:300px;max-width:40vw;transition:width .15s}
+  .search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent);width:380px}
+  .actioncol{position:relative}
+  /* search suggestions: the best matches, keyboard-navigable, Enter opens the terminal */
+  .sugg{position:absolute;top:100%;right:0;z-index:7;width:min(460px,94vw);max-height:min(50vh,400px);overflow-y:auto;display:none;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);margin-top:.3rem;padding:.25rem}
+  .sugg.show{display:block}
+  .sugg .row{display:flex;align-items:center;gap:.55rem;padding:.42rem .6rem;border-radius:8px;cursor:pointer;font-size:.84rem}
+  .sugg .row:hover,.sugg .row.sel{background:var(--work2)}
+  .sugg .av{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:.85rem;flex:0 0 auto}
+  .sugg .nm{font-weight:700;color:var(--ink)} .sugg .nm b{color:var(--accent)}
+  .sugg .pj{color:var(--faint);font-family:ui-monospace,SFMono-Regular,monospace;font-size:.74rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+  .sugg .pj b{color:var(--dim)}
+  .sugg .st{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;border-radius:999px;padding:.1rem .45rem;flex:0 0 auto}
+  .sugg .st.waiting{background:var(--wait2);color:var(--wait)} .sugg .st.working{background:var(--work2);color:var(--work)} .sugg .st.review{background:var(--rev2);color:var(--rev)}
+  .sugg .ago{color:var(--faint);font-size:.7rem;flex:0 0 auto}
+  .sugg .hint{color:var(--faint);font-size:.7rem;padding:.3rem .6rem .2rem;display:flex;gap:.8rem}
+  .sugg .hint kbd{font:inherit;border:1px solid var(--line);border-radius:4px;padding:0 .3rem}
   .fsep{width:1px;align-self:stretch;background:var(--line);margin:.1rem .15rem}
   .chip.cat.on{background:var(--accent);border-color:var(--accent);color:#fff}
   .chip.cat.on .c{background:rgba(255,255,255,.25);color:#fff}
@@ -446,7 +462,8 @@
     </div>
     <div class="actioncol">
       <button class="newbtn" id="newbtn">+ New</button>
-      <input class="search" id="search" placeholder="search…" autocomplete="off">
+      <input class="search" id="search" placeholder="search  ·  name, project, “waiting”, “clients”…  (⌘F)" autocomplete="off" spellcheck="false">
+      <div class="sugg" id="sugg" role="listbox"></div>
       <button class="filtertoggle" id="filtertoggle" title="show / hide the team and status filters">⚙</button>
     </div>
   </div>
@@ -1258,6 +1275,11 @@ function gotoSecretary(){
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&MODAL_OPEN){ closeTerm(); return; }
   if((e.metaKey||e.ctrlKey)&&(e.key==="k"||e.key==="K")){ e.preventDefault(); gotoSecretary(); }
+  // ⌘F / Ctrl-F (and "/" when not typing) go to the Office search, not the browser's find —
+  // the floor is what you're searching. Inside a terminal or a dialog the browser keeps it.
+  const typing=/^(INPUT|TEXTAREA|SELECT)$/.test((e.target&&e.target.tagName)||"") || (e.target&&e.target.isContentEditable);
+  if(!MODAL_OPEN && !document.querySelector("dialog[open]") && (((e.metaKey||e.ctrlKey)&&(e.key==="f"||e.key==="F")) || (e.key==="/"&&!typing&&!e.metaKey&&!e.ctrlKey))){
+    e.preventDefault(); const sb=document.getElementById("search"); sb.focus(); sb.select(); }
 });
 
 // update a reused card's TEXT in place — never touches the open/closed ctx or the input,
@@ -1358,9 +1380,10 @@ function render(){
   // ONE flat list, MOST-RECENTLY-INTERACTED first (ts = last activity, not just Claude's reply).
   // Category is a filter now, not the layout — the freshest work is always on top.
   const shown=team.filter(st).filter(catTest)
-    .filter(m=>!s || (m.session+" "+m.person+" "+m.project+" "+(m.ask||"")+" "+(m.typed||"")).toLowerCase().includes(s))
+    .filter(m=>!s || searchScore(m,s)>0)
     .sort((a,b)=>
-      ((b.pinned?1:0)-(a.pinned?1:0))                            // pinned block always on top
+      (s ? searchScore(b,s)-searchScore(a,s) : 0)                // searching: best match first
+      || ((b.pinned?1:0)-(a.pinned?1:0))                            // pinned block always on top
       || ((a.ghost?1:0)-(b.ghost?1:0))                           // ghosts always sink below real sessions
       || ((b.ts||0)-(a.ts||0))                                   // then most-recently-interacted first
       || (a.person||a.project).localeCompare(b.person||b.project));
@@ -1504,7 +1527,57 @@ async function load(){
     `<span class="live"></span>${LAST.length} desks · ${w} question${w===1?"":"s"} · ${p} pending`;
   render();
 }
-document.getElementById("search").addEventListener("input",e=>{ SEARCH=e.target.value; render(); });
+// ── search: multi-word, any order, forgiving ─────────────────────────────
+// Every word must hit something: name, project, session, category ("clients"), state
+// words ("waiting", "done", "working"), the open question, the suggestion or the note.
+// A word of 3+ letters also matches as a subsequence of the name/project ("snk" → "sinnek").
+const STATE_WORDS={waiting:"waiting question needs you your turn ask", working:"working busy running", review:"done finished review your move"};
+function subseq(n,h){ let i=0; for(const c of h){ if(c===n[i]) i++; if(i===n.length) return true; } return false; }
+function searchScore(m,q){
+  const toks=q.toLowerCase().split(/\s+/).filter(Boolean); if(!toks.length) return 1;
+  const person=(m.person||"").toLowerCase(), proj=(m.project||"").toLowerCase(), sess=(m.session||"").toLowerCase();
+  const rest=((m.group||"")+" "+(STATE_WORDS[m.state]||"")+" "+(m.ask||"")+" "+(m.typed||"")+" "+(m.task||"")+" "+(m.you||"")).toLowerCase();
+  let score=0;
+  for(const t of toks){
+    let s=0;
+    if(person.startsWith(t)) s=60; else if(proj.startsWith(t)||proj.split("-").some(w=>w.startsWith(t))) s=40;
+    else if(person.includes(t)) s=25; else if(proj.includes(t)) s=18; else if(sess.includes(t)) s=12;
+    else if(rest.includes(t)) s=6;
+    else if(t.length>=3 && (subseq(t,person)||subseq(t,proj))) s=3;
+    if(!s) return 0; score+=s;
+  }
+  return score + Math.min(2, (m.ts||0)/1e10);   // recency as a hair-thin tiebreak
+}
+function hl(text,q){ const t=esc(text); const toks=q.toLowerCase().split(/\s+/).filter(Boolean); if(!toks.length) return t;
+  const re=new RegExp("("+toks.map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|")+")","ig"); return t.replace(re,"<b>$1</b>"); }
+let SUGG=[], SUGSEL=0;
+function renderSugg(){
+  const box=document.getElementById("sugg"), q=SEARCH.trim();
+  if(!q){ box.classList.remove("show"); box.innerHTML=""; SUGG=[]; return; }
+  SUGG=LAST.filter(m=>!m.ghost && searchScore(m,q)>0).sort((a,b)=>searchScore(b,q)-searchScore(a,q)).slice(0,8);
+  SUGSEL=Math.min(SUGSEL, Math.max(0,SUGG.length-1));
+  if(!SUGG.length){ box.innerHTML=`<div class="hint">no one matches “${esc(q)}”</div>`; box.classList.add("show"); return; }
+  box.innerHTML=SUGG.map((m,i)=>`<div class="row${i===SUGSEL?" sel":""}" data-i="${i}" role="option">
+      <span class="av" style="background:hsl(${hueOf(m)} 45% 22% / .5)">${esc(m.emoji||emojiFor(m.project))}</span>
+      <span class="nm">${hl(m.person||m.project,q)}</span><span class="pj">${hl(m.project,q)}</span>
+      <span class="st ${esc(m.state||"")}">${esc(pillOf(m))}</span><span class="ago">${esc(agoText(m.ts))}</span></div>`).join("")
+    +`<div class="hint"><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>⏎</kbd> open terminal</span><span><kbd>esc</kbd> clear</span></div>`;
+  box.classList.add("show");
+}
+function hueOf(m){ let h=0; for(const c of (m.session||"")) h=(h*31+c.charCodeAt(0))%360; return h; }
+{
+  const inp=document.getElementById("search"), box=document.getElementById("sugg");
+  const openSel=()=>{ const m=SUGG[SUGSEL]; if(m){ box.classList.remove("show"); inp.blur(); openTerm(m.session,(m.person||m.project),tabTitle(m)); } };
+  inp.addEventListener("input",e=>{ SEARCH=e.target.value; SUGSEL=0; render(); renderSugg(); });
+  inp.addEventListener("focus",()=>{ if(SEARCH.trim()) renderSugg(); });
+  inp.addEventListener("blur",()=>setTimeout(()=>box.classList.remove("show"),150));
+  inp.addEventListener("keydown",e=>{
+    if(e.key==="ArrowDown"||e.key==="ArrowUp"){ if(!SUGG.length) return; e.preventDefault(); SUGSEL=(SUGSEL+(e.key==="ArrowDown"?1:-1)+SUGG.length)%SUGG.length; renderSugg(); }
+    else if(e.key==="Enter"){ e.preventDefault(); openSel(); }
+    else if(e.key==="Escape"){ e.preventDefault(); inp.value=""; SEARCH=""; render(); renderSugg(); inp.blur(); }
+  });
+  box.addEventListener("mousedown",e=>{ const r=e.target.closest(".row"); if(r){ e.preventDefault(); SUGSEL=+r.dataset.i; openSel(); } });
+}
 // click anywhere on a card to open its terminal — except on things that do their own job
 // (buttons, the reply box, the note editor, the category select, links) and the YOU box,
 // which expands; a drag that selected text is not a click.
