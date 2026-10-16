@@ -109,8 +109,20 @@ def _text_of(msg):
         return c
     if not isinstance(c, list):
         return ""
-    return " ".join(b.get("text", "") for b in c
-                    if isinstance(b, dict) and b.get("type") == "text")
+    out = []
+    for b in c:
+        if not isinstance(b, dict):
+            continue
+        if b.get("type") == "image":
+            out.append("📷 image")                  # a pasted/shared picture: say so, don't go blank
+        elif b.get("type") == "text":
+            t = b.get("text", "")
+            if _IMG_NOTE.match(t):                 # the harness's "[Image: original 2160x480, displayed at …]" line
+                continue
+            out.append(t)
+    return " ".join(out)
+
+_IMG_NOTE = re.compile(r"^\s*\[Image: original \d+x\d+")
 
 # user "messages" in a transcript include skill/command/tool injections, not just
 # what you typed. Keep only text that reads like a real prompt.
