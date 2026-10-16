@@ -342,6 +342,21 @@ def save_tasks(t):
         json.dump(t, f, indent=2, sort_keys=True)
     os.replace(tmp, TASKS_FILE)
 
+def _sniff_ext(b):
+    """File extension from the first bytes — iOS shares screenshots with no name at all."""
+    if b[:8] == b"\x89PNG\r\n\x1a\n": return ".png"
+    if b[:3] == b"\xff\xd8\xff": return ".jpg"
+    if b[:4] == b"%PDF": return ".pdf"
+    if b[:6] in (b"GIF87a", b"GIF89a"): return ".gif"
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP": return ".webp"
+    if b[4:12] in (b"ftypheic", b"ftypheix", b"ftypmif1", b"ftypheif"): return ".heic"
+    if b[4:8] == b"ftyp": return ".mp4"
+    if b[:4] == b"PK\x03\x04": return ".zip"
+    try:
+        b[:4096].decode("utf-8"); return ".txt"
+    except UnicodeDecodeError:
+        return ""
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
         super().__init__(*a, directory=ROOT, **k)
@@ -630,9 +645,13 @@ class Handler(SimpleHTTPRequestHandler):
             rel = None
         else:
             name = os.path.basename(unquote((q.get("name") or [""])[0]).replace("\\", "/")).strip()
-            name = re.sub(r"[\x00-\x1f\x7f]", "", name)[:120] or f"drop-{int(time.time())}"
+            name = re.sub(r"[\x00-\x1f\x7f]", "", name)[:120]
+            if not name or name in ("Image", "File", "Photo", "Document"):   # iOS's placeholder names
+                name = time.strftime("%Y-%m-%d_%H%M%S")
             if name.startswith("."):
                 name = "_" + name
+            if "." not in name[1:]:                    # no extension: sniff it, so the agent can open it
+                name += _sniff_ext(body)
             inbox = os.path.join(d, "inbox")
             os.makedirs(inbox, exist_ok=True)
             stem, ext = os.path.splitext(name)

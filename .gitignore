@@ -26,3 +26,4 @@ doc/
 __pycache__/
 *.pyc
 .gstack/
+inbox/
