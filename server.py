@@ -580,7 +580,7 @@ class Handler(SimpleHTTPRequestHandler):
         return self._json({"text": out})
 
     # ── /api/drop: share a file or text from the phone straight into an agent's chat ──
-    # GET  -> {"Max · demo-app": "max-demo-app", ...}  live agents, most recent
+    # GET  -> {"Demo App | Max": "max-demo-app", ...}  live agents, most recent
     #         first; a Shortcuts "Choose from List" shows the keys and hands back the value.
     # POST ?session=<s>&name=<file>[&note=..]  body = the file  -> saved to <agent dir>/inbox/
     # POST ?session=<s>&text=1                  body = text      -> typed into the agent's terminal
@@ -594,7 +594,8 @@ class Handler(SimpleHTTPRequestHandler):
             if name.startswith("zz-"):
                 continue
             person, _, proj = name.partition("-")
-            rows.append((v[2], f"{person.capitalize()} · {proj}", name))
+            words = " ".join(w.capitalize() for w in re.split(r"[-_]+", proj) if w)
+            rows.append((v[2], f"{words} | {person.capitalize()}" if words else person.capitalize(), name))   # same as the tab title
         rows.sort(key=lambda r: -r[0])
         return self._json({label: sess for _, label, sess in rows})
 
