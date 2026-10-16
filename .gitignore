@@ -27,3 +27,6 @@ __pycache__/
 *.pyc
 .gstack/
 inbox/
+ios/Office.xcodeproj/
+ios/Office/Assets.xcassets/
+ios/Office/Info.plist
