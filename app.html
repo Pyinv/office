@@ -240,8 +240,8 @@
     border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5)}
   .mbar{display:flex;align-items:center;gap:.6rem;padding:.5rem .8rem;background:var(--panel);
     border-bottom:1px solid var(--line);flex:0 0 auto}
-  .mbar .mtitle{font-weight:700;font-size:.9rem}
-  .mbar .mhint{color:var(--faint);font-size:.74rem;margin-left:auto}
+  .mbar .mtitle{font-weight:700;font-size:.9rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}  /* takes the slack so ↗ and ✕ stay on the right, hint or no hint */
+  .mbar .mhint{color:var(--faint);font-size:.74rem;white-space:nowrap}
   @media (max-width:600px),(pointer:coarse){.mbar .mhint{display:none}}  /* no room for it on a phone; it wrapped the bar to two lines */
   .mbar .mx{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;
     width:30px;height:30px;font-size:1rem;cursor:pointer}
