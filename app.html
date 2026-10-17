@@ -284,6 +284,10 @@
   .er-body label input{margin-top:.25rem}
   .er-body .cmd{display:block;font:.76em ui-monospace,SFMono-Regular,monospace;color:var(--dim);white-space:pre-wrap;word-break:break-all;
     background:var(--panel2);border-radius:6px;padding:.25rem .45rem;margin:.15rem 0}
+  .linkdlg h2{word-break:break-all;font-size:1rem}
+  .lk-btns{display:flex;flex-direction:column;gap:.45rem;margin-top:.8rem}
+  .lk-btns button{font:inherit;font-size:1rem;padding:.7rem;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer}
+  .lk-btns button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
   .newdlg .btns button.danger{background:var(--wait);border-color:var(--wait);color:#fff}
   .newdlg .btns button.danger:disabled{opacity:.45;cursor:not-allowed}
   .newdlg .btns button{border-radius:999px;padding:.5rem 1rem;font:inherit;font-weight:700;cursor:pointer;
@@ -529,6 +533,16 @@
     <iframe id="termframe" src="about:blank" allow="clipboard-read; clipboard-write"></iframe>
   </div>
 </div>
+<dialog class="newdlg linkdlg" id="linkdlg">
+  <h2 id="lk-name">file</h2>
+  <div class="preview" id="lk-sub"></div>
+  <div class="lk-btns">
+    <button id="lk-open">Open</button>
+    <button id="lk-share" class="primary">Share…</button>
+    <button id="lk-copy">Copy link</button>
+    <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+  </div>
+</dialog>
 <dialog class="newdlg" id="rendlg">
   <form method="dialog" autocomplete="off">
     <h2>Rename session</h2>
@@ -581,7 +595,7 @@
   <button data-key="c-w">^W</button>
 </div>
 <div class="composer" id="composer">
-  <textarea id="say" rows="1" placeholder="Message…" autocomplete="off" autocorrect="on" autocapitalize="sentences" enterkeyhint="send"></textarea>
+  <textarea id="say" rows="1" placeholder="Message…" autocomplete="off" autocorrect="on" autocapitalize="sentences" enterkeyhint="enter"></textarea>
   <button id="saysend" title="send" aria-label="send">↑</button>
 </div>
 </div>
@@ -1138,7 +1152,42 @@ function injectAutoCopy(frame){
 //  2. Claude's renderer HARD-wraps long lines (each row is its own line to xterm), so a
 //     long URL — e.g. one with %20s — is cut at the row end and only the first piece is
 //     a link. Our provider joins full-width rows and links the whole thing.
-function openOut(url){ const a=document.createElement("a"); a.href=url; a.target="_blank"; a.rel="noopener"; document.body.appendChild(a); a.click(); a.remove(); }
+function openOut(url){
+  if(isFileLink(url) && PHONE && navigator.share){ linkSheet(url); return; }
+  const a=document.createElement("a"); a.href=url; a.target="_blank"; a.rel="noopener"; document.body.appendChild(a); a.click(); a.remove(); }
+// a file of ours (the Files browser) — on the phone it gets a sheet: open, share the file itself
+// (WhatsApp, Mail, AirDrop…), copy the link. The home-screen app has no share button of its own.
+const PHONE=matchMedia("(pointer:coarse)").matches;
+function isFileLink(u){ try{ const x=new URL(u, location.href); return x.host===location.host && /^\/dufs\/.+\.[a-z0-9]{2,5}$/i.test(x.pathname); }catch(_){ return false; } }
+let LK={url:"", name:"", file:null};
+function linkSheet(url){
+  const d=document.getElementById("linkdlg"), name=decodeURIComponent(url.split("/").pop().split("?")[0]);
+  LK={url, name, file:null};
+  document.getElementById("lk-name").textContent=name;
+  document.getElementById("lk-sub").textContent="fetching…";
+  // fetch now, so Share is instant when tapped — iOS only allows a share right after the tap
+  fetch(url).then(r=>{ if(!r.ok) throw 0; return r.blob(); }).then(b=>{
+    if(LK.url!==url) return;
+    LK.file=new File([b], name, {type:b.type||"application/octet-stream"});
+    document.getElementById("lk-sub").textContent=fmtB(b.size)+(b.type?"  ·  "+b.type.split("/").pop():"");
+  }).catch(()=>{ if(LK.url===url) document.getElementById("lk-sub").textContent="couldn't fetch the file — Share will send the link"; });
+  d.showModal();
+}
+{
+  const d=document.getElementById("linkdlg");
+  document.getElementById("lk-open").onclick=()=>{ d.close(); const a=document.createElement("a"); a.href=LK.url; a.target="_blank"; a.rel="noopener"; document.body.appendChild(a); a.click(); a.remove(); };
+  document.getElementById("lk-copy").onclick=async()=>{ try{ await navigator.clipboard.writeText(LK.url); toast("link copied"); }catch(_){ toast("couldn't copy", true); } d.close(); };
+  document.getElementById("lk-share").onclick=async()=>{
+    const data=(LK.file && navigator.canShare && navigator.canShare({files:[LK.file]})) ? {files:[LK.file], title:LK.name} : {url:LK.url, title:LK.name};
+    try{ await navigator.share(data); d.close(); }
+    catch(e){ if(e && e.name!=="AbortError") toast("share failed: "+e.message, true); }
+  };
+  // links in the cards: same sheet on the phone
+  document.addEventListener("click", e=>{
+    const a=e.target.closest("a[href]"); if(!a || !PHONE || !navigator.share) return;
+    if(isFileLink(a.href)){ e.preventDefault(); linkSheet(a.href); }
+  }, true);
+}
 function injectLinks(frame){
   let win; try{ win=frame.contentWindow; }catch(e){ return; }
   if(!win || win.__links) return; win.__links=true;
@@ -1296,7 +1345,8 @@ async function sendKey(key){
   }
   sendBtn.addEventListener("pointerdown", e=>e.preventDefault());   // keep the keyboard up
   sendBtn.addEventListener("click", sendSay);
-  say.addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendSay(); } });
+  // Enter = new line (like a chat app on the phone); only ↑ sends. ⌘/Ctrl-Enter sends too for a keyboard.
+  say.addEventListener("keydown", e=>{ if(e.key==="Enter" && (e.metaKey||e.ctrlKey)){ e.preventDefault(); sendSay(); } });
   // pin the block above the keyboard and give the terminal exactly the space that is left
   const bar=document.getElementById("phonebar");
   // iOS 27 floats its ⌃⌄✓ pill in a strip it reports as "keyboard" — instead of leaving a dark
