@@ -286,6 +286,15 @@
     background:var(--panel2);border-radius:6px;padding:.25rem .45rem;margin:.15rem 0}
   .linkdlg{padding:1.1rem 1.2rem 1rem;width:min(92vw,420px)}   /* no form inside, so it carries the padding itself */
   .linkdlg h2{word-break:break-all;font-size:1rem}
+  /* in-app viewer for a video / picture / PDF opened from a link on the phone */
+  .viewdlg{border:0;padding:0;background:#000;color:#fff;width:100vw;height:100dvh;max-width:100vw;max-height:100dvh;margin:0}
+  .viewdlg::backdrop{background:#000}
+  .viewdlg .vbar{display:flex;align-items:center;gap:.6rem;padding:calc(.5rem + env(safe-area-inset-top)) .8rem .5rem;background:#111}
+  .viewdlg .vbar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem;font-weight:600}
+  .viewdlg .vbar button{background:#222;border:0;color:#fff;border-radius:8px;padding:.35rem .6rem;font-size:1rem}
+  .viewdlg .vbody{height:calc(100dvh - 3rem - env(safe-area-inset-top));display:flex;align-items:center;justify-content:center}
+  .viewdlg video,.viewdlg img{max-width:100%;max-height:100%}
+  .viewdlg iframe{width:100%;height:100%;border:0;background:#fff}
   .lk-btns{display:flex;flex-direction:column;gap:.45rem;margin-top:.8rem}
   .lk-btns button{font:inherit;font-size:1rem;padding:.7rem;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer}
   .lk-btns button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
@@ -543,6 +552,10 @@
     <button id="lk-copy">Copy link</button>
     <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
   </div>
+</dialog>
+<dialog class="viewdlg" id="viewdlg">
+  <div class="vbar"><span id="vw-name"></span><button type="button" id="vw-x">✕</button></div>
+  <div class="vbody" id="vw-body"></div>
 </dialog>
 <dialog class="newdlg" id="rendlg">
   <form method="dialog" autocomplete="off">
@@ -1176,7 +1189,20 @@ function linkSheet(url){
 }
 {
   const d=document.getElementById("linkdlg");
-  document.getElementById("lk-open").onclick=()=>{ d.close(); const a=document.createElement("a"); a.href=LK.url; a.target="_blank"; a.rel="noopener"; document.body.appendChild(a); a.click(); a.remove(); };
+  const vd=document.getElementById("viewdlg"), vb=document.getElementById("vw-body");
+  document.getElementById("vw-x").onclick=()=>{ vb.innerHTML=""; vd.close(); };
+  vd.addEventListener("close", ()=>{ vb.innerHTML=""; });
+  document.getElementById("lk-open").onclick=()=>{
+    const ext=(LK.name.split(".").pop()||"").toLowerCase(), u=esc(LK.url);
+    let h="";
+    if(/^(mp4|m4v|mov|webm)$/.test(ext)) h=`<video src="${u}" controls autoplay playsinline></video>`;
+    else if(/^(mp3|m4a|wav|ogg|aac)$/.test(ext)) h=`<audio src="${u}" controls autoplay></audio>`;
+    else if(/^(png|jpe?g|gif|webp|heic|svg)$/.test(ext)) h=`<img src="${u}" alt="">`;
+    else if(ext==="pdf") h=`<iframe src="${u}"></iframe>`;
+    if(h){ document.getElementById("vw-name").textContent=LK.name; vb.innerHTML=h; d.close(); vd.showModal(); return; }
+    // anything else: a real tab, click fired before the sheet closes so the gesture still counts
+    const a=document.createElement("a"); a.href=LK.url; a.target="_blank"; a.rel="noopener"; document.body.appendChild(a); a.click(); a.remove(); d.close();
+  };
   document.getElementById("lk-copy").onclick=async()=>{ try{ await navigator.clipboard.writeText(LK.url); toast("link copied"); }catch(_){ toast("couldn't copy", true); } d.close(); };
   document.getElementById("lk-share").onclick=async()=>{
     const data=(LK.file && navigator.canShare && navigator.canShare({files:[LK.file]})) ? {files:[LK.file], title:LK.name} : {url:LK.url, title:LK.name};
