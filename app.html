@@ -295,7 +295,8 @@
   .viewdlg .vbody{height:calc(100dvh - 3rem - env(safe-area-inset-top));display:flex;align-items:center;justify-content:center}
   .viewdlg video,.viewdlg img{max-width:100%;max-height:100%}
   .lk-btns{display:flex;flex-direction:column;gap:.45rem;margin-top:.8rem}
-  .lk-btns button{font:inherit;font-size:1rem;padding:.7rem;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer}
+  .lk-btns a{display:block;text-align:center;text-decoration:none}
+  .lk-btns button,.lk-btns a{font:inherit;font-size:1rem;padding:.7rem;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer}
   .lk-btns button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
   .newdlg .btns button.danger{background:var(--wait);border-color:var(--wait);color:#fff}
   .newdlg .btns button.danger:disabled{opacity:.45;cursor:not-allowed}
@@ -546,7 +547,7 @@
   <h2 id="lk-name">file</h2>
   <div class="preview" id="lk-sub"></div>
   <div class="lk-btns">
-    <button id="lk-open">Open</button>
+    <a id="lk-open" href="#" target="_blank" rel="noopener">Open</a>
     <button id="lk-share" class="primary">Share…</button>
     <button id="lk-copy">Copy link</button>
     <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
@@ -1177,6 +1178,7 @@ function linkSheet(url){
   const d=document.getElementById("linkdlg"), name=decodeURIComponent(url.split("/").pop().split("?")[0]);
   LK={url, name, file:null};
   document.getElementById("lk-name").textContent=name;
+  document.getElementById("lk-open").href=url;                 // a real link: the tap itself opens it
   document.getElementById("lk-sub").textContent="fetching…";
   // fetch now, so Share is instant when tapped — iOS only allows a share right after the tap
   fetch(url).then(r=>{ if(!r.ok) throw 0; return r.blob(); }).then(b=>{
@@ -1191,16 +1193,16 @@ function linkSheet(url){
   const vd=document.getElementById("viewdlg"), vb=document.getElementById("vw-body");
   document.getElementById("vw-x").onclick=()=>{ vb.innerHTML=""; vd.close(); };
   vd.addEventListener("close", ()=>{ vb.innerHTML=""; });
-  document.getElementById("lk-open").onclick=()=>{
+  document.getElementById("lk-open").onclick=e=>{
     const ext=(LK.name.split(".").pop()||"").toLowerCase(), u=esc(LK.url);
     let h="";
     if(/^(mp4|m4v|mov|webm)$/.test(ext)) h=`<video src="${u}" controls autoplay playsinline></video>`;
     else if(/^(mp3|m4a|wav|ogg|aac)$/.test(ext)) h=`<audio src="${u}" controls autoplay></audio>`;
     else if(/^(png|jpe?g|gif|webp|heic|svg)$/.test(ext)) h=`<img src="${u}" alt="">`;
-    // PDFs: not in the viewer — iOS shows only page one in a frame; its own full-page viewer is right
-    if(h){ document.getElementById("vw-name").textContent=LK.name; vb.innerHTML=h; d.close(); vd.showModal(); return; }
-    // anything else: a real tab, click fired before the sheet closes so the gesture still counts
-    const a=document.createElement("a"); a.href=LK.url; a.target="_blank"; a.rel="noopener"; document.body.appendChild(a); a.click(); a.remove(); d.close();
+    // PDFs and the rest: let the link do its thing (iOS's own full-page viewer for a PDF);
+    // media plays in the Office's own viewer
+    if(h){ e.preventDefault(); document.getElementById("vw-name").textContent=LK.name; vb.innerHTML=h; d.close(); vd.showModal(); return; }
+    setTimeout(()=>d.close(), 0);
   };
   document.getElementById("lk-copy").onclick=async()=>{ try{ await navigator.clipboard.writeText(LK.url); toast("link copied"); }catch(_){ toast("couldn't copy", true); } d.close(); };
   document.getElementById("lk-share").onclick=async()=>{
