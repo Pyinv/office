@@ -75,11 +75,15 @@ def _by_pid(pane_pid, kids):
                 try:
                     with open(sf) as f:
                         meta = json.load(f)
-                    sid = str(meta.get("sessionId", ""))
-                    if re.fullmatch(r"[0-9a-f-]{36}", sid):
-                        hits = glob.glob(os.path.join(PROJ, "*", sid + ".jsonl"))
-                        if hits:
-                            return _parse_one(hits[0])
+                    # newer Claude Code versions can switch transcripts under one process (a
+                    # "parked job", a resume): the file names several ids — take whichever
+                    # transcript was written to last, not just sessionId
+                    sids = {str(v) for v in meta.values()
+                            if isinstance(v, str) and re.fullmatch(r"[0-9a-f-]{36}", v)}
+                    hits = [h for sid in sids for h in glob.glob(os.path.join(PROJ, "*", sid + ".jsonl"))]
+                    if hits:
+                        hits.sort(key=lambda h: -os.path.getmtime(h))
+                        return _parse_one(hits[0])
                 except (OSError, ValueError):
                     pass
             nxt.extend(kids.get(pid, []))
