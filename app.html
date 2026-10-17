@@ -1212,7 +1212,7 @@ function linkSheet(url){
   };
   // links in the cards: same sheet on the phone
   document.addEventListener("click", e=>{
-    const a=e.target.closest("a[href]"); if(!a || !PHONE || !navigator.share) return;
+    const a=e.target.closest("a[href]"); if(!a || a.id==="lk-open" || !PHONE || !navigator.share) return;   // not the sheet's own Open
     if(isFileLink(a.href)){ e.preventDefault(); linkSheet(a.href); }
   }, true);
 }
