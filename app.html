@@ -1261,6 +1261,30 @@ function phoneFont(frame){
   apply();
   const id=setInterval(()=>{ if(!frame.isConnected){ clearInterval(id); return; } apply(); }, 700);
 }
+// A dropped terminal (ttyd closes with code 1000 and waits for ⏎) reconnects by itself while it is
+// open. The Enter is only ever sent after ttyd has reported the close and before it reports a new
+// connection — and ttyd discards input while its socket is closed — so nothing typed into the
+// terminal can be submitted by this. Other close codes ttyd retries on its own.
+function injectReconnect(frame){
+  let win; try{ win=frame.contentWindow; }catch(e){ return; }
+  if(!win || win.__reconnect) return; win.__reconnect=true;
+  let closed=false, last=0;
+  const orig=win.console.log.bind(win.console);
+  win.console.log=function(...a){
+    const m=String(a[0]||"");
+    if(/websocket connection opened/.test(m)) closed=false;
+    const c=m.match(/websocket connection closed with code: (\d+)/);
+    if(c && c[1]==="1000"){
+      closed=true;
+      setTimeout(()=>{
+        if(!closed || !frame.isConnected || Date.now()-last<3000) return;
+        last=Date.now();
+        try{ win.document.querySelector(".xterm-helper-textarea").dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",code:"Enter",keyCode:13,which:13,bubbles:true,cancelable:true})); }catch(_){}
+      }, 600);
+    }
+    return orig(...a);
+  };
+}
 function injectLinks(frame){
   let win; try{ win=frame.contentWindow; }catch(e){ return; }
   if(!win || win.__links) return; win.__links=true;
@@ -1329,7 +1353,7 @@ function openTerm(session, who, title){
   const f=document.createElement("iframe"); f.id="termframe";
   f.allow="clipboard-read; clipboard-write";
   f.src=`/terminal/?arg=${encodeURIComponent(session)}`;   // same-origin, proxied to localhost ttyd
-  f.addEventListener("load", ()=>{ for(const fn of [phoneFont, injectAutoCopy, injectTouchScroll, injectLinks]){ try{ fn(f); }catch(_){} } });   // smaller type on the phone, select-to-copy, swipe-to-scroll, clickable links
+  f.addEventListener("load", ()=>{ for(const fn of [phoneFont, injectReconnect, injectAutoCopy, injectTouchScroll, injectLinks]){ try{ fn(f); }catch(_){} } });   // smaller type on the phone, select-to-copy, swipe-to-scroll, clickable links
   box.appendChild(f);
   document.getElementById("mtitle").textContent=who+"  ·  "+session;
   document.getElementById("say").placeholder="Message "+who+"…";
