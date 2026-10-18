@@ -1232,7 +1232,7 @@ function linkSheet(url){
   }, true);
 }
 // The phone shows more of the conversation with a smaller terminal font; the laptop keeps ttyd's default.
-const PHONE_TERM_FONT=12;
+const PHONE_TERM_FONT=10;
 function phoneFont(frame){
   if(!matchMedia("(pointer:coarse)").matches) return;
   const apply=()=>{ try{ const t=frame.contentWindow.term; if(!t) return false; t.options.fontSize=PHONE_TERM_FONT; t.fit(); return true; }catch(_){ return false; } };
