@@ -1231,6 +1231,13 @@ function linkSheet(url){
     if(isFileLink(a.href)){ e.preventDefault(); linkSheet(a.href); }
   }, true);
 }
+// The phone shows more of the conversation with a smaller terminal font; the laptop keeps ttyd's default.
+const PHONE_TERM_FONT=12;
+function phoneFont(frame){
+  if(!matchMedia("(pointer:coarse)").matches) return;
+  const apply=()=>{ try{ const t=frame.contentWindow.term; if(!t) return false; t.options.fontSize=PHONE_TERM_FONT; t.fit(); return true; }catch(_){ return false; } };
+  if(!apply()){ let n=0; const id=setInterval(()=>{ if(apply() || ++n>20) clearInterval(id); }, 100); }
+}
 function injectLinks(frame){
   let win; try{ win=frame.contentWindow; }catch(e){ return; }
   if(!win || win.__links) return; win.__links=true;
@@ -1299,7 +1306,7 @@ function openTerm(session, who, title){
   const f=document.createElement("iframe"); f.id="termframe";
   f.allow="clipboard-read; clipboard-write";
   f.src=`/terminal/?arg=${encodeURIComponent(session)}`;   // same-origin, proxied to localhost ttyd
-  f.addEventListener("load", ()=>{ injectAutoCopy(f); injectTouchScroll(f); injectLinks(f); });   // select-to-copy, swipe-to-scroll, clickable links
+  f.addEventListener("load", ()=>{ injectAutoCopy(f); injectTouchScroll(f); injectLinks(f); phoneFont(f); });   // select-to-copy, swipe-to-scroll, clickable links, smaller type on the phone
   box.appendChild(f);
   document.getElementById("mtitle").textContent=who+"  ·  "+session;
   document.getElementById("say").placeholder="Message "+who+"…";
