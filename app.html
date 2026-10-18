@@ -1232,7 +1232,7 @@ function linkSheet(url){
   }, true);
 }
 // The phone shows more of the conversation with a smaller terminal font; the laptop keeps ttyd's default.
-const PHONE_TERM_FONT=10;
+const PHONE_TERM_FONT=11;
 function phoneFont(frame){
   if(!matchMedia("(pointer:coarse)").matches) return;
   // ttyd re-applies the server's font size whenever its websocket (re)connects, which on a slow
