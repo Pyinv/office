@@ -50,6 +50,14 @@
     padding:.18rem .5rem;line-height:1.2;opacity:.55;transition:opacity .15s,border-color .15s,background .15s}
   .bell:hover{opacity:.85}
   .bell.on{opacity:1;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,var(--panel))}
+  /* ⟳ restore / update all agents — shown only when there is something to do */
+  .bell.restart{opacity:1;font-size:.8rem;font-weight:600;border-color:var(--accent);color:var(--accent);white-space:nowrap}
+  .bell.restart.busy{border-color:var(--line);color:var(--faint)}
+  .restartdlg .rlist{display:flex;flex-direction:column;gap:.2rem;max-height:40vh;overflow:auto;margin:.3rem 0 .6rem;font-size:.9rem}
+  .restartdlg .rlist div{padding:.25rem .5rem;border-radius:8px;background:var(--panel2)}
+  .restartdlg .rlist div.skip{color:var(--faint)}
+  .restartdlg .rlist div.ok{color:var(--work)} .restartdlg .rlist div.bad{color:#e06c75}
+  .restartdlg h3{margin:.6rem 0 .2rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
   .sub .frozen-note{color:var(--pend);font-weight:600}
   .live{width:7px;height:7px;border-radius:50%;background:var(--rev);flex:0 0 auto;
     box-shadow:0 0 0 0 var(--rev);animation:pulse 2.4s infinite}
@@ -508,6 +516,7 @@
     <a class="navlink" href="{{OFFICE_FILES_URL}}">📁 Files →</a>
     <div class="sub" id="sub">loading…</div>
     <button class="bell" id="bell" title="notify me when a session needs me">🔔</button>
+    <button class="bell restart" id="restartbtn" hidden></button>
   </div>
   <div class="controls">
     <div class="filtercol">
@@ -566,6 +575,16 @@
     <button id="lk-share" class="primary">Share…</button>
     <button id="lk-copy">Copy link</button>
     <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+  </div>
+</dialog>
+<dialog class="newdlg linkdlg restartdlg" id="restartdlg">
+  <h2 id="rs-title">Restart agents</h2>
+  <div class="preview" id="rs-sub"></div>
+  <div id="rs-body"></div>
+  <div class="lk-btns">
+    <button id="rs-go" class="primary">Go</button>
+    <button id="rs-forget" hidden>Forget these sessions</button>
+    <button type="button" id="rs-close" onclick="this.closest('dialog').close()">Cancel</button>
   </div>
 </dialog>
 <dialog class="newdlg linkdlg histdlg" id="histdlg">
@@ -1519,6 +1538,59 @@ async function sendKey(key){
     st.setProperty("--barh", (document.body.classList.contains("termkeys") ? bar.offsetHeight - off : 0)+"px"); };
   if(window.visualViewport){ visualViewport.addEventListener("resize", ()=>placeKeybar()); visualViewport.addEventListener("scroll", ()=>placeKeybar()); }
   window.addEventListener("resize", ()=>placeKeybar());
+})();
+// ── ⟳ restart button: bring every agent back after a reboot, or restart idle agents into a
+// newly installed Claude Code — same conversation, same permission mode, drafts typed back.
+(function(){
+  const btn=document.getElementById("restartbtn"), dlg=document.getElementById("restartdlg");
+  const body=document.getElementById("rs-body"), sub=document.getElementById("rs-sub"), title=document.getElementById("rs-title");
+  const go=document.getElementById("rs-go"), forget=document.getElementById("rs-forget"), closeBtn=document.getElementById("rs-close");
+  let PLAN=null, pollTimer=null;
+  async function plan(){
+    try{ const r=await fetch("/api/restart",{cache:"no-store"}); if(!r.ok) return; PLAN=await r.json(); }catch(_){ return; }
+    const n=PLAN.restore.length, u=PLAN.update.length, s=PLAN.skip.length, running=PLAN.job&&PLAN.job.running;
+    btn.hidden=!(n||u||s||running);
+    btn.classList.toggle("busy", !!running);
+    btn.textContent=running ? "⟳ restarting…" : n ? `⟳ Restore ${n} agent${n===1?"":"s"}` : u ? `⟳ Update ${u} agent${u===1?"":"s"}` : `⟳ ${s} waiting`;
+    btn.title=n ? "the agents that were running before the restart — bring them all back" : "a new Claude Code is installed — restart the idle agents into it";
+    if(dlg.open && running) showLog();
+  }
+  const who=(x)=>x.person ? `${x.person} · ${x.session}` : x.session;
+  function row(txt, cls){ const d=document.createElement("div"); if(cls) d.className=cls; d.textContent=txt; return d; }
+  function head(t){ const h=document.createElement("h3"); h.textContent=t; return h; }
+  function showPlan(){
+    body.innerHTML=""; const n=PLAN.restore.length, u=PLAN.update.length;
+    title.textContent=n ? "Bring the agents back" : "Update the agents";
+    sub.textContent=n ? "These were running before the Tower restarted. Each comes back on its own conversation."
+                      : "A new Claude Code is installed. Each idle agent is quit and started again on the same conversation, same permission mode; an unsent draft is typed back in. Busy agents are left alone.";
+    if(n){ body.appendChild(head(`Restore (${n})`)); const l=document.createElement("div"); l.className="rlist"; PLAN.restore.forEach(x=>l.appendChild(row(x.session))); body.appendChild(l); }
+    if(u){ body.appendChild(head(`Restart (${u})`)); const l=document.createElement("div"); l.className="rlist"; PLAN.update.forEach(x=>l.appendChild(row(who(x)+(x.mode?`  ·  ${x.mode}`:"")+(x.draft?"  ·  draft kept":"")))); body.appendChild(l); }
+    if(PLAN.skip.length){ body.appendChild(head(`Left alone (${PLAN.skip.length})`)); const l=document.createElement("div"); l.className="rlist"; PLAN.skip.forEach(x=>l.appendChild(row(`${who(x)} — ${x.why}`,"skip"))); body.appendChild(l); }
+    go.hidden=!(n||u); go.textContent=n ? `Bring back ${n}` : `Restart ${u}`; forget.hidden=!n; closeBtn.textContent="Cancel";
+  }
+  function showLog(){
+    body.innerHTML=""; const j=PLAN.job||{};
+    title.textContent=j.running ? "Restarting…" : "Done"; sub.textContent=j.running ? "one agent at a time, a few seconds each — you can close this, it carries on" : "";
+    const l=document.createElement("div"); l.className="rlist";
+    (j.log||[]).forEach(t=>l.appendChild(row(t, t.startsWith("✓")?"ok":t.startsWith("✗")?"bad":"skip")));
+    if(j.running) l.appendChild(row("…"));
+    body.appendChild(l); go.hidden=true; forget.hidden=true; closeBtn.textContent="Close";
+  }
+  btn.addEventListener("click", async ()=>{ await plan(); if(!PLAN) return; if(PLAN.job&&PLAN.job.running) showLog(); else showPlan(); dlg.showModal(); });
+  go.addEventListener("click", async ()=>{
+    const payload={restore:PLAN.restore.map(x=>x.session), update:PLAN.update.map(x=>x.session)};
+    go.disabled=true;
+    try{ const r=await fetch("/api/restart",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}); if(!r.ok){ const j=await r.json().catch(()=>({})); toast(j.error||"could not start", true); go.disabled=false; return; } }
+    catch(_){ toast("could not start", true); go.disabled=false; return; }
+    go.disabled=false;
+    clearInterval(pollTimer); pollTimer=setInterval(async ()=>{ await plan(); if(dlg.open) showLog(); if(!(PLAN.job&&PLAN.job.running)){ clearInterval(pollTimer); pollTimer=null; if(typeof load==="function") load(); } }, 2000);
+    await plan(); showLog();
+  });
+  forget.addEventListener("click", async ()=>{
+    try{ await fetch("/api/restart",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({forget:true})}); }catch(_){}
+    dlg.close(); plan();
+  });
+  plan(); setInterval(plan, 30000);
 })();
 // ⌘K / Ctrl-K: bring the secretary panel into view from anywhere. It sits at the top, so
 // scroll up to it; if the terminal is open, close it first so you land straight on it.

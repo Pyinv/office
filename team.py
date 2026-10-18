@@ -318,16 +318,32 @@ def _pane(name):
             if m:
                 verb = m.group(1)   # includes the trailing …
                 break
-    typed = None
-    for l in reversed(lines):
-        s = l.strip().strip('│').strip()
+    typed = None; draft = ""
+    for i in range(len(lines) - 1, -1, -1):
+        s = lines[i].strip().strip('│').strip()
         m = _PROMPT.match(s)
         if m:
             after = m.group(1).strip()
             if after and not _PLACEHOLDER.match(after):
                 typed = after[:240]
+                # the whole draft: the prompt box runs from the ❯ line down to the next rule
+                box = [after]
+                for l in lines[i + 1:]:
+                    t = l.strip().strip('│').strip()
+                    if not t or t.startswith("─") or t.startswith("╰"):
+                        break
+                    box.append(t)
+                draft = " ".join(box)[:4000]
             break
-    return working, typed, verb
+    tail = "\n".join(lines[-15:])
+    update = "Restart to update" in tail                      # Claude Code installed a new version
+    menu = len(_MENU.findall(tail)) >= 2                        # a pick-one question is open
+    mode = next((v for k, v in _MODES if k in tail), "")       # the permission mode on the status line
+    return working, typed, verb, update, menu, mode, draft
+
+_MENU = re.compile(r"Enter to select|❯\s*\d+\.\s|Esc to cancel")
+_MODES = (("auto mode on", "auto"), ("bypass permissions on", "bypassPermissions"),
+          ("accept edits on", "acceptEdits"), ("plan mode on", "plan"))
 
 # Claude Code renders each assistant message starting with ● (or ⏺). A tool call
 # is "● Bash(...)" / "● Read(...)"; a spoken message is "● <prose>". For a ghost
@@ -421,7 +437,7 @@ def snapshot():
     kids = _children()
     for name, (attached, path, activity, created, pid) in sessions().items():
         person, project = split_name(name)
-        working, typed, verb = _pane(name)
+        working, typed, verb, update, menu, mode, draft = _pane(name)
         rec = _by_pid(pid, kids) or _by_dir(path) or _join(path, idx, project)
 
         # ghost = no transcript AND not freshly created (a new session just hasn't
@@ -465,6 +481,9 @@ def snapshot():
             # the Claude conversation id (transcript file name): lets a dead session be
             # brought back with `claude --resume` instead of a blank start
             "sid": os.path.basename(rec["file"])[:-6] if rec and rec.get("file") else "",
+            # for the restart button: a new Claude Code waits to be restarted into, a question
+            # menu is open (a restart would lose it), and the permission mode to bring back
+            "update": update, "menu": menu, "mode": mode, "draft": draft,
         })
 
     rank = {"waiting": 0, "typed": 1, "review": 2, "working": 3, "idle": 4}

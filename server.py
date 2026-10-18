@@ -340,6 +340,155 @@ def record_history(snap):
             json.dump(h, f, indent=2, sort_keys=True)
         os.replace(tmp, HISTORY_FILE)
 
+LIVE_FILE = os.path.join(ROOT, "live.json")
+_live_cache = None
+
+def load_live():
+    try:
+        with open(LIVE_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def record_live(snap):
+    # Which sessions are alive right now, with what it takes to bring each back: after a
+    # reboot (tmux gone, this file still here) the restart button restores them in one go.
+    # Never written empty, so the last populated state survives the reboot itself.
+    global _live_cache
+    cur = {m["session"]: {"dir": m.get("dir", ""), "group": m.get("group", "personal"), "sid": m.get("sid", "")}
+           for m in snap if m.get("dir") and not m.get("ghost")}
+    if not cur or cur == _live_cache:
+        return
+    _live_cache = cur
+    tmp = LIVE_FILE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump({"ts": int(time.time()), "sessions": cur}, f, indent=2, sort_keys=True)
+    os.replace(tmp, LIVE_FILE)
+
+# ── restart button: bring back every agent after a reboot / restart agents into a new Claude Code ──
+_JOB = {"running": False, "started": 0, "done": 0, "log": []}
+_job_lock = threading.Lock()
+
+def _claude_pid(sess):
+    """pid of the claude process running under the session's pane, 0 if none."""
+    try:
+        pp = int(subprocess.run(["tmux", "display", "-p", "-t", sess, "#{pane_pid}"],
+                                capture_output=True, text=True, timeout=3).stdout.strip())
+    except Exception:
+        return 0
+    stack = [pp]
+    while stack:
+        p = stack.pop()
+        out = subprocess.run(["ps", "-o", "pid=,comm=", "--ppid", str(p)], capture_output=True, text=True).stdout
+        for l in out.splitlines():
+            parts = l.split(None, 1)
+            if len(parts) == 2 and parts[1].strip() == "claude":
+                return int(parts[0])
+            stack.append(int(parts[0]))
+    return 0
+
+def _wait(pred, secs):
+    end = time.time() + secs
+    while time.time() < end:
+        if pred():
+            return True
+        time.sleep(0.5)
+    return False
+
+def restart_plan():
+    snap = team.snapshot()
+    live = {m["session"] for m in snap}
+    saved = load_live().get("sessions", {})
+    restore = [{"session": n, **v} for n, v in sorted(saved.items()) if n not in live and v.get("sid")]
+    update, skip = [], []
+    for m in snap:
+        if not m.get("update"):
+            continue
+        why = ("working" if m["state"] == "working" else "a question is open" if m.get("menu")
+               else "no conversation id" if not m.get("sid") else "")
+        (skip if why else update).append({"session": m["session"], "person": m["person"], "mode": m.get("mode", ""),
+                                          "sid": m.get("sid", ""), "why": why, "draft": m.get("draft", "")})
+    return {"restore": restore, "update": update, "skip": skip, "job": dict(_JOB)}
+
+def _log(msg):
+    _JOB["log"].append(msg)
+
+def _launch_cmd(resume, mode):
+    cmd = CLAUDE_BIN if os.path.exists(CLAUDE_BIN) else "claude"
+    if resume and re.fullmatch(r"[0-9a-f-]{36}", resume):
+        cmd += " --resume " + resume
+    if mode in ("auto", "bypassPermissions", "acceptEdits", "plan"):
+        cmd += " --permission-mode " + mode
+    return cmd
+
+def _spawn(name, d, grp, resume="", mode=""):
+    # When Claude exits (Ctrl-D twice, /exit, a crash) drop to a shell instead of letting tmux
+    # close the session — the card stays and `claude --continue` is a keystroke away.
+    launch = _launch_cmd(resume, mode) + "; exec " + shlex.quote(_login_shell())
+    subprocess.run(["tmux", "new-session", "-d", "-s", name, "-c", d, launch], check=True)
+    if grp in VALID_GROUPS:
+        g = load_groups(); g[name] = grp; save_groups(g)
+
+def _restart_job(restore, update):
+    try:
+        plan = restart_plan()
+        for r in plan["restore"]:
+            if r["session"] not in restore:
+                continue
+            try:
+                d = r.get("dir") or DEV_ROOT
+                if not os.path.isdir(d):
+                    _log(f"✗ {r['session']}: folder is gone ({d})"); continue
+                _spawn(r["session"], d, r.get("group", "personal"), r.get("sid", ""))
+                _log(f"✓ {r['session']} is back")
+            except Exception as e:
+                _log(f"✗ {r['session']}: {e}")
+        for u in plan["update"]:
+            if u["session"] in update:
+                _restart_one(u["session"], u["sid"], u.get("mode", ""))
+                time.sleep(2.0)
+    except Exception as e:
+        _log(f"✗ stopped: {e}")
+    finally:
+        _JOB["running"] = False; _JOB["done"] = int(time.time())
+
+def _prompt_shown(s):
+    raw = subprocess.run(["tmux", "capture-pane", "-p", "-t", s], capture_output=True, text=True).stdout
+    return any(l.lstrip().startswith(("❯", "›")) for l in raw.splitlines())
+
+def _restart_one(s, sid, mode):
+    """/exit the agent's Claude Code and start a new one in the same pane on the same
+    conversation, same permission mode, with any unsent draft typed back in."""
+    # the agent might have started working since the plan was shown: look again
+    working, _t, _v, _u, menu, mode_now, draft = team._pane(s)
+    if working or menu:
+        _log(f"– {s}: skipped, " + ("working now" if working else "a question is open")); return
+    mode = mode_now or mode
+    pid = _claude_pid(s)
+    if not pid:
+        _log(f"✗ {s}: no claude running in its pane"); return
+    if draft:                                        # clear the box so /exit is the only thing on the line
+        subprocess.run(["tmux", "send-keys", "-t", s, "C-c"], check=False); time.sleep(0.5)
+    subprocess.run(["tmux", "send-keys", "-t", s, "-l", "--", "/exit"], check=False)
+    time.sleep(0.8)
+    subprocess.run(["tmux", "send-keys", "-t", s, "Enter"], check=False)
+    if not _wait(lambda: _claude_pid(s) != pid, 20):
+        _log(f"✗ {s}: did not exit — left alone" + (" (draft kept)" if draft else "")); return
+    time.sleep(1.0)                                  # let the shell prompt come up
+    subprocess.run(["tmux", "send-keys", "-t", s, "-l", "--", _launch_cmd(sid, mode)], check=False)
+    subprocess.run(["tmux", "send-keys", "-t", s, "Enter"], check=False)
+    if not _wait(lambda: _claude_pid(s) != 0, 40):
+        _log(f"✗ {s}: claude did not come back — open its terminal" + (f"; your draft was: {draft}" if draft else "")); return
+    note = f" ({mode})" if mode else ""
+    if draft:
+        if _wait(lambda: _prompt_shown(s), 30):
+            time.sleep(1.0)
+            subprocess.run(["tmux", "send-keys", "-t", s, "-l", "--", draft], check=False)   # typed back, NOT sent
+            note += ", draft typed back"
+        else:
+            note += f"; could not type the draft back, it was: {draft}"
+    _log(f"✓ {s} restarted{note}")
+
 def load_tasks():
     try:
         with open(TASKS_FILE) as f:
@@ -440,6 +589,14 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json({"dirs": dirs})
         if self.path.split("?")[0] == "/api/drop":
             return self._drop_list()
+        if self.path.split("?")[0] == "/api/restart":
+            if cfg("OFFICE_DEMO"):
+                return self._json({"restore": [], "update": [], "skip": [], "job": dict(_JOB)})
+            try:
+                importlib.reload(team)
+            except Exception:
+                pass
+            return self._json(restart_plan())
         if self.path.split("?")[0] == "/api/history":
             # past sessions that are not running now, newest first: what "+ New" offers to bring back
             live = live_sessions()
@@ -465,6 +622,8 @@ class Handler(SimpleHTTPRequestHandler):
                 m["task"] = tasks.get(m["session"], m.get("task", ""))
             if not cfg("OFFICE_DEMO"):
                 try: record_history(snap)
+                except Exception: pass
+                try: record_live(snap)
                 except Exception: pass
                 try: notify_changes(snap)
                 except Exception: pass
@@ -567,6 +726,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/key":   return self._key(data)
         if path == "/api/paste": return self._paste(data)
         if path == "/api/menu":  return self._menu(data)
+        if path == "/api/restart": return self._restart(data)
         if path == "/api/buffer":return self._buffer(data)
         if path == "/api/kill":  return self._kill(data)
         if path == "/api/erase": return self._erase(data)
@@ -699,6 +859,22 @@ class Handler(SimpleHTTPRequestHandler):
         except Exception as e:
             return self._json({"ok": True, "saved": rel, "warning": f"saved but couldn't tell {person}: {e}"})
         return self._json({"ok": True, "saved": rel, "told": person})
+
+    def _restart(self, data):
+        if data.get("forget"):                 # the user doesn't want the saved sessions back
+            try: os.remove(LIVE_FILE)
+            except OSError: pass
+            return self._json({"ok": True})
+        restore = {str(s) for s in (data.get("restore") or [])}
+        update = {str(s) for s in (data.get("update") or [])}
+        if not restore and not update:
+            return self._json({"error": "nothing to do"}, 400)
+        with _job_lock:
+            if _JOB["running"]:
+                return self._json({"error": "a restart is already running"}, 409)
+            _JOB.update({"running": True, "started": int(time.time()), "done": 0, "log": []})
+        threading.Thread(target=_restart_job, args=(restore, update), daemon=True).start()
+        return self._json({"ok": True})
 
     def _menu(self, data):
         sess = str(data.get("session", ""))
@@ -1452,20 +1628,10 @@ class Handler(SimpleHTTPRequestHandler):
             os.makedirs(d, exist_ok=True)
         except OSError:
             return self._json({"error": "could not create that directory"}, 400)
-        launch = CLAUDE_BIN if os.path.exists(CLAUDE_BIN) else "claude"
-        resume = str(data.get("resume", ""))
-        if resume and re.fullmatch(r"[0-9a-f-]{36}", resume):
-            launch += " --resume " + resume          # bring back: pick the conversation up where it was
-        # When Claude exits (Ctrl-D twice, /exit, a crash) drop to a shell instead of
-        # letting tmux close the session — the card stays and `claude --continue` is a
-        # keystroke away. tmux runs the string through the user's default shell.
-        launch += "; exec " + shlex.quote(_login_shell())
         try:
-            subprocess.run(["tmux", "new-session", "-d", "-s", name, "-c", d, launch], check=True)
+            _spawn(name, d, grp, str(data.get("resume", "")))   # resume: pick the conversation up where it was
         except (subprocess.CalledProcessError, OSError):
             return self._json({"error": "could not start the session"}, 502)
-        if grp in VALID_GROUPS:
-            g = load_groups(); g[name] = grp; save_groups(g)
         return self._json({"ok": True, "created": name, "dir": d})
 
 def main():
