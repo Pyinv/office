@@ -336,6 +336,10 @@
     /* iOS 27 ends the page at the composer and floats its ⌃⌄✓ pill below that edge, over whatever
        the page shows underneath (the scrolled floor). A tail hanging below the bar paints that strip. */
     body.termkeys .phonebar::after{content:"";position:absolute;left:0;right:0;top:100%;height:50vh;background:var(--panel)}
+    /* …and iOS clips fixed elements at that edge, so the floor itself goes blank (layout and scroll
+       position kept) and the page background matches the bar: the pill then floats on a plain strip. */
+    body.termkeys{background:var(--panel)}
+    body.termkeys>header,body.termkeys>.wrap{visibility:hidden}
     body.termkeys .keybar{display:flex;flex-wrap:nowrap;scrollbar-width:none;border-top:0}
     /* the terminal fills exactly the visual viewport minus the bottom block */
     body.termkeys .modal{padding:0;display:block;background:#0c0f14}   /* overlay keeps covering the whole screen, floor never shows through */
