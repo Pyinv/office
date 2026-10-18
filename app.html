@@ -1244,11 +1244,18 @@ function phoneFont(frame){
   if(!matchMedia("(pointer:coarse)").matches) return;
   // ttyd re-applies the server's font size whenever its websocket (re)connects, which on a slow
   // link happens after the page has loaded — so keep enforcing ours for as long as the frame lives.
-  let told=false;
+  // Every resize makes the agent's screen redraw (and leaves ghost lines), so the size must not flip
+  // 14 → 11 on each reconnect: xterm's option validator is patched so any fontSize written becomes ours.
+  let pinned=false;
   const apply=()=>{
     try{
       const t=frame.contentWindow.term; if(!t) return;
-      if(t.options.fontSize!==PHONE_TERM_FONT){ t.options.fontSize=PHONE_TERM_FONT; t.fit(); if(!told){ told=true; toast("terminal font "+PHONE_TERM_FONT+"px"); } }
+      if(!pinned){
+        const os=t._core.optionsService, orig=os._sanitizeAndValidateOption.bind(os);
+        os._sanitizeAndValidateOption=(k,v)=>orig(k, k==="fontSize" ? PHONE_TERM_FONT : v);
+        pinned=true;
+      }
+      if(t.options.fontSize!==PHONE_TERM_FONT){ t.options.fontSize=PHONE_TERM_FONT; t.fit(); }
     }catch(_){}
   };
   apply();
