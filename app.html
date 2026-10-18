@@ -612,11 +612,11 @@
 <div class="keybar" id="keybar">
   <button data-key="esc">esc</button>
   <button data-key="tab">tab</button>
+  <button data-key="enter">⏎</button>
   <button data-key="c-c">^C</button><button data-key="c-b">^B</button><button data-key="c-a">^A</button>
   <button data-key="up">↑</button><button data-key="down">↓</button>
   <button data-key="left">←</button><button data-key="right">→</button>
   <button data-key="paste">paste</button>
-  <button data-key="enter">⏎</button>
   <span class="ksep"></span>
   <button data-key="c-e">^E</button><button data-key="c-d">^D</button><button data-key="c-z">^Z</button>
   <button data-key="c-l">^L</button><button data-key="c-r">^R</button><button data-key="c-u">^U</button>
@@ -1341,8 +1341,18 @@ const KEYSEQ={esc:"\x1b", tab:"\t", enter:"\r", up:"\x1b[A", down:"\x1b[B", righ
 function keySeq(k){ return KEYSEQ[k] || (/^c-[a-z]$/.test(k) ? String.fromCharCode(k.charCodeAt(2)-96) : ""); }
 async function sendKey(key){
   const seq=keySeq(key);
+  const frame=document.getElementById("termframe");
+  // ⏎ goes in as a real key event on xterm's input field: connected, that is one Enter to the
+  // shell; after ttyd's "Press ⏎ to Reconnect" it is the key ttyd waits for — so the bar's ⏎
+  // reconnects a dropped terminal without opening the keyboard.
+  if(key==="enter"){
+    try{
+      const ta=frame.contentDocument.querySelector(".xterm-helper-textarea");
+      if(ta){ ta.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",code:"Enter",keyCode:13,which:13,bubbles:true,cancelable:true})); return; }
+    }catch(_){}
+  }
   try{
-    const core=document.getElementById("termframe").contentWindow.term._core.coreService;
+    const core=frame.contentWindow.term._core.coreService;
     if(seq){ core.triggerDataEvent(seq,true); return; }
   }catch(_){}
   try{ await fetch("/api/key",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,key})}); }catch(_){}
