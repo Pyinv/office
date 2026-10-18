@@ -1235,8 +1235,17 @@ function linkSheet(url){
 const PHONE_TERM_FONT=10;
 function phoneFont(frame){
   if(!matchMedia("(pointer:coarse)").matches) return;
-  const apply=()=>{ try{ const t=frame.contentWindow.term; if(!t) return false; t.options.fontSize=PHONE_TERM_FONT; t.fit(); return true; }catch(_){ return false; } };
-  if(!apply()){ let n=0; const id=setInterval(()=>{ if(apply() || ++n>20) clearInterval(id); }, 100); }
+  // ttyd re-applies the server's font size whenever its websocket (re)connects, which on a slow
+  // link happens after the page has loaded — so keep enforcing ours for as long as the frame lives.
+  let told=false;
+  const apply=()=>{
+    try{
+      const t=frame.contentWindow.term; if(!t) return;
+      if(t.options.fontSize!==PHONE_TERM_FONT){ t.options.fontSize=PHONE_TERM_FONT; t.fit(); if(!told){ told=true; toast("terminal font "+PHONE_TERM_FONT+"px"); } }
+    }catch(_){}
+  };
+  apply();
+  const id=setInterval(()=>{ if(!frame.isConnected){ clearInterval(id); return; } apply(); }, 700);
 }
 function injectLinks(frame){
   let win; try{ win=frame.contentWindow; }catch(e){ return; }
@@ -1306,7 +1315,7 @@ function openTerm(session, who, title){
   const f=document.createElement("iframe"); f.id="termframe";
   f.allow="clipboard-read; clipboard-write";
   f.src=`/terminal/?arg=${encodeURIComponent(session)}`;   // same-origin, proxied to localhost ttyd
-  f.addEventListener("load", ()=>{ injectAutoCopy(f); injectTouchScroll(f); injectLinks(f); phoneFont(f); });   // select-to-copy, swipe-to-scroll, clickable links, smaller type on the phone
+  f.addEventListener("load", ()=>{ for(const fn of [phoneFont, injectAutoCopy, injectTouchScroll, injectLinks]){ try{ fn(f); }catch(_){} } });   // smaller type on the phone, select-to-copy, swipe-to-scroll, clickable links
   box.appendChild(f);
   document.getElementById("mtitle").textContent=who+"  ·  "+session;
   document.getElementById("say").placeholder="Message "+who+"…";
