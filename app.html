@@ -328,6 +328,7 @@
   .histdlg .hist-list{display:flex;flex-direction:column;gap:.4rem;max-height:55vh;overflow:auto;margin-top:.6rem}
   .histdlg .hist-item{font:inherit;text-align:left;padding:.55rem .7rem;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer;
     white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .histdlg .hist-head{font-size:.75rem;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin:.4rem 0 0}
   .histdlg .hist-item small{display:block;color:var(--faint);font-size:.75rem;margin-bottom:.15rem}
   @media(max-width:760px),(pointer:coarse){
     body.termkeys .phonebar{display:flex;flex-direction:column;position:fixed;left:0;right:0;bottom:0;z-index:200;
@@ -1302,11 +1303,11 @@ function openTerm(session, who, title){
   box.appendChild(f);
   document.getElementById("mtitle").textContent=who+"  ·  "+session;
   document.getElementById("say").placeholder="Message "+who+"…";
-  if(window.restoreDraft) restoreDraft();          // an unsent message for this session comes back
   document.title=title||who;                       // name the tab after the session so several open tabs stay tellable apart
   document.getElementById("modal").classList.add("open");
   MODAL_OPEN=true;
   document.body.classList.add("termkeys");        // show the phone key-bar
+  if(window.restoreDraft) restoreDraft();          // an unsent message for this session comes back (after the bar is visible, so the box can be measured)
   if(window.placeKeybar) setTimeout(placeKeybar,60);
 }
 const BASE_TITLE=document.title;
@@ -1373,7 +1374,7 @@ async function sendKey(key){
   // the message box: type or dictate here, ↑ (or the keyboard's send key) pastes it into the
   // terminal as one block and presses Enter — the terminal itself never needs the focus
   const say=document.getElementById("say"), sendBtn=document.getElementById("saysend");
-  const grow=()=>{ say.style.height="auto"; say.style.height=Math.min(say.scrollHeight, 120)+"px"; placeKeybar(); };
+  const grow=()=>{ say.style.height="auto"; const h=say.scrollHeight; say.style.height=h ? Math.min(h, 120)+"px" : ""; placeKeybar(); };   // hidden box measures 0: leave it to CSS
   say.addEventListener("input", grow);
   say.addEventListener("focus", ()=>setTimeout(placeKeybar,50));
   say.addEventListener("blur", ()=>setTimeout(placeKeybar,50));
@@ -1386,14 +1387,22 @@ async function sendKey(key){
             del(k){ try{ localStorage.removeItem(k); }catch(_){} }};
   function histAdd(t){ const h=(ls.get(HKEY)||[]).filter(x=>x.m!==t); h.unshift({t:Date.now(),s:MODAL_SESSION,m:t}); ls.set(HKEY,h.slice(0,40)); histBtn.classList.add("has"); }
   histBtn.classList.toggle("has", (ls.get(HKEY)||[]).length>0);
-  window.restoreDraft=function(){ say.value=ls.get(DKEY(MODAL_SESSION))||""; grow(); };
+  window.restoreDraft=function(){
+    say.value=ls.get(DKEY(MODAL_SESSION))||""; grow();
+    histBtn.classList.toggle("has", (ls.get(HKEY)||[]).some(x=>x.s===MODAL_SESSION));   // ↺ only when this agent has history
+  };
   say.addEventListener("input", ()=>{ if(MODAL_SESSION){ if(say.value) ls.set(DKEY(MODAL_SESSION), say.value); else ls.del(DKEY(MODAL_SESSION)); } });
   histBtn.addEventListener("pointerdown", e=>e.preventDefault());
   histBtn.addEventListener("click", ()=>{
+    // only what was sent to this agent — messages to other agents stay in their own terminals
     const list=document.getElementById("hist-list"); list.innerHTML="";
-    for(const x of (ls.get(HKEY)||[])){
+    const mine=(ls.get(HKEY)||[]).filter(x=>x.s===MODAL_SESSION);
+    const head=document.createElement("div"); head.className="hist-head";
+    head.textContent=mine.length ? "To "+say.placeholder.replace(/^Message |…$/g,"") : "Nothing sent to this agent yet";
+    list.appendChild(head);
+    for(const x of mine){
       const b=document.createElement("button"); b.type="button"; b.className="hist-item";
-      const sm=document.createElement("small"); sm.textContent=new Date(x.t).toLocaleString([], {weekday:"short",hour:"2-digit",minute:"2-digit"})+"  ·  "+(x.s||"");
+      const sm=document.createElement("small"); sm.textContent=new Date(x.t).toLocaleString([], {weekday:"short",hour:"2-digit",minute:"2-digit"});
       b.appendChild(sm); b.appendChild(document.createTextNode(x.m));
       b.onclick=()=>{ say.value=x.m; say.dispatchEvent(new Event("input")); document.getElementById("histdlg").close(); say.focus(); };
       list.appendChild(b);
