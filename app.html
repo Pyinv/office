@@ -461,6 +461,9 @@
     .filtertoggle.active{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--panel))}
     body.filters-open .filtertoggle{background:var(--accent);color:#fff;border-color:var(--accent)}
     .filtercol{display:none} body.filters-open .filtercol{display:flex}
+    /* the ⟳ restore/update button lives inside the ⚙ fold-out on the phone; ⚙ glows while it has something */
+    .filtercol .bell.restart{align-self:flex-start;margin:.1rem 0 .2rem}
+    body:not(.filters-open) .filtertoggle.pending{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
     .controls{gap:.4rem}
     .secretary:not(.open){padding:.5rem .9rem .5rem 1rem;margin-bottom:.8rem;cursor:pointer}
     .secretary:not(.open) .sec-form, .secretary:not(.open) .sec-sub, .secretary:not(.open) .sec-reply:empty{display:none}
@@ -1546,11 +1549,17 @@ async function sendKey(key){
   const body=document.getElementById("rs-body"), sub=document.getElementById("rs-sub"), title=document.getElementById("rs-title");
   const go=document.getElementById("rs-go"), forget=document.getElementById("rs-forget"), closeBtn=document.getElementById("rs-close");
   let PLAN=null, pollTimer=null;
+  // phone: the title row has no room — the button sits at the top of the ⚙ fold-out instead
+  const PHONE_HDR=matchMedia("(max-width:600px)");
+  function place(){ const fc=document.querySelector(".filtercol"), tr=document.querySelector(".titlerow");
+    if(PHONE_HDR.matches){ if(fc && btn.parentElement!==fc) fc.prepend(btn); } else if(tr && btn.parentElement!==tr) tr.appendChild(btn); }
+  place(); PHONE_HDR.addEventListener("change", place);
   async function plan(){
     try{ const r=await fetch("/api/restart",{cache:"no-store"}); if(!r.ok) return; PLAN=await r.json(); }catch(_){ return; }
     const n=PLAN.restore.length, u=PLAN.update.length, s=PLAN.skip.length, running=PLAN.job&&PLAN.job.running;
     btn.hidden=!(n||u||s||running);
     btn.classList.toggle("busy", !!running);
+    const ft=document.getElementById("filtertoggle"); if(ft) ft.classList.toggle("pending", !btn.hidden);
     btn.textContent=running ? "⟳ restarting…" : n ? `⟳ Restore ${n} agent${n===1?"":"s"}` : u ? `⟳ Update ${u} agent${u===1?"":"s"}` : `⟳ ${s} waiting`;
     btn.title=n ? "the agents that were running before the restart — bring them all back" : "a new Claude Code is installed — restart the idle agents into it";
     if(dlg.open && running) showLog();
