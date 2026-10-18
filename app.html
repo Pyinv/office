@@ -45,6 +45,7 @@
   .navlink{color:var(--work);text-decoration:none;font-size:.8rem;font-weight:600;
     border:1px solid var(--line);border-radius:999px;padding:.2rem .6rem;white-space:nowrap}
   .navlink:hover{border-color:var(--work);background:var(--work2)}
+  .navlink.shortcut{display:none}  /* an iOS Share Sheet shortcut — only offered on the phone (inside ⚙) */
   .sub{color:var(--faint);font-size:.8rem;margin-left:auto;display:inline-flex;align-items:center;gap:.4rem}
   .bell{background:var(--panel);border:1px solid var(--line);border-radius:999px;font-size:.95rem;cursor:pointer;
     padding:.18rem .5rem;line-height:1.2;opacity:.55;transition:opacity .15s,border-color .15s,background .15s}
@@ -463,6 +464,7 @@
     .filtercol{display:none} body.filters-open .filtercol{display:flex}
     /* the ⟳ restore/update button lives inside the ⚙ fold-out on the phone; ⚙ glows while it has something */
     .filtercol .bell.restart{align-self:flex-start;margin:.1rem 0 .2rem}
+    .navlink.shortcut{display:inline-block;align-self:flex-start;margin-top:.1rem}
     body:not(.filters-open) .filtertoggle.pending{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
     .controls{gap:.4rem}
     .secretary:not(.open){padding:.5rem .9rem .5rem 1rem;margin-bottom:.8rem;cursor:pointer}
@@ -525,6 +527,7 @@
     <div class="filtercol">
       <div class="chiprow"><span class="frow-l">Team</span><div class="chips" id="catchips"></div></div>
       <div class="chiprow"><span class="frow-l">Status</span><div class="chips" id="chips"></div></div>
+      <a class="navlink shortcut" href="{{OFFICE_SHORTCUT_URL}}" title="install the Share Sheet shortcut on this phone">📲 Share-sheet shortcut →</a>
     </div>
     <div class="actioncol">
       <button class="newbtn" id="newbtn">+ New</button>

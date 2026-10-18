@@ -68,6 +68,7 @@ SEC_CWD    = os.path.join(tempfile.gettempdir(), "office-secretary")   # secreta
 CLAUDE_BIN = cfg("OFFICE_CLAUDE_BIN", shutil.which("claude") or os.path.join(HOME, ".local", "bin", "claude"))
 STATUS_URL = cfg("OFFICE_STATUS_URL", "/status/")   # header "Usage & limits" link; "" hides it
 FILES_URL  = cfg("OFFICE_FILES_URL", "")            # header "Files" link (e.g. a dufs mount); "" hides it
+SHORTCUT_URL = cfg("OFFICE_SHORTCUT_URL", "")       # iCloud link of the Share Sheet shortcut (phone ⚙ menu); "" hides it
 SECRETARY  = cfg("OFFICE_SECRETARY_NAME", "Secretary")   # the dispatcher's display name
 SEC_MODEL  = cfg("OFFICE_SECRETARY_MODEL", "claude-haiku-4-5-20251001")  # model the secretary reasons with
 
@@ -556,6 +557,7 @@ class Handler(SimpleHTTPRequestHandler):
         for k, v in (("OFFICE_TITLE", TITLE), ("OFFICE_EMAIL", EMAIL),
                      ("OFFICE_DEV_ROOT", DEV_ROOT), ("OFFICE_EMOJI_JSON", emoji_json()),
                      ("OFFICE_STATUS_URL", STATUS_URL), ("OFFICE_FILES_URL", FILES_URL),
+                     ("OFFICE_SHORTCUT_URL", SHORTCUT_URL),
                      ("OFFICE_SECRETARY_NAME", SECRETARY)):
             html = html.replace("{{" + k + "}}", v)
         body = html.encode("utf-8")

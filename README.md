@@ -87,6 +87,7 @@ source of truth for identity — there is no roster file.
 | `OFFICE_PORT` | `8899` | Port for the web server |
 | `OFFICE_STATUS_URL` | `/status/` | Header "Usage &amp; limits" link; empty hides it |
 | `OFFICE_FILES_URL` | *(off)* | Header "Files" link, e.g. a `/dufs/` mount; empty hides it |
+| `OFFICE_SHORTCUT_URL` | *(off)* | iCloud link of your Share Sheet shortcut; the phone offers it under ⚙ so a second phone installs it in one tap |
 | `OFFICE_SECRETARY_NAME` | `Secretary` | Display name for the dispatcher panel |
 | `OFFICE_DEMO` | *(off)* | `1` (or a path) → serve `demo.json` fixtures instead of live tmux |
 
