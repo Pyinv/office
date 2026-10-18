@@ -322,6 +322,13 @@
   .composer textarea:focus{outline:none;border-color:var(--accent)}
   .composer button{flex:0 0 auto;width:2.3rem;height:2.3rem;border-radius:999px;border:0;background:var(--accent);color:#fff;font-size:1.1rem;cursor:pointer}
   .composer button:disabled{opacity:.4}
+  .composer button.hist{background:var(--panel2);color:var(--faint);border:1px solid var(--line);font-size:1rem}
+  .composer button.hist:not(.has){display:none}
+  .composer button.ask{background:#b7791f}          /* the agent is asking a question: a send now would answer it */
+  .histdlg .hist-list{display:flex;flex-direction:column;gap:.4rem;max-height:55vh;overflow:auto;margin-top:.6rem}
+  .histdlg .hist-item{font:inherit;text-align:left;padding:.55rem .7rem;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer;
+    white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .histdlg .hist-item small{display:block;color:var(--faint);font-size:.75rem;margin-bottom:.15rem}
   @media(max-width:760px),(pointer:coarse){
     body.termkeys .phonebar{display:flex;flex-direction:column;position:fixed;left:0;right:0;bottom:0;z-index:200;
       background:var(--panel);box-shadow:0 -6px 18px rgba(0,0,0,.5)}
@@ -553,6 +560,12 @@
     <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
   </div>
 </dialog>
+<dialog class="newdlg linkdlg histdlg" id="histdlg">
+  <h2>Sent from the box</h2>
+  <div class="preview">Tap one to put it back in the box — nothing is sent until you press ↑.</div>
+  <div class="hist-list" id="hist-list"></div>
+  <div class="lk-btns"><button type="button" onclick="this.closest('dialog').close()">Close</button></div>
+</dialog>
 <dialog class="viewdlg" id="viewdlg">
   <div class="vbar"><span id="vw-name"></span><button type="button" id="vw-x">✕</button></div>
   <div class="vbody" id="vw-body"></div>
@@ -609,6 +622,7 @@
   <button data-key="c-w">^W</button>
 </div>
 <div class="composer" id="composer">
+  <button id="sayhist" class="hist" title="sent messages" aria-label="sent messages">↺</button>
   <textarea id="say" rows="1" placeholder="Message…" autocomplete="off" autocorrect="on" autocapitalize="sentences" enterkeyhint="enter"></textarea>
   <button id="saysend" title="send" aria-label="send">↑</button>
 </div>
@@ -1288,6 +1302,7 @@ function openTerm(session, who, title){
   box.appendChild(f);
   document.getElementById("mtitle").textContent=who+"  ·  "+session;
   document.getElementById("say").placeholder="Message "+who+"…";
+  if(window.restoreDraft) restoreDraft();          // an unsent message for this session comes back
   document.title=title||who;                       // name the tab after the session so several open tabs stay tellable apart
   document.getElementById("modal").classList.add("open");
   MODAL_OPEN=true;
@@ -1302,7 +1317,7 @@ function closeTerm(){
   const f=document.getElementById("termframe"); if(f) f.remove();  // tear down ttyd fully -> detach tmux
   MODAL_OPEN=false;
   document.body.classList.remove("termkeys");
-  const say=document.getElementById("say"); say.value=""; say.blur();
+  const say=document.getElementById("say"); say.value=""; say.blur();   // the draft stays in localStorage
   const sb=document.getElementById("search"); if(sb && sb.value){ sb.value=""; SEARCH=""; render(); }  // clear the search used to find this session
 }
 document.getElementById("modal").addEventListener("mousedown",e=>{ if(e.target.id==="modal") closeTerm(); });
@@ -1362,15 +1377,58 @@ async function sendKey(key){
   say.addEventListener("input", grow);
   say.addEventListener("focus", ()=>setTimeout(placeKeybar,50));
   say.addEventListener("blur", ()=>setTimeout(placeKeybar,50));
+  // Everything ever sent from the box is kept on this phone (last 40), and the unsent draft per
+  // session survives a refresh — a long dictated message must never be lost.
+  const histBtn=document.getElementById("sayhist");
+  const HKEY="say.hist", DKEY=s=>"say.draft."+s;
+  const ls={get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(_){ return null; } },
+            set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(_){} },
+            del(k){ try{ localStorage.removeItem(k); }catch(_){} }};
+  function histAdd(t){ const h=(ls.get(HKEY)||[]).filter(x=>x.m!==t); h.unshift({t:Date.now(),s:MODAL_SESSION,m:t}); ls.set(HKEY,h.slice(0,40)); histBtn.classList.add("has"); }
+  histBtn.classList.toggle("has", (ls.get(HKEY)||[]).length>0);
+  window.restoreDraft=function(){ say.value=ls.get(DKEY(MODAL_SESSION))||""; grow(); };
+  say.addEventListener("input", ()=>{ if(MODAL_SESSION){ if(say.value) ls.set(DKEY(MODAL_SESSION), say.value); else ls.del(DKEY(MODAL_SESSION)); } });
+  histBtn.addEventListener("pointerdown", e=>e.preventDefault());
+  histBtn.addEventListener("click", ()=>{
+    const list=document.getElementById("hist-list"); list.innerHTML="";
+    for(const x of (ls.get(HKEY)||[])){
+      const b=document.createElement("button"); b.type="button"; b.className="hist-item";
+      const sm=document.createElement("small"); sm.textContent=new Date(x.t).toLocaleString([], {weekday:"short",hour:"2-digit",minute:"2-digit"})+"  ·  "+(x.s||"");
+      b.appendChild(sm); b.appendChild(document.createTextNode(x.m));
+      b.onclick=()=>{ say.value=x.m; say.dispatchEvent(new Event("input")); document.getElementById("histdlg").close(); say.focus(); };
+      list.appendChild(b);
+    }
+    document.getElementById("histdlg").showModal();
+  });
   async function sendSay(){
     const t=say.value.replace(/\s+$/,""); if(!t || !MODAL_SESSION) return;
     sendBtn.disabled=true;
-    if(await sendPaste(t)){
+    histAdd(t);                                   // kept first — even a failed send is recoverable
+    let ok=false;
+    try{
+      const r=await fetch("/api/paste",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,text:t,guard:true})});
+      if(r.ok) ok=true;
+      else{
+        const j=await r.json().catch(()=>({}));
+        if(j.error==="question"){ sendBtn.classList.add("ask"); toast("Answer the question in the terminal first — your message is kept in the box", true); }
+        else toast("Send failed — message kept in the box", true);
+      }
+    }catch(_){ toast("Send failed — message kept in the box", true); }
+    if(ok){
       try{ await fetch("/api/key",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,key:"enter"})}); }catch(_){}
-      say.value=""; grow();
+      say.value=""; ls.del(DKEY(MODAL_SESSION)); grow();
     }
     sendBtn.disabled=false; say.focus();
   }
+  // while a terminal is open, the ↑ turns amber whenever the agent shows a pick-one menu
+  setInterval(async ()=>{
+    if(!MODAL_SESSION || !document.body.classList.contains("termkeys")) return;
+    try{
+      const r=await fetch("/api/menu",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION})});
+      const j=await r.json(); sendBtn.classList.toggle("ask", !!j.menu);
+      sendBtn.title=j.menu ? "the agent is asking a question — answer it first" : "send";
+    }catch(_){}
+  }, 4000);
   sendBtn.addEventListener("pointerdown", e=>e.preventDefault());   // keep the keyboard up
   sendBtn.addEventListener("click", sendSay);
   // Enter = new line (like a chat app on the phone); only ↑ sends. ⌘/Ctrl-Enter sends too for a keyboard.

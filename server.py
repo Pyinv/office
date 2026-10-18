@@ -219,6 +219,17 @@ def tailscale_dnsname():
     except Exception:
         return ""
 
+_MENU_RE = re.compile(r"Enter to select|❯\s*\d+\.\s|Esc to cancel")
+
+def _menu_open(sess):
+    """True when the pane's bottom lines show a pick-one menu (the agent asking a question)."""
+    try:
+        tail = subprocess.run(["tmux", "capture-pane", "-p", "-t", sess, "-S", "-15"],
+                              capture_output=True, text=True, timeout=3).stdout
+    except Exception:
+        return False
+    return len(_MENU_RE.findall(tail)) >= 2
+
 def live_sessions():
     return set(subprocess.run(
         ["tmux", "list-sessions", "-F", "#{session_name}"],
@@ -555,6 +566,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/secretary": return self._secretary(data)
         if path == "/api/key":   return self._key(data)
         if path == "/api/paste": return self._paste(data)
+        if path == "/api/menu":  return self._menu(data)
         if path == "/api/buffer":return self._buffer(data)
         if path == "/api/kill":  return self._kill(data)
         if path == "/api/erase": return self._erase(data)
@@ -688,6 +700,12 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json({"ok": True, "saved": rel, "warning": f"saved but couldn't tell {person}: {e}"})
         return self._json({"ok": True, "saved": rel, "told": person})
 
+    def _menu(self, data):
+        sess = str(data.get("session", ""))
+        if not sess or sess not in live_sessions():
+            return self._json({"error": f"no live session '{sess}'"}, 409)
+        return self._json({"ok": True, "menu": _menu_open(sess)})
+
     def _paste(self, data):
         # Paste the browser clipboard into the attached tmux pane via a tmux buffer +
         # bracketed paste, so multi-line text is inserted as one paste (not run line by line).
@@ -695,6 +713,10 @@ class Handler(SimpleHTTPRequestHandler):
         text = str(data.get("text", ""))
         if not sess or sess not in live_sessions():
             return self._json({"error": f"no live session '{sess}'"}, 409)
+        # A message from the phone's box must not land while the agent shows a pick-one
+        # menu: the menu swallows the text and the Enter picks the highlighted answer.
+        if data.get("guard") and _menu_open(sess):
+            return self._json({"error": "question", "hint": "the agent is asking a question — answer it first"}, 409)
         if text:
             try:
                 subprocess.run(["tmux", "set-buffer", "--", text], check=False)
