@@ -26,8 +26,17 @@ try! png.write(to: URL(fileURLWithPath: CommandLine.arguments[1]))
 S
 swift /tmp/office-icon.swift "$OUT/icon-1024.png"
 [ -s "$OUT/icon-1024.png" ] || { echo "✗ icon PNG was not written"; exit 1; }
-cat > "$OUT/Contents.json" <<'J'
-{ "images": [ { "filename": "icon-1024.png", "idiom": "universal", "platform": "ios", "size": "1024x1024" } ],
-  "info": { "version": 1, "author": "xcode" } }
-J
-echo "✓ icon set written"
+# the classic full set: every size Xcode has ever asked for, so any actool accepts it
+images=""
+add(){ # idiom size scale -> file
+  px=$(awk "BEGIN{printf \"%d\", $2*$3}"); f="icon-$2@$3x.png"
+  [ -f "$OUT/$f" ] || sips -z "$px" "$px" "$OUT/icon-1024.png" --out "$OUT/$f" >/dev/null
+  images="$images{ \"filename\": \"$f\", \"idiom\": \"$1\", \"scale\": \"${3}x\", \"size\": \"${2}x${2}\" },"
+}
+for s in 20 29 40 60; do add iphone $s 2; add iphone $s 3; done
+for s in 20 29 40 76; do add ipad $s 1; add ipad $s 2; done
+add ipad 83.5 2
+images="$images{ \"filename\": \"icon-1024.png\", \"idiom\": \"ios-marketing\", \"scale\": \"1x\", \"size\": \"1024x1024\" }"
+printf '{ "images": [ %s ], "info": { "version": 1, "author": "xcode" } }\n' "$images" > "$OUT/Contents.json"
+python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$OUT/Contents.json" || { echo "✗ Contents.json is not valid JSON"; exit 1; }
+echo "✓ icon set written ($(ls "$OUT" | grep -c png) images)"
