@@ -19,6 +19,10 @@ targets:
         UIViewControllerBasedStatusBarAppearance: true
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
     settings:
