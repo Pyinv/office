@@ -388,6 +388,9 @@ def _claude_pid(sess):
             stack.append(int(parts[0]))
     return 0
 
+def _has_session(sess):
+    return subprocess.run(["tmux", "has-session", "-t", "=" + sess], capture_output=True).returncode == 0
+
 def _wait(pred, secs):
     end = time.time() + secs
     while time.time() < end:
@@ -475,9 +478,18 @@ def _restart_one(s, sid, mode):
     subprocess.run(["tmux", "send-keys", "-t", s, "Enter"], check=False)
     if not _wait(lambda: _claude_pid(s) != pid, 20):
         _log(f"✗ {s}: did not exit — left alone" + (" (draft kept)" if draft else "")); return
-    time.sleep(1.0)                                  # let the shell prompt come up
-    subprocess.run(["tmux", "send-keys", "-t", s, "-l", "--", _launch_cmd(sid, mode)], check=False)
-    subprocess.run(["tmux", "send-keys", "-t", s, "Enter"], check=False)
+    if not _has_session(s):
+        # the pane ran claude with no shell underneath (a session made by hand), so /exit took
+        # the whole tmux session with it — make it again, this time with a shell to fall back on
+        info = (_live_cache or {}).get(s) or load_history().get(s) or {}
+        d = info.get("dir") or DEV_ROOT
+        if not os.path.isdir(d):
+            _log(f"✗ {s}: its tmux session closed on /exit and its folder is gone ({d})" + (f"; your draft was: {draft}" if draft else "")); return
+        _spawn(s, d, info.get("group", "personal"), sid, mode)
+    else:
+        time.sleep(1.0)                              # let the shell prompt come up
+        subprocess.run(["tmux", "send-keys", "-t", s, "-l", "--", _launch_cmd(sid, mode)], check=False)
+        subprocess.run(["tmux", "send-keys", "-t", s, "Enter"], check=False)
     if not _wait(lambda: _claude_pid(s) != 0, 40):
         _log(f"✗ {s}: claude did not come back — open its terminal" + (f"; your draft was: {draft}" if draft else "")); return
     note = f" ({mode})" if mode else ""
