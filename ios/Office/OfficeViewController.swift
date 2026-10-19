@@ -34,7 +34,13 @@ final class OfficeViewController: UIViewController, WKNavigationDelegate, WKUIDe
             web.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             web.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
-        if let url = savedURL() { load(url) } else { askForURL() }
+        if let url = savedURL() { load(url) }
+    }
+
+    // an alert can only be presented once the view is on screen — not from viewDidLoad
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if savedURL() == nil && presentedViewController == nil { askForURL() }
     }
 
     // MARK: where is the Office
