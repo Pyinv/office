@@ -13,4 +13,4 @@ fi
 [ -f Office/Assets.xcassets/AppIcon.appiconset/icon-83.5@2x.png ] || sh ./icon.sh
 xcodegen generate
 echo "✓ Office.xcodeproj ready — opening Xcode"
-open Office.xcodeproj
+open -a Xcode Office.xcodeproj || open -a Xcode-27 Office.xcodeproj || open Office.xcodeproj
