@@ -25,6 +25,7 @@ let png = NSBitmapImageRep(data: tiff)!.representation(using: .png, properties: 
 try! png.write(to: URL(fileURLWithPath: CommandLine.arguments[1]))
 S
 swift /tmp/office-icon.swift "$OUT/icon-1024.png"
+[ -s "$OUT/icon-1024.png" ] || { echo "✗ icon PNG was not written"; exit 1; }
 cat > "$OUT/Contents.json" <<'J'
 { "images": [ { "filename": "icon-1024.png", "idiom": "universal", "platform": "ios", "size": "1024x1024" } ],
   "info": { "version": 1, "author": "xcode" } }

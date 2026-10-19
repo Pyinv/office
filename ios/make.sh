@@ -10,7 +10,7 @@ if ! command -v xcodegen >/dev/null 2>&1; then
   command -v brew >/dev/null 2>&1 || { echo "✗ Homebrew is needed to install xcodegen: https://brew.sh"; exit 1; }
   echo "→ installing xcodegen"; brew install xcodegen
 fi
-[ -d Office/Assets.xcassets ] || sh ./icon.sh
+[ -f Office/Assets.xcassets/AppIcon.appiconset/icon-1024.png ] || sh ./icon.sh
 xcodegen generate
 echo "✓ Office.xcodeproj ready — opening Xcode"
 open Office.xcodeproj
