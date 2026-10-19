@@ -318,6 +318,7 @@
   .keybar button{flex:0 0 auto;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
     border-radius:8px;padding:.55rem .7rem;font-size:.95rem;font-family:inherit;cursor:pointer;white-space:nowrap;line-height:1}
   .keybar button:active{background:var(--accent);color:#fff}
+  .keybar button.hidekb{color:var(--dim);padding:.55rem .55rem}
   .keybar .ksep{flex:0 0 auto;width:1px;align-self:stretch;background:var(--line);margin:.15rem .2rem}
   .keybar::-webkit-scrollbar{display:none}
   /* the phone's bottom block: one row of keys that scrolls sideways + a message box like a
@@ -642,6 +643,7 @@
 </dialog>
 <div class="phonebar" id="phonebar">
 <div class="keybar" id="keybar">
+  <button data-key="hide" class="hidekb" title="hide the keyboard" aria-label="hide the keyboard">⌨︎⌄</button>
   <button data-key="esc">esc</button>
   <button data-key="tab">tab</button>
   <button data-key="enter">⏎</button>
@@ -1418,6 +1420,13 @@ document.getElementById("mpop").onclick=()=>{ if(MODAL_SESSION) window.open(`/te
 // prefix. /api/key (straight to the pane, no prefix) is the fallback if that hook is gone.
 const KEYSEQ={esc:"\x1b", tab:"\t", enter:"\r", up:"\x1b[A", down:"\x1b[B", right:"\x1b[C", left:"\x1b[D"};
 function keySeq(k){ return KEYSEQ[k] || (/^c-[a-z]$/.test(k) ? String.fromCharCode(k.charCodeAt(2)-96) : ""); }
+// drop focus everywhere the soft keyboard could be attached to: the message box, and xterm's
+// hidden input inside the terminal frame — nothing is typed or sent
+function hideKeyboard(){
+  try{ document.activeElement && document.activeElement.blur(); }catch(_){}
+  try{ const d=document.getElementById("termframe").contentDocument; d.activeElement && d.activeElement.blur(); }catch(_){}
+  try{ const say=document.getElementById("say"); say && say.blur(); }catch(_){}
+}
 async function sendKey(key){
   const seq=keySeq(key);
   const frame=document.getElementById("termframe");
@@ -1444,6 +1453,9 @@ async function sendKey(key){
   kb.addEventListener("click", async e=>{
     if(!MODAL_SESSION) return;
     const btn=e.target.closest("button[data-key]"); if(!btn) return;
+    if(btn.dataset.key==="hide"){           // put the keyboard away without sending anything
+      hideKeyboard(); return;
+    }
     if(btn.dataset.key==="paste"){          // read the browser clipboard, paste into the pane
       let t=""; try{ t=await navigator.clipboard.readText(); }catch(_){}
       // many phone browsers refuse the read (no permission, no API): paste into the message box instead
