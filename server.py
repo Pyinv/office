@@ -984,8 +984,8 @@ class Handler(SimpleHTTPRequestHandler):
         if not force_ask:
             if self._sec_watch(text, snap):
                 took("watch"); return
-            if self._sec_broadcast(text, snap):
-                took("broadcast"); return
+            # broadcasting is off: one garbled "tell everyone…" was typed into every agent. It comes
+            # back only with a confirmation step and the menu/draft guards below.
         # the model reads the whole floor and decides itself whether to answer or to pass an
         # instruction on; the keyword matcher below only steps in when the model is unavailable
         kind = self._sec_ask_claude(text, snap, allow_send=not force_ask)
@@ -1038,6 +1038,14 @@ class Handler(SimpleHTTPRequestHandler):
         else:
             if session not in live_sessions():
                 self._json({"error": f"{person} isn't a live session right now."}, 409); return True
+            try:
+                _w, _t, _v, _u, menu, _mode, draft = team._pane(session)
+            except Exception:
+                menu, draft = False, ""
+            if menu:      # Enter would pick an answer to the agent's question
+                self._json({"error": f"{person} is asking you a question right now; answer it first, then send again."}, 409); return True
+            if draft:     # Enter would send the operator's unfinished text along with this
+                self._json({"error": f"{person} has an unsent draft in the box; send or clear it first."}, 409); return True
             try:
                 subprocess.run(["tmux", "send-keys", "-t", session, "-l", "--", msg], check=True)
                 subprocess.run(["tmux", "send-keys", "-t", session, "Enter"], check=True)
