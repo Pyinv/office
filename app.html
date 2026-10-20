@@ -40,7 +40,7 @@
   .hin{max-width:1180px;margin:0 auto;padding:.85rem 1.1rem .7rem}
   .titlerow{display:flex;align-items:baseline;gap:.7rem;flex-wrap:wrap}
   h1{margin:0;font-size:1.35rem;font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:.5rem}
-  h1 .logo{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:.9rem;
+  h1 .logo{cursor:pointer;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:.9rem;
     background:linear-gradient(135deg,var(--accent),var(--work));color:#fff;box-shadow:var(--shadow)}
   .navlink{color:var(--work);text-decoration:none;font-size:.8rem;font-weight:600;
     border:1px solid var(--line);border-radius:999px;padding:.2rem .6rem;white-space:nowrap}
@@ -517,7 +517,7 @@
 <body>
 <header><div class="hin">
   <div class="titlerow">
-    <h1><span class="logo">🏢</span> {{OFFICE_TITLE}}</h1>
+    <h1><span class="logo" id="logo" title="back to the top" role="button" tabindex="0">🏢</span> {{OFFICE_TITLE}}</h1>
     <a class="navlink" href="{{OFFICE_STATUS_URL}}">📊 <span class="lng">Usage &amp; limits</span><span class="shr">Usage</span> →</a>
     <a class="navlink" href="{{OFFICE_FILES_URL}}">📁 Files →</a>
     <div class="sub" id="sub">loading…</div>
@@ -1624,6 +1624,13 @@ function gotoSecretary(){
   const s=document.getElementById("sec-in");
   if(s){ s.focus({preventScroll:true}); s.select(); }
 }
+// the 🏢 in the header is the "back to the top" tap — the header sticks, the page is long
+(function(){
+  const l=document.getElementById("logo"); if(!l) return;
+  const up=()=>window.scrollTo({top:0, behavior:"smooth"});
+  l.addEventListener("click", up);
+  l.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); up(); } });
+})();
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&MODAL_OPEN){ closeTerm(); return; }
   if((e.metaKey||e.ctrlKey)&&(e.key==="k"||e.key==="K")){ e.preventDefault(); gotoSecretary(); }
