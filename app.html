@@ -1282,19 +1282,22 @@ function injectAutoCopy(frame){
   let doc; try{ doc=frame.contentDocument; }catch(e){ return; }
   if(!doc || doc.__autocopy) return; doc.__autocopy=true;
   let x0=0,y0=0;
+  const copyBuffer=(delay)=>setTimeout(async ()=>{            // let tmux finish writing its paste-buffer
+    try{
+      const r=await fetch("/api/buffer",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+      const text=((await r.json())||{}).text||"";
+      if(!text) return;
+      const clip=(frame.contentWindow&&frame.contentWindow.navigator.clipboard)||navigator.clipboard;
+      await clip.writeText(text);
+    }catch(_){/* silent — the 📋 button stays as a fallback */}
+  }, delay);
   doc.addEventListener("mousedown", e=>{ x0=e.clientX; y0=e.clientY; }, true);
   doc.addEventListener("mouseup", e=>{
     if(Math.hypot(e.clientX-x0, e.clientY-y0) < 4) return;   // a click, not a drag — don't clobber the clipboard
-    setTimeout(async ()=>{                                    // let tmux finish writing its paste-buffer
-      try{
-        const r=await fetch("/api/buffer",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
-        const text=((await r.json())||{}).text||"";
-        if(!text) return;
-        const clip=(frame.contentWindow&&frame.contentWindow.navigator.clipboard)||navigator.clipboard;
-        await clip.writeText(text);
-      }catch(_){/* silent — the 📋 button stays as a fallback */}
-    }, 120);
+    copyBuffer(120);
   }, true);
+  // double-click (a word) and triple-click (a line): tmux selects and copies them 0.3 s later
+  doc.addEventListener("click", e=>{ if(e.detail>=2) copyBuffer(500); }, true);
   // ⌘K inside the terminal closes it and jumps to the secretary. Cmd only (never Ctrl), so we don't
   // steal the terminal's Ctrl-K. Capture + stopPropagation so xterm can't eat it first;
   // defer so we don't tear down this iframe mid-event.
