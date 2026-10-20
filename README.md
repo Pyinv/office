@@ -147,7 +147,7 @@ against synthetic transcripts in a temp dir:
 python -m unittest discover -s tests -v
 ```
 
-CI runs the same suite on Python 3.9–3.13 for every push and pull request
+CI runs the same suite on Python 3.10–3.13 for every push and pull request
 (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 The browser tests in `tests/ui/` (settings, the phone header, the terminal key bar) run against a
