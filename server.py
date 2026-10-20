@@ -978,13 +978,17 @@ class Handler(SimpleHTTPRequestHandler):
         _g = load_groups()
         for _m in snap:
             _m["group"] = _g.get(_m["session"], _m.get("group", "personal"))
+        # one line per request in the server log, so "she said yes but nothing happened" can be traced
+        def took(kind):
+            print(f"secretary: {kind:9s} {text[:160]!r}", file=sys.stderr, flush=True)
         if not force_ask:
             if self._sec_watch(text, snap):
-                return
+                took("watch"); return
             if self._sec_broadcast(text, snap):
-                return
+                took("broadcast"); return
             if self._sec_dispatch(text, snap):
-                return
+                took("dispatch"); return
+        took("answer")
         return self._sec_ask_claude(text, snap)
 
     def _sec_dispatch(self, text, snap):
@@ -1003,7 +1007,8 @@ class Handler(SimpleHTTPRequestHandler):
         # "[please/hey/<secretary>] ask|tell|have|get|remind|nudge|dm|message|ping|send NAME [to] INSTR"
         sec = re.escape((SECRETARY or "").strip().split(" ")[0].lower())   # let people address her by her configured name
         fillers = "please|hey|can you|could you|pls" + (("|" + sec) if sec else "")
-        m = re.match(r'^(?:(?:' + fillers + r')[\s,:]+)?'
+        # any number of fillers in any order: "Nadia, can you please ask Lena to …"
+        m = re.match(r'^(?:(?:' + fillers + r')[\s,:]+)*'
                      r'(?:ask|tell|have|get|remind|nudge|dm|message|ping|send)\s+'
                      r'(' + names + r')\b[\s,:]*(?:to\s+)?(.+)$', low)
         if not m:                                  # or the terse "NAME: INSTR" / "NAME please INSTR"
