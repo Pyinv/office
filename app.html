@@ -1745,7 +1745,8 @@ async function sendKey(key){
   const radios=[...dlg.querySelectorAll('input[name=theme]')], themeNote=document.getElementById("st-theme-s");
   function paintTheme(){ const t=pref("theme")||"system", res=window.__theme ? __theme.resolved() : "dark";
     radios.forEach(r=>r.checked=r.value===t);
-    themeNote.textContent=(t==="system" ? `Follows the device (${res})` : "")+(res==="light" ? (t==="system"?" · ":"")+"The terminal stays dark." : ""); }
+    // the sub-line is never empty, so the row keeps its height and nothing shifts when you switch
+    themeNote.textContent=(t==="system" ? `Follows the device (${res})` : t==="dark" ? "Always dark" : "Always light")+(res==="light" ? " · The terminal stays dark." : ""); }
   radios.forEach(r=>r.addEventListener("change", ()=>{ if(r.checked) setPref("theme", r.value); }));
   onPref("theme", t=>{ if(window.__theme) __theme.set(t); paintTheme(); });
   if(window.__theme) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", ()=>setTimeout(paintTheme,0));
