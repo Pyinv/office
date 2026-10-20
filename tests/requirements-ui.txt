@@ -1,0 +1,2 @@
+# browser tests under tests/ui — optional; `playwright install chromium` once after this
+playwright>=1.45

@@ -14,6 +14,17 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#5b5bd6">
+<script>
+// theme before first paint: "system" follows the OS (and keeps following it), dark/light are fixed.
+// The stylesheet below keys every colour off html[data-theme]; the choice lives in office.prefs.
+(function(){
+  let p={}; try{ p=JSON.parse(localStorage.getItem("office.prefs"))||{}; }catch(_){}
+  const os=matchMedia("(prefers-color-scheme: dark)");
+  const apply=()=>{ document.documentElement.dataset.theme = (p.theme==="dark"||p.theme==="light") ? p.theme : (os.matches?"dark":"light"); };
+  apply(); os.addEventListener("change", apply);
+  window.__theme={ set(t){ p.theme=t; apply(); }, resolved(){ return document.documentElement.dataset.theme; } };
+})();
+</script>
 <style>
   :root{
     --bg:#0c0f14; --bg2:#0f141b; --panel:#151b24; --panel2:#1b2531; --line:#242f3d;
@@ -22,13 +33,14 @@
     --rev:#57d9a3; --rev2:#0e2c21; --work:#63b3ff; --work2:#0d2439; --idle:#6b7a8d;
     --accent:#8b7bff; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.28);
   }
-  @media (prefers-color-scheme: light){
-    :root{ --bg:#eef1f6; --bg2:#e7ecf3; --panel:#fff; --panel2:#f1f5fa; --line:#dde3ec;
+  html[data-theme=light]{ --bg:#eef1f6; --bg2:#e7ecf3; --panel:#fff; --panel2:#f1f5fa; --line:#dde3ec;
       --ink:#1a2230; --dim:#54627a; --faint:#8695ab;
       --wait2:#ffede3; --pend2:#fff6d6; --rev2:#e2f6ee; --work2:#e6f0ff;
       --wait:#d1600f; --pend:#a67c00; --rev:#0e8a5f; --work:#1f6fd6;
       --shadow:0 1px 2px rgba(20,30,50,.06),0 6px 18px rgba(20,30,50,.08); }
-  }
+  /* the terminal surface stays dark in every theme: the agent paints its own colours for a dark
+     terminal, so its title bar, key bar and message box keep the dark tokens around it */
+  .modal,.phonebar,body.termkeys{--bg:#0c0f14;--bg2:#0f141b;--panel:#151b24;--panel2:#1b2531;--line:#242f3d;--ink:#e8eef6;--dim:#9fb0c3;--faint:#63748a}
   *{box-sizing:border-box}
   html,body{margin:0}
   body{background:var(--bg);color:var(--ink);
@@ -45,7 +57,6 @@
   .navlink{color:var(--work);text-decoration:none;font-size:.8rem;font-weight:600;
     border:1px solid var(--line);border-radius:999px;padding:.2rem .6rem;white-space:nowrap}
   .navlink:hover{border-color:var(--work);background:var(--work2)}
-  .navlink.shortcut{display:none}  /* an iOS Share Sheet shortcut — only offered on the phone (inside ⚙) */
   .sub{color:var(--faint);font-size:.8rem;margin-left:auto;display:inline-flex;align-items:center;gap:.4rem}
   .bell{background:var(--panel);border:1px solid var(--line);border-radius:999px;font-size:.95rem;cursor:pointer;
     padding:.18rem .5rem;line-height:1.2;opacity:.55;transition:opacity .15s,border-color .15s,background .15s}
@@ -54,6 +65,46 @@
   /* ⟳ restore / update all agents — shown only when there is something to do */
   .bell.restart{opacity:1;font-size:.8rem;font-weight:600;border-color:var(--accent);color:var(--accent);white-space:nowrap}
   .bell.restart.busy{border-color:var(--line);color:var(--faint)}
+  .bell.settings{font-size:1rem;padding:.14rem .5rem}
+  /* ⟳ banner: the one state that interrupts — only while agents from before a reboot are missing */
+  .restorebar{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 12%,var(--panel))}
+  .restorebar b{color:var(--accent)} .restorebar .ni{color:var(--accent)}
+  .restorebar button{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+  /* Settings: rows of label + control, the dialog chrome is the shared .newdlg.linkdlg */
+  .settingsdlg h2{outline:none}
+  .settingsdlg .preview{font-family:inherit;font-size:.8rem}
+  .settingsdlg .sbody{display:flex;flex-direction:column;margin-top:.4rem}
+  @media (max-width:600px){ .settingsdlg .srow.wrap{flex-wrap:wrap} .settingsdlg .srow.wrap .radios{flex:1 0 100%;margin-top:.2rem} }
+  .settingsdlg .srow{display:flex;align-items:center;justify-content:space-between;gap:.8rem;min-height:2.75rem;padding:.55rem 0;border-top:1px solid var(--line);order:1}
+  .settingsdlg .srow>div:first-child{min-width:0}
+  .settingsdlg .srow.col{flex-wrap:wrap}
+  .settingsdlg .srow.col .fsample{flex:1 0 100%}
+  .settingsdlg .sl{display:block;font-size:.84rem;font-weight:600;color:var(--ink)}
+  .settingsdlg .ss{display:block;font-size:.74rem;color:var(--faint);margin-top:.1rem}
+  .settingsdlg .srow.action{cursor:pointer;border-radius:8px}
+  .settingsdlg .srow.action:hover .sl{color:var(--accent)}
+  .settingsdlg .srow.action .sc{color:var(--faint);font-size:1rem}
+  .settingsdlg #st-agents{order:5}
+  .settingsdlg.pending #st-agents{order:0;border-top:0;box-shadow:inset 3px 0 0 var(--accent);padding-left:.7rem}
+  .settingsdlg.pending #st-agents .sl{color:var(--accent)}
+  .settingsdlg #st-agents.err .sl{color:var(--wait)}
+  .settingsdlg .radios{display:flex;gap:.3rem;flex-wrap:nowrap}
+  .settingsdlg .radios label{position:relative;flex-direction:row;align-items:center;min-height:2.5rem;border:1px solid var(--line);border-radius:999px;
+    padding:.3rem .7rem;cursor:pointer;color:var(--ink);font-weight:600;font-size:.8rem;white-space:nowrap}
+  .settingsdlg .radios label:has(:checked){border-color:var(--accent);background:var(--work2);color:var(--accent)}
+  .settingsdlg .radios label:has(:focus-visible){box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+  .settingsdlg .radios input{position:absolute;opacity:0;width:0;height:0;margin:0}
+  .settingsdlg .stepper{display:flex;align-items:center;gap:.4rem}
+  .settingsdlg .stepper button{width:2.75rem;height:2.75rem;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
+  .settingsdlg .stepper button:active{background:var(--accent);color:#fff}
+  .settingsdlg .stepper button:disabled{opacity:.45;cursor:default}
+  .settingsdlg .stepper .v{font-variant-numeric:tabular-nums;min-width:2.2ch;text-align:center;font-weight:700}
+  .settingsdlg .fsample{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.4;background:#0c0f14;color:#e8eef6;border-radius:8px;padding:.5rem .7rem;margin-top:.5rem;white-space:pre}
+  .settingsdlg input[type=checkbox]{width:1.25rem;height:1.25rem;accent-color:var(--accent);flex:0 0 auto;margin:0}
+  .settingsdlg .srow.phoneonly{display:none}
+  .settingsdlg .srow a.navlink{border:0;padding:0;font-size:.84rem;font-weight:600}
+  .settingsdlg :is(button,input[type=checkbox],a,.srow.action):focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+  @media (pointer:coarse){.settingsdlg .srow.phoneonly{display:flex}}
   .restartdlg .rlist{display:flex;flex-direction:column;gap:.2rem;max-height:40vh;overflow:auto;margin:.3rem 0 .6rem;font-size:.9rem}
   .restartdlg .rlist div{padding:.25rem .5rem;border-radius:8px;background:var(--panel2)}
   .restartdlg .rlist div.skip{color:var(--faint)}
@@ -458,15 +509,18 @@
        secretary fold away behind a tap and remember their state */
     .navlink .lng{display:none} .navlink .shr{display:inline}
     .actioncol{order:-1}
-    .filtertoggle{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:2.1rem;height:2.1rem;
-      border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--dim);font:inherit;font-size:.95rem;cursor:pointer}
+    .filtertoggle{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;flex:0 0 auto;min-height:2.75rem;padding:0 .8rem;
+      border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--dim);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;white-space:nowrap}
+    .filtertoggle .c{font-size:.7rem;background:var(--panel2);border-radius:999px;padding:0 .4rem;color:var(--faint)}
     .filtertoggle.active{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--panel))}
     body.filters-open .filtertoggle{background:var(--accent);color:#fff;border-color:var(--accent)}
+    body.filters-open .filtertoggle .c{background:rgba(255,255,255,.25);color:#fff}
     .filtercol{display:none} body.filters-open .filtercol{display:flex}
-    /* the ⟳ restore/update button lives inside the ⚙ fold-out on the phone; ⚙ glows while it has something */
-    .filtercol .bell.restart{align-self:flex-start;margin:.1rem 0 .2rem}
-    .navlink.shortcut{display:inline-block;align-self:flex-start;margin-top:.1rem}
-    body:not(.filters-open) .filtertoggle.pending{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+    .search,.search:focus{min-height:2.75rem}
+    /* the ⟳ button has no room in the phone's title row: the banner and the Settings row carry it; ⚙ glows while there is something to do */
+    #restartbtn{display:none}
+    .bell.settings{width:2.75rem;height:2.75rem;display:inline-flex;align-items:center;justify-content:center;padding:0;opacity:.8}
+    .bell.settings.pending{border-color:var(--accent);color:var(--accent);opacity:1;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
     .controls{gap:.4rem}
     .secretary:not(.open){padding:.5rem .9rem .5rem 1rem;margin-bottom:.8rem;cursor:pointer}
     .secretary:not(.open) .sec-form, .secretary:not(.open) .sec-sub, .secretary:not(.open) .sec-reply:empty{display:none}
@@ -521,20 +575,20 @@
     <a class="navlink" href="{{OFFICE_STATUS_URL}}">📊 <span class="lng">Usage &amp; limits</span><span class="shr">Usage</span> →</a>
     <a class="navlink" href="{{OFFICE_FILES_URL}}">📁 Files →</a>
     <div class="sub" id="sub">loading…</div>
-    <button class="bell" id="bell" title="notify me when a session needs me">🔔</button>
     <button class="bell restart" id="restartbtn" hidden></button>
+    <button class="bell" id="bell" title="notify me when a session needs me">🔔</button>
+    <button class="bell settings" id="settingsbtn" title="Settings" aria-label="Settings">⚙</button>
   </div>
   <div class="controls">
     <div class="filtercol">
       <div class="chiprow"><span class="frow-l">Team</span><div class="chips" id="catchips"></div></div>
       <div class="chiprow"><span class="frow-l">Status</span><div class="chips" id="chips"></div></div>
-      <a class="navlink shortcut" href="{{OFFICE_SHORTCUT_URL}}" title="install the Share Sheet shortcut on this phone">📲 Share-sheet shortcut →</a>
     </div>
     <div class="actioncol">
       <button class="newbtn" id="newbtn">+ New</button>
       <span class="searchwrap" id="searchwrap"><input type="search" class="search" id="search" placeholder="search  ·  who, project, “waiting”, “clients”…  (⌘F)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button type="button" class="searchx" id="searchx" title="clear search" aria-label="clear search">×</button></span>
       <div class="sugg" id="sugg" role="listbox"></div>
-      <button class="filtertoggle" id="filtertoggle" title="show / hide the team and status filters">⚙</button>
+      <button class="filtertoggle" id="filtertoggle" title="show / hide the team and status filters" aria-expanded="false">Filters<span class="c" id="filtercount" hidden></span></button>
     </div>
   </div>
 </div></header>
@@ -551,6 +605,7 @@
     </div>
   </div>
   <div class="recentrow" id="recent"></div>
+  <div class="netbar restorebar" id="restorebar"><span class="ni">⟳</span><div class="nt"><b id="rb-t"></b><span class="nd">Each comes back on its own conversation.</span></div><button id="rb-go">Bring back</button></div>
   <div class="netbar" id="netbar" role="alert"><span class="ni" id="net-i">📵</span><div class="nt"><b id="net-t"></b><span class="nd" id="net-d"></span></div><button id="net-retry">Retry now</button></div>
   <div id="floor"><div class="empty"><span class="spin"></span>connecting to the office…</div></div>
   <footer class="foot">
@@ -599,6 +654,21 @@
   <div class="preview">Tap one to put it back in the box — nothing is sent until you press ↑.</div>
   <div class="hist-list" id="hist-list"></div>
   <div class="lk-btns"><button type="button" onclick="this.closest('dialog').close()">Close</button></div>
+</dialog>
+<dialog class="newdlg linkdlg settingsdlg" id="settingsdlg" aria-labelledby="st-title">
+  <h2 id="st-title" tabindex="-1" autofocus>Settings</h2>
+  <div class="preview" id="st-sub" hidden></div>
+  <div class="sbody">
+    <div class="srow action" id="st-agents" role="button" tabindex="0"><div><span class="sl" id="st-agents-l">Checking agents…</span><span class="ss" id="st-agents-s"></span></div><span class="sc" id="st-agents-c"></span></div>
+    <div class="srow wrap"><div><span class="sl">Appearance</span><span class="ss" id="st-theme-s" hidden>The terminal stays dark.</span></div>
+      <div class="sc radios" id="st-theme"><label><input type="radio" name="theme" value="system"><span id="st-sys">System</span></label><label><input type="radio" name="theme" value="dark">Dark</label><label><input type="radio" name="theme" value="light">Light</label></div></div>
+    <div class="srow col"><div><span class="sl">Terminal text size</span></div>
+      <div class="sc stepper"><button type="button" id="st-fminus" aria-label="Smaller text">−</button><span class="v" id="st-fval">11</span><button type="button" id="st-fplus" aria-label="Larger text">+</button></div>
+      <div class="fsample" id="st-fsample">❯ claude  11px</div></div>
+    <div class="srow"><label for="st-notify" style="display:block;cursor:pointer"><span class="sl">Notifications</span><span class="ss" id="st-notify-s">Ping me when an agent needs me</span></label><input type="checkbox" id="st-notify"></div>
+    <div class="srow phoneonly" id="st-shortcut-row"><a class="navlink shortcut" id="st-shortcut" href="{{OFFICE_SHORTCUT_URL}}">📲 Share-sheet shortcut →</a></div>
+  </div>
+  <div class="lk-btns"><button type="button" onclick="this.closest('dialog').close()">Done</button></div>
 </dialog>
 <dialog class="viewdlg" id="viewdlg">
   <div class="vbar"><span id="vw-name"></span><button type="button" id="vw-x">✕</button></div>
@@ -655,6 +725,8 @@
   <button data-key="c-e">^E</button><button data-key="c-d">^D</button><button data-key="c-z">^Z</button>
   <button data-key="c-l">^L</button><button data-key="c-r">^R</button><button data-key="c-u">^U</button>
   <button data-key="c-w">^W</button>
+  <span class="ksep"></span>
+  <button data-key="font" title="terminal text size" aria-label="terminal text size">Aa</button>
 </div>
 <div class="composer" id="composer">
   <button id="sayhist" class="hist" title="sent messages" aria-label="sent messages">↺</button>
@@ -670,6 +742,26 @@ const LABEL = {
   review:  {t:"🟢 Finished — your move", cls:"review"},
 };
 const GROUPS = ["waiting","working","review"];
+// ── preferences: one object in localStorage ("office.prefs"); setPref() stores and runs the hooks
+//    registered for that key, so every view of a setting (bell, Settings row, theme, terminal) repaints
+const ls={get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(_){ return null; } },
+          set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(_){} },
+          del(k){ try{ localStorage.removeItem(k); }catch(_){} }};
+const PREFS=Object.assign({theme:"system", termFont:0, notify:true, filters:false, sec:false, seenSettings:false}, ls.get("office.prefs")||{});
+{ // the keys from before office.prefs existed, folded in once (office-notify is still written for a release, so a revert keeps a muted bell muted)
+  const old=ls.get("office.prefs")||{}, raw=k=>{ try{ return localStorage.getItem(k); }catch(_){ return null; } };
+  if(!("notify" in old) && raw("office-notify")!==null) PREFS.notify = raw("office-notify")!=="0";
+  if(!("filters" in old) && raw("filters")!==null) PREFS.filters = raw("filters")==="1";
+  if(!("sec" in old) && raw("sec")!==null) PREFS.sec = raw("sec")==="1";
+}
+const PREF_HOOKS={};
+function onPref(k, fn){ (PREF_HOOKS[k]=PREF_HOOKS[k]||[]).push(fn); }
+function pref(k){ return PREFS[k]; }
+function setPref(k, v){
+  PREFS[k]=v; ls.set("office.prefs", PREFS);
+  if(k==="notify"){ try{ localStorage.setItem("office-notify", v?"1":"0"); }catch(_){} }
+  (PREF_HOOKS[k]||[]).forEach(f=>{ try{ f(v); }catch(_){} });
+}
 const CATS = [
   {id:"clients",  short:"💼 Clients",  label:"💼 Clients"},
   {id:"ventures", short:"🚀 Ventures", label:"🚀 Ventures"},
@@ -714,7 +806,7 @@ document.querySelectorAll(".navlink").forEach(a=>{const h=a.getAttribute("href")
   });
 })();
 // --- Notifications: ping me (chime + browser notification) when a session needs me ---
-let NOTIFY = localStorage.getItem("office-notify")!=="0";   // default ON; mute persists as "0"
+let NOTIFY = pref("notify")!==false;   // default ON; the mute lives in office.prefs
 let _AC=null;
 function playChime(){
   try{
@@ -750,14 +842,17 @@ function notifyUser(title, body, session){
     window.addEventListener("pointerdown", arm, {once:true});
     window.addEventListener("keydown", arm, {once:true});
   }
-  b.onclick=async()=>{
-    NOTIFY=!NOTIFY; localStorage.setItem("office-notify",NOTIFY?"1":"0");
-    if(NOTIFY){
+  onPref("notify", v=>{ NOTIFY=v; paint(); });
+  // from the bell or the Settings toggle — both are user gestures, which the permission prompt and audio need
+  window.setNotify=async(v)=>{
+    setPref("notify", !!v);
+    if(v){
       try{ if("Notification" in window && Notification.permission==="default") await Notification.requestPermission(); }catch(e){}
       playChime();   // the click gesture also unlocks audio on iOS/Safari
     }
     paint();
   };
+  b.onclick=()=>setNotify(!NOTIFY);
 })();
 function hueFor(s){ let h=0; for(const c of (s||"")) h=(h*31+c.charCodeAt(0))%360; return h; }
 function esc(s){ return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -1265,29 +1360,35 @@ function linkSheet(url){
     if(isFileLink(a.href)){ e.preventDefault(); linkSheet(a.href); }
   }, true);
 }
-// The phone shows more of the conversation with a smaller terminal font; the laptop keeps ttyd's default.
-const PHONE_TERM_FONT=11;
-function phoneFont(frame){
-  if(!matchMedia("(pointer:coarse)").matches) return;
+// Terminal text size: a per-device setting (Settings → Terminal text size). The phone defaults to a
+// smaller font so more of the conversation fits; the laptop to ttyd's own 14.
+const TTYD_FONT=14, TERM_FONT_DEFAULT=PHONE ? 11 : TTYD_FONT;
+function termFontSize(){ const v=+pref("termFont"); return v>=8 && v<=20 ? v : TERM_FONT_DEFAULT; }
+function termFont(frame){
   // ttyd re-applies the server's font size whenever its websocket (re)connects, which on a slow
   // link happens after the page has loaded — so keep enforcing ours for as long as the frame lives.
   // Every resize makes the agent's screen redraw (and leaves ghost lines), so the size must not flip
   // 14 → 11 on each reconnect: xterm's option validator is patched so any fontSize written becomes ours.
+  // When the setting is ttyd's own 14 there is nothing to enforce and the frame is left untouched.
   let pinned=false;
   const apply=()=>{
     try{
       const t=frame.contentWindow.term; if(!t) return;
+      const want=termFontSize();
       if(!pinned){
+        if(want===TTYD_FONT) return;
         const os=t._core.optionsService, orig=os._sanitizeAndValidateOption.bind(os);
-        os._sanitizeAndValidateOption=(k,v)=>orig(k, k==="fontSize" ? PHONE_TERM_FONT : v);
+        os._sanitizeAndValidateOption=(k,v)=>orig(k, k==="fontSize" ? termFontSize() : v);
         pinned=true;
       }
-      if(t.options.fontSize!==PHONE_TERM_FONT){ t.options.fontSize=PHONE_TERM_FONT; t.fit(); }
+      if(t.options.fontSize!==want){ t.options.fontSize=want; t.fit(); }
     }catch(_){}
   };
   apply();
   const id=setInterval(()=>{ if(!frame.isConnected){ clearInterval(id); return; } apply(); }, 700);
 }
+// a change in Settings reaches the open terminal at once; the pin above keeps it there
+onPref("termFont", ()=>{ try{ const t=document.getElementById("termframe").contentWindow.term; if(t){ t.options.fontSize=termFontSize(); t.fit(); } }catch(_){} });
 // A dropped terminal (ttyd closes with code 1000 and waits for ⏎) reconnects by itself while it is
 // open. The Enter is only ever sent after ttyd has reported the close and before it reports a new
 // connection — and ttyd discards input while its socket is closed — so nothing typed into the
@@ -1380,7 +1481,7 @@ function openTerm(session, who, title){
   const f=document.createElement("iframe"); f.id="termframe";
   f.allow="clipboard-read; clipboard-write";
   f.src=`/terminal/?arg=${encodeURIComponent(session)}`;   // same-origin, proxied to localhost ttyd
-  f.addEventListener("load", ()=>{ for(const fn of [phoneFont, injectReconnect, injectAutoCopy, injectTouchScroll, injectLinks]){ try{ fn(f); }catch(_){} } });   // smaller type on the phone, select-to-copy, swipe-to-scroll, clickable links
+  f.addEventListener("load", ()=>{ for(const fn of [termFont, injectReconnect, injectAutoCopy, injectTouchScroll, injectLinks]){ try{ fn(f); }catch(_){} } });   // smaller type on the phone, select-to-copy, swipe-to-scroll, clickable links
   box.appendChild(f);
   document.getElementById("mtitle").textContent=who+"  ·  "+session;
   document.getElementById("say").placeholder="Message "+who+"…";
@@ -1456,6 +1557,9 @@ async function sendKey(key){
     if(btn.dataset.key==="hide"){           // put the keyboard away without sending anything
       hideKeyboard(); return;
     }
+    if(btn.dataset.key==="font"){           // Settings over the terminal: the size applies live behind it
+      openSettings(); return;
+    }
     if(btn.dataset.key==="paste"){          // read the browser clipboard, paste into the pane
       let t=""; try{ t=await navigator.clipboard.readText(); }catch(_){}
       // many phone browsers refuse the read (no permission, no API): paste into the message box instead
@@ -1483,9 +1587,6 @@ async function sendKey(key){
   // session survives a refresh — a long dictated message must never be lost.
   const histBtn=document.getElementById("sayhist");
   const HKEY="say.hist", DKEY=s=>"say.draft."+s;
-  const ls={get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(_){ return null; } },
-            set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(_){} },
-            del(k){ try{ localStorage.removeItem(k); }catch(_){} }};
   function histAdd(t){ const h=(ls.get(HKEY)||[]).filter(x=>x.m!==t); h.unshift({t:Date.now(),s:MODAL_SESSION,m:t}); ls.set(HKEY,h.slice(0,40)); histBtn.classList.add("has"); }
   histBtn.classList.toggle("has", (ls.get(HKEY)||[]).length>0);
   window.restoreDraft=function(){
@@ -1563,22 +1664,37 @@ async function sendKey(key){
   const btn=document.getElementById("restartbtn"), dlg=document.getElementById("restartdlg");
   const body=document.getElementById("rs-body"), sub=document.getElementById("rs-sub"), title=document.getElementById("rs-title");
   const go=document.getElementById("rs-go"), forget=document.getElementById("rs-forget"), closeBtn=document.getElementById("rs-close");
-  let PLAN=null, pollTimer=null;
-  // phone: the title row has no room — the button sits at the top of the ⚙ fold-out instead
-  const PHONE_HDR=matchMedia("(max-width:600px)");
-  function place(){ const fc=document.querySelector(".filtercol"), tr=document.querySelector(".titlerow");
-    if(PHONE_HDR.matches){ if(fc && btn.parentElement!==fc) fc.prepend(btn); } else if(tr && btn.parentElement!==tr) tr.appendChild(btn); }
-  place(); PHONE_HDR.addEventListener("change", place);
+  let PLAN=null, pollTimer=null, ERR=false;
+  const bar=document.getElementById("restorebar"), barT=document.getElementById("rb-t"), setBtn=document.getElementById("settingsbtn");
   async function plan(){
-    try{ const r=await fetch("/api/restart",{cache:"no-store"}); if(!r.ok) return; PLAN=await r.json(); }catch(_){ return; }
+    try{ const r=await fetch("/api/restart",{cache:"no-store"}); if(!r.ok) throw 0; PLAN=await r.json(); ERR=false; }
+    catch(_){ ERR=true; if(window.paintAgentsRow) paintAgentsRow(); return; }
     const n=PLAN.restore.length, u=PLAN.update.length, s=PLAN.skip.length, running=PLAN.job&&PLAN.job.running;
     btn.hidden=!(n||u||s||running);
     btn.classList.toggle("busy", !!running);
-    const ft=document.getElementById("filtertoggle"); if(ft) ft.classList.toggle("pending", !btn.hidden);
+    if(setBtn) setBtn.classList.toggle("pending", !btn.hidden);              // phone: the glow on ⚙ (CSS keeps it off the desktop)
     btn.textContent=running ? "⟳ restarting…" : n ? `⟳ Restore ${n} agent${n===1?"":"s"}` : u ? `⟳ Update ${u} agent${u===1?"":"s"}` : `⟳ ${s} waiting`;
     btn.title=n ? "the agents that were running before the restart — bring them all back" : "a new Claude Code is installed — restart the idle agents into it";
+    // the banner: only for agents missing since a reboot — the one state that should interrupt
+    if(bar){ bar.classList.toggle("show", n>0 && !running); barT.textContent=`The Tower restarted — ${n} agent${n===1?"":"s"} to bring back`; }
     if(dlg.open && running) showLog();
+    if(window.paintAgentsRow) paintAgentsRow();
   }
+  function show(){ if(!PLAN) return; if(PLAN.job&&PLAN.job.running) showLog(); else showPlan(); dlg.showModal(); }
+  // what the Settings "Agents" row says — the row is the action
+  window.RESTART={ plan, show, get PLAN(){ return PLAN; }, get ERR(){ return ERR; },
+    state(){
+      if(ERR) return {k:"err", l:"Can't reach the server", s:"Tap to retry"};
+      if(!PLAN) return {k:"loading", l:"Checking agents…", s:""};
+      const n=PLAN.restore.length, u=PLAN.update.length, j=PLAN.job||{};
+      if(j.running){ const log=j.log||[], done=log.filter(t=>/^[✓✗–]/.test(t)).length, total=done+1; return {k:"running", l:`Restarting ${Math.min(done+1,total)} of ${done+(n||u||1)}…`, s:"one agent at a time; tap for the log"}; }
+      if(n) return {k:"pending", l:`Restore ${n} agent${n===1?"":"s"} →`, s:"they were running before the Tower restarted"};
+      if(u) return {k:"pending", l:`Update ${u} agent${u===1?"":"s"} →`, s:"a new Claude Code is installed"};
+      const log=j.log||[], bad=log.filter(t=>t.startsWith("✗")).length, ok=log.filter(t=>t.startsWith("✓")).length;
+      if(j.done && bad) return {k:"partial", l:`${ok} back · ${bad} need you →`, s:"tap for the log"};
+      return {k:"idle", l:"All agents are up to date", s:PLAN.skip.length ? `${PLAN.skip.length} busy, left alone` : ""};
+    } };
+  if(bar) document.getElementById("rb-go").addEventListener("click", async ()=>{ await plan(); show(); });
   const who=(x)=>x.person ? `${x.person} · ${x.session}` : x.session;
   function row(txt, cls){ const d=document.createElement("div"); if(cls) d.className=cls; d.textContent=txt; return d; }
   function head(t){ const h=document.createElement("h3"); h.textContent=t; return h; }
@@ -1600,7 +1716,7 @@ async function sendKey(key){
     if(j.running) l.appendChild(row("…"));
     body.appendChild(l); go.hidden=true; forget.hidden=true; closeBtn.textContent="Close";
   }
-  btn.addEventListener("click", async ()=>{ await plan(); if(!PLAN) return; if(PLAN.job&&PLAN.job.running) showLog(); else showPlan(); dlg.showModal(); });
+  btn.addEventListener("click", async ()=>{ await plan(); show(); });
   go.addEventListener("click", async ()=>{
     const payload={restore:PLAN.restore.map(x=>x.session), update:PLAN.update.map(x=>x.session)};
     go.disabled=true;
@@ -1615,6 +1731,55 @@ async function sendKey(key){
     dlg.close(); plan();
   });
   plan(); setInterval(plan, 30000);
+})();
+// ── Settings: theme, terminal text size, notifications, the agents' restore/update, the phone shortcut.
+// Every row reads from office.prefs through pref() and repaints through its onPref hook, so the bell,
+// the terminal and this dialog can never disagree.
+(function(){
+  const dlg=document.getElementById("settingsdlg"), btn=document.getElementById("settingsbtn"), sub=document.getElementById("st-sub");
+  if(!dlg || !btn) return;
+  // appearance
+  const radios=[...dlg.querySelectorAll('input[name=theme]')], sysLbl=document.getElementById("st-sys"), themeNote=document.getElementById("st-theme-s");
+  function paintTheme(){ const t=pref("theme")||"system", res=window.__theme ? __theme.resolved() : "dark";
+    radios.forEach(r=>r.checked=r.value===t); sysLbl.textContent=`System (${res})`; themeNote.hidden=res!=="light"; }
+  radios.forEach(r=>r.addEventListener("change", ()=>{ if(r.checked) setPref("theme", r.value); }));
+  onPref("theme", t=>{ if(window.__theme) __theme.set(t); paintTheme(); });
+  if(window.__theme) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", ()=>setTimeout(paintTheme,0));
+  // terminal text size
+  const minus=document.getElementById("st-fminus"), plus=document.getElementById("st-fplus"), fval=document.getElementById("st-fval"), fsample=document.getElementById("st-fsample");
+  function paintFont(){ const v=termFontSize(); fval.textContent=v; fsample.style.fontSize=v+"px"; fsample.textContent=`❯ claude  ${v}px`; minus.disabled=v<=8; plus.disabled=v>=20; }
+  minus.addEventListener("click", ()=>setPref("termFont", Math.max(8, termFontSize()-1)));
+  plus.addEventListener("click", ()=>setPref("termFont", Math.min(20, termFontSize()+1)));
+  onPref("termFont", paintFont);
+  // notifications — the toggle goes through setNotify(), the same gesture path as the bell
+  const cb=document.getElementById("st-notify"), ns=document.getElementById("st-notify-s");
+  function paintNotify(){ const sup="Notification" in window, denied=sup && Notification.permission==="denied";
+    cb.checked=pref("notify")!==false; cb.disabled=!sup||denied;
+    ns.textContent=!sup ? "Needs the home-screen or Office app" : denied ? "Blocked in the browser settings" : "Ping me when an agent needs me"; }
+  cb.addEventListener("change", ()=>{ if(window.setNotify) setNotify(cb.checked); else setPref("notify", cb.checked); });
+  onPref("notify", paintNotify);
+  // agents row — the row is the action; its text comes from RESTART.state()
+  const row=document.getElementById("st-agents"), rl=document.getElementById("st-agents-l"), rs=document.getElementById("st-agents-s"), rc=document.getElementById("st-agents-c");
+  window.paintAgentsRow=function(){ if(!window.RESTART) return; const st=RESTART.state();
+    rl.textContent=st.l; rs.textContent=st.s; rs.hidden=!st.s; rc.textContent=st.k==="err" ? "↻" : /→$/.test(st.l) ? "" : "";
+    row.classList.toggle("err", st.k==="err"); dlg.classList.toggle("pending", st.k==="pending"||st.k==="running"||st.k==="partial"); };
+  const rowGo=async()=>{ if(!window.RESTART) return; const st=RESTART.state();
+    if(st.k==="err"||st.k==="loading"){ await RESTART.plan(); paintAgentsRow(); return; }
+    if(st.k==="idle") return;
+    dlg.close(); RESTART.show(); };            // one dialog at a time: closing the restart dialog returns to the page
+  row.addEventListener("click", rowGo);
+  row.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); rowGo(); } });
+  // the phone shortcut row only exists when a link is configured (the navlink remover already dropped an empty one)
+  if(!document.getElementById("st-shortcut")) document.getElementById("st-shortcut-row").hidden=true;
+  // first open after the filters moved out of ⚙: say so once
+  window.openSettings=function(){
+    paintTheme(); paintFont(); paintNotify(); paintAgentsRow();
+    if(!pref("seenSettings")){ sub.hidden=false; sub.textContent="Team and Status filters moved to the Filters button."; } else sub.hidden=true;
+    dlg.showModal();
+    if(window.RESTART) RESTART.plan();
+  };
+  dlg.addEventListener("close", ()=>{ if(!pref("seenSettings")) setPref("seenSettings", true); });
+  btn.addEventListener("click", openSettings);
 })();
 // ⌘K / Ctrl-K: bring the secretary panel into view from anywhere. It sits at the top, so
 // scroll up to it; if the terminal is open, close it first so you land straight on it.
@@ -1673,18 +1838,22 @@ function updateCard(el,m){
   el._sig=sigOf(m);
 }
 
-// phone: the filter rows and the secretary fold away (remembered per device)
-const PREF=k=>{ try{ return localStorage.getItem(k); }catch(_){ return null; } };
-const setPref=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(_){} };
-document.body.classList.toggle("filters-open", PREF("filters")==="1");
-document.getElementById("filtertoggle").onclick=()=>{ const on=document.body.classList.toggle("filters-open"); setPref("filters", on?"1":"0"); };
-function markFilters(){ const t=document.getElementById("filtertoggle"); const on=FILTER!=="all"||CATFILTER!=="all"; t.classList.toggle("active",on);
-  t.title=on?"filters on: "+[CATFILTER!=="all"?CATFILTERS.find(c=>c.id===CATFILTER).label:"", FILTER!=="all"?FILTERS.find(f=>f.id===FILTER).label:""].filter(Boolean).join(" · "):"show / hide the team and status filters"; }
-{ const sec=document.getElementById("sec"); sec.classList.toggle("open", PREF("sec")==="1");
-  const toggleSec=()=>{ const on=sec.classList.toggle("open"); setPref("sec", on?"1":"0"); if(on) setTimeout(()=>document.getElementById("sec-in").focus(),50); };
+// phone: the filter rows and the secretary fold away (remembered per device, in office.prefs)
+{ const ft=document.getElementById("filtertoggle");
+  const paintOpen=on=>{ document.body.classList.toggle("filters-open", !!on); ft.setAttribute("aria-expanded", on?"true":"false"); };
+  paintOpen(pref("filters"));
+  ft.onclick=()=>setPref("filters", !document.body.classList.contains("filters-open"));
+  onPref("filters", paintOpen);
+}
+function markFilters(){ const t=document.getElementById("filtertoggle"), c=document.getElementById("filtercount");
+  const names=[CATFILTER!=="all"?CATFILTERS.find(x=>x.id===CATFILTER).label:"", FILTER!=="all"?FILTERS.find(f=>f.id===FILTER).label:""].filter(Boolean);
+  t.classList.toggle("active", names.length>0); c.hidden=!names.length; c.textContent=names.length||"";
+  t.title=names.length?"filters on: "+names.join(" · "):"show / hide the team and status filters"; }
+{ const sec=document.getElementById("sec"); sec.classList.toggle("open", !!pref("sec"));
+  const toggleSec=()=>{ const on=sec.classList.toggle("open"); setPref("sec", on); if(on) setTimeout(()=>document.getElementById("sec-in").focus(),50); };
   sec.addEventListener("click", e=>{ if(!sec.classList.contains("open")) toggleSec(); else if(e.target.closest("#sec-head")) toggleSec(); });
   // ⌘K / a reply arriving opens it
-  const _open=()=>{ if(!sec.classList.contains("open")){ sec.classList.add("open"); setPref("sec","1"); } };
+  const _open=()=>{ if(!sec.classList.contains("open")){ sec.classList.add("open"); setPref("sec", true); } };
   document.getElementById("sec-in").addEventListener("focus", _open);
   new MutationObserver(()=>{ if(document.getElementById("sec-reply").textContent.trim()) _open(); }).observe(document.getElementById("sec-reply"),{childList:true,characterData:true,subtree:true});
 }

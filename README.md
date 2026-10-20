@@ -18,6 +18,7 @@ It reads tmux + Claude Code transcripts to tell, per session, whether Claude is 
 - **Manage** — rename a session (tmux and its Office state move together), kill it, or spawn a new one from a form (person, project, folder, category) confined to your dev root. Sessions that died or were killed stay in history, so "+ New" can bring one back by name with its old folder and category — and resume its last Claude conversation. When Claude exits inside a session, the pane drops to a shell instead of closing.
 - **Erase** (🔥 on the card) — removes an agent completely: the tmux session, its folder, its Office entries, and everything Claude keeps about that folder (transcripts, memory directory, file-history snapshots, prompt-history lines). It is a dry run first: the dialog lists what would go and, read from the agent's own transcripts, every file it wrote *outside* its folder and every shell command that touched outside paths — you tick what should go too, type the session name, then it runs. A folder shared with another session is kept.
 - **⟳ Restore / Update agents** — the server keeps `live.json` (which sessions are alive, with folder, group and conversation id). After a reboot the header offers *Restore N agents*: every session comes back in one click, each on its own conversation (`claude --resume`). When Claude Code installs a new version ("Restart to update"), the same button offers *Update N agents*: each idle agent is quit (`/exit`) and started again in the same pane on the same conversation, with the same permission mode and any unsent draft typed back in; agents that are working or showing a question are left alone and listed. `GET /api/restart` is the plan, `POST /api/restart {restore:[…], update:[…]}` runs it, and the plan's `job.log` is the report.
+- **Settings (⚙)** — per device, kept in the browser: appearance (system / dark / light — the terminal itself stays dark so the agents' own colours stay readable), terminal text size (also reachable from the `Aa` key on the phone's key bar, applies to the open terminal at once), notifications, and the agents' restore/update row. After a reboot a banner under the header offers to bring the lost agents back in one tap. On the phone the Team/Status chips fold out behind a **Filters** pill next to the search box.
 - **Share from the phone** — `GET /api/drop` lists the live agents (`"Demo App | Max": "max-demo-app"`, most recent first) and `POST /api/drop?session=<s>&name=<file>` with the file as the body saves it to that agent's `inbox/` and tells the agent in its terminal; `POST /api/drop?session=<s>&text=1` types the body as a message. An iOS Shortcut in the Share Sheet turns that into: share → Office → pick the agent, like sending to a chat.
 - **iPhone app** (`ios/`) — an optional native shell around the same page, for one reason: iOS puts a keyboard accessory bar above every web text field and only a native app can remove it. Build it once with `sh ios/make.sh` on a Mac with Xcode; the Office keeps working the same for everyone without it. See `ios/README.md`.
 - **Secretary** — a chief-of-staff panel above the floor: type *"ask Lena to run the risk file, then have Mara draft the section"* and it finds those sessions and relays the instruction (real `send-keys`).
@@ -148,6 +149,14 @@ python -m unittest discover -s tests -v
 
 CI runs the same suite on Python 3.9–3.13 for every push and pull request
 (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+
+The browser tests in `tests/ui/` (settings, the phone header, the terminal key bar) run against a
+live Office and are skipped unless both are present:
+
+```sh
+pip install -r tests/requirements-ui.txt && playwright install chromium   # once
+OFFICE_URL=http://<your-tailscale-ip>:8899 python -m unittest discover -s tests -v
+```
 
 ## Versioning
 
