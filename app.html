@@ -58,14 +58,14 @@
     border:1px solid var(--line);border-radius:999px;padding:.2rem .6rem;white-space:nowrap}
   .navlink:hover{border-color:var(--work);background:var(--work2)}
   .sub{color:var(--faint);font-size:.8rem;margin-left:auto;display:inline-flex;align-items:center;gap:.4rem}
-  .bell{background:var(--panel);border:1px solid var(--line);border-radius:999px;font-size:.95rem;cursor:pointer;
+  .bell{background:var(--panel);border:1px solid var(--line);border-radius:999px;font-size:.95rem;cursor:pointer;color:var(--ink);
     padding:.18rem .5rem;line-height:1.2;opacity:.55;transition:opacity .15s,border-color .15s,background .15s}
   .bell:hover{opacity:.85}
   .bell.on{opacity:1;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,var(--panel))}
   /* ⟳ restore / update all agents — shown only when there is something to do */
   .bell.restart{opacity:1;font-size:.8rem;font-weight:600;border-color:var(--accent);color:var(--accent);white-space:nowrap}
   .bell.restart.busy{border-color:var(--line);color:var(--faint)}
-  .bell.settings{font-size:1rem;padding:.14rem .5rem}
+  .bell.settings{font-size:1rem;padding:.14rem .5rem;opacity:.9;color:var(--dim)}
   /* ⟳ banner: the one state that interrupts — only while agents from before a reboot are missing */
   .netbar.restorebar{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 12%,var(--panel))}
   .netbar.restorebar b{color:var(--accent)} .netbar.restorebar .ni{color:var(--accent)}
@@ -662,8 +662,8 @@
   <div class="preview" id="st-sub" hidden></div>
   <div class="sbody">
     <div class="srow action" id="st-agents" role="button" tabindex="0"><div><span class="sl" id="st-agents-l">Checking agents…</span><span class="ss" id="st-agents-s"></span></div><span class="sc" id="st-agents-c"></span></div>
-    <div class="srow wrap"><div><span class="sl">Appearance</span><span class="ss" id="st-theme-s" hidden>The terminal stays dark.</span></div>
-      <div class="sc radios" id="st-theme"><label><input type="radio" name="theme" value="system"><span id="st-sys">System</span></label><label><input type="radio" name="theme" value="dark">Dark</label><label><input type="radio" name="theme" value="light">Light</label></div></div>
+    <div class="srow wrap"><div><span class="sl">Appearance</span><span class="ss" id="st-theme-s"></span></div>
+      <div class="sc radios" id="st-theme"><label><input type="radio" name="theme" value="system">System</label><label><input type="radio" name="theme" value="dark">Dark</label><label><input type="radio" name="theme" value="light">Light</label></div></div>
     <div class="srow col"><div><span class="sl">Terminal text size</span></div>
       <div class="sc stepper"><button type="button" id="st-fminus" aria-label="Smaller text">−</button><span class="v" id="st-fval">11</span><button type="button" id="st-fplus" aria-label="Larger text">+</button></div>
       <div class="fsample" id="st-fsample">❯ claude  11px</div></div>
@@ -1741,9 +1741,10 @@ async function sendKey(key){
   const dlg=document.getElementById("settingsdlg"), btn=document.getElementById("settingsbtn"), sub=document.getElementById("st-sub");
   if(!dlg || !btn) return;
   // appearance
-  const radios=[...dlg.querySelectorAll('input[name=theme]')], sysLbl=document.getElementById("st-sys"), themeNote=document.getElementById("st-theme-s");
+  const radios=[...dlg.querySelectorAll('input[name=theme]')], themeNote=document.getElementById("st-theme-s");
   function paintTheme(){ const t=pref("theme")||"system", res=window.__theme ? __theme.resolved() : "dark";
-    radios.forEach(r=>r.checked=r.value===t); sysLbl.textContent=`System (${res})`; themeNote.hidden=res!=="light"; }
+    radios.forEach(r=>r.checked=r.value===t);
+    themeNote.textContent=(t==="system" ? `Follows the device (${res})` : "")+(res==="light" ? (t==="system"?" · ":"")+"The terminal stays dark." : ""); }
   radios.forEach(r=>r.addEventListener("change", ()=>{ if(r.checked) setPref("theme", r.value); }));
   onPref("theme", t=>{ if(window.__theme) __theme.set(t); paintTheme(); });
   if(window.__theme) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", ()=>setTimeout(paintTheme,0));
@@ -1782,6 +1783,8 @@ async function sendKey(key){
     if(window.RESTART) RESTART.plan();
   };
   btn.addEventListener("click", openSettings);
+  dlg.addEventListener("click", e=>{ if(e.target!==dlg) return; const r=dlg.getBoundingClientRect();   // the backdrop (outside the box) closes it
+    if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) dlg.close(); });
 })();
 // ⌘K / Ctrl-K: bring the secretary panel into view from anywhere. It sits at the top, so
 // scroll up to it; if the terminal is open, close it first so you land straight on it.
