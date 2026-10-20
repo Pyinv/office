@@ -10,7 +10,7 @@ class FiltersPill(BrowserCase):
 
     def test_pill_toggles_the_chips_and_remembers(self):
         self.open_floor()
-        self.assertEqual(self.js("document.getElementById('filtertoggle').firstChild.textContent"), "Filters")
+        self.assertEqual(self.js("document.getElementById('filtertoggle').getAttribute('aria-label')"), "Filters")
         self.assertFalse(self.js("document.body.classList.contains('filters-open')"))
         self.assertEqual(self.js("getComputedStyle(document.querySelector('.filtercol')).display"), "none")
         self.js("document.getElementById('filtertoggle').click()")
