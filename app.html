@@ -67,12 +67,13 @@
   .bell.restart.busy{border-color:var(--line);color:var(--faint)}
   .bell.settings{font-size:1rem;padding:.14rem .5rem}
   /* ⟳ banner: the one state that interrupts — only while agents from before a reboot are missing */
-  .restorebar{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 12%,var(--panel))}
-  .restorebar b{color:var(--accent)} .restorebar .ni{color:var(--accent)}
-  .restorebar button{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+  .netbar.restorebar{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 12%,var(--panel))}
+  .netbar.restorebar b{color:var(--accent)} .netbar.restorebar .ni{color:var(--accent)}
+  .netbar.restorebar button{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
   /* Settings: rows of label + control, the dialog chrome is the shared .newdlg.linkdlg */
   .settingsdlg h2{outline:none}
-  .settingsdlg .preview{font-family:inherit;font-size:.8rem}
+  .newdlg.settingsdlg .preview{font-family:inherit;font-size:.8rem}
+  .settingsdlg [hidden]{display:none!important}
   .settingsdlg .sbody{display:flex;flex-direction:column;margin-top:.4rem}
   @media (max-width:600px){ .settingsdlg .srow.wrap{flex-wrap:wrap} .settingsdlg .srow.wrap .radios{flex:1 0 100%;margin-top:.2rem} }
   .settingsdlg .srow{display:flex;align-items:center;justify-content:space-between;gap:.8rem;min-height:2.75rem;padding:.55rem 0;border-top:1px solid var(--line);order:1}
@@ -519,7 +520,8 @@
     .search,.search:focus{min-height:2.75rem}
     /* the ⟳ button has no room in the phone's title row: the banner and the Settings row carry it; ⚙ glows while there is something to do */
     #restartbtn{display:none}
-    .bell.settings{width:2.75rem;height:2.75rem;display:inline-flex;align-items:center;justify-content:center;padding:0;opacity:.8}
+    .bell{height:2.75rem;min-width:2.75rem;display:inline-flex;align-items:center;justify-content:center;padding:0 .6rem}
+    .bell.settings{width:2.75rem;padding:0;opacity:.8}
     .bell.settings.pending{border-color:var(--accent);color:var(--accent);opacity:1;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
     .controls{gap:.4rem}
     .secretary:not(.open){padding:.5rem .9rem .5rem 1rem;margin-bottom:.8rem;cursor:pointer}
@@ -1776,9 +1778,9 @@ async function sendKey(key){
     paintTheme(); paintFont(); paintNotify(); paintAgentsRow();
     if(!pref("seenSettings")){ sub.hidden=false; sub.textContent="Team and Status filters moved to the Filters button."; } else sub.hidden=true;
     dlg.showModal();
+    if(!pref("seenSettings")) setPref("seenSettings", true);     // the hint is for the first open only
     if(window.RESTART) RESTART.plan();
   };
-  dlg.addEventListener("close", ()=>{ if(!pref("seenSettings")) setPref("seenSettings", true); });
   btn.addEventListener("click", openSettings);
 })();
 // ⌘K / Ctrl-K: bring the secretary panel into view from anywhere. It sits at the top, so
