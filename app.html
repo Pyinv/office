@@ -1715,8 +1715,9 @@ async function sendKey(key){
     body.innerHTML=""; const j=PLAN.job||{};
     title.textContent=j.running ? "Restarting…" : "Done"; sub.textContent=j.running ? "one agent at a time, a few seconds each — you can close this, it carries on" : "";
     const l=document.createElement("div"); l.className="rlist";
-    (j.log||[]).forEach(t=>l.appendChild(row(t, t.startsWith("✓")?"ok":t.startsWith("✗")?"bad":"skip")));
+    // newest on top: the list outgrows the box after a dozen agents and what matters is the current one
     if(j.running) l.appendChild(row("…"));
+    [...(j.log||[])].reverse().forEach(t=>l.appendChild(row(t, t.startsWith("✓")?"ok":t.startsWith("✗")?"bad":"skip")));
     body.appendChild(l); go.hidden=true; forget.hidden=true; closeBtn.textContent="Close";
   }
   btn.addEventListener("click", async ()=>{ await plan(); show(); });
