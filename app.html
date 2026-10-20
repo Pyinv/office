@@ -75,7 +75,7 @@
   .newdlg.settingsdlg .preview{font-family:inherit;font-size:.8rem}
   .settingsdlg [hidden]{display:none!important}
   .settingsdlg .sbody{display:flex;flex-direction:column;margin-top:.4rem}
-  @media (max-width:600px){ .settingsdlg .srow.wrap{flex-wrap:wrap} .settingsdlg .srow.wrap .radios{flex:1 0 100%;margin-top:.2rem} }
+  @media (max-width:600px){ .settingsdlg .srow.stack{flex-wrap:wrap} .settingsdlg .srow.stack .radios{flex:1 0 100%;margin-top:.2rem} }
   .settingsdlg .srow{display:flex;align-items:center;justify-content:space-between;gap:.8rem;min-height:2.75rem;padding:.55rem 0;border-top:1px solid var(--line);order:1}
   .settingsdlg .srow>div:first-child{min-width:0}
   .settingsdlg .srow.col{flex-wrap:wrap}
@@ -663,7 +663,7 @@
   <div class="preview" id="st-sub" hidden></div>
   <div class="sbody">
     <div class="srow action" id="st-agents" role="button" tabindex="0"><div><span class="sl" id="st-agents-l">Checking agents…</span><span class="ss" id="st-agents-s"></span></div><span class="sc" id="st-agents-c"></span></div>
-    <div class="srow wrap"><div><span class="sl">Appearance</span><span class="ss" id="st-theme-s"></span></div>
+    <div class="srow stack"><div><span class="sl">Appearance</span><span class="ss" id="st-theme-s"></span></div>
       <div class="sc radios" id="st-theme"><label><input type="radio" name="theme" value="system">System</label><label><input type="radio" name="theme" value="dark">Dark</label><label><input type="radio" name="theme" value="light">Light</label></div></div>
     <div class="srow col"><div><span class="sl">Terminal text size</span></div>
       <div class="sc stepper"><button type="button" id="st-fminus" aria-label="Smaller text">−</button><span class="v" id="st-fval">11</span><button type="button" id="st-fplus" aria-label="Larger text">+</button></div>
