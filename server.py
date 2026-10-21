@@ -189,6 +189,7 @@ def emoji_json():
 
 sys.path.insert(0, ROOT)
 import team  # noqa: E402
+import restore  # noqa: E402
 
 # SIGHUP -> re-exec self with fresh code (server.py + team.py + app.html).
 # The listening socket has close-on-exec set by default (PEP 446), so the port
@@ -342,7 +343,7 @@ def record_history(snap):
         os.replace(tmp, HISTORY_FILE)
 
 LIVE_FILE = os.path.join(ROOT, "live.json")
-_live_cache = None
+_live_lock = threading.Lock()
 
 def load_live():
     try:
@@ -351,20 +352,30 @@ def load_live():
     except Exception:
         return {}
 
-def record_live(snap):
-    # Which sessions are alive right now, with what it takes to bring each back: after a
-    # reboot (tmux gone, this file still here) the restart button restores them in one go.
-    # Never written empty, so the last populated state survives the reboot itself.
-    global _live_cache
-    cur = {m["session"]: {"dir": m.get("dir", ""), "group": m.get("group", "personal"), "sid": m.get("sid", "")}
-           for m in snap if m.get("dir") and not m.get("ghost")}
-    if not cur or cur == _live_cache:
-        return
-    _live_cache = cur
+def _save_live(st):
     tmp = LIVE_FILE + ".tmp"
     with open(tmp, "w") as f:
-        json.dump({"ts": int(time.time()), "sessions": cur}, f, indent=2, sort_keys=True)
+        json.dump(dict(st, ts=int(time.time())), f, indent=2, sort_keys=True)
     os.replace(tmp, LIVE_FILE)
+
+def _update_live(fn):
+    # read-modify-write of live.json under one lock: floor polls, kills, renames and Forget
+    with _live_lock:
+        old = load_live()
+        new = fn(old)
+        if {k: old.get(k) for k in ("server", "sessions", "baseline")} != {k: new.get(k) for k in ("server", "sessions", "baseline")}:
+            _save_live(new)
+
+def record_live(snap):
+    # Which sessions are alive right now, with what it takes to bring each back. When tmux dies
+    # and a new server starts, the old set becomes the restore baseline (see restore.py), so a
+    # partial restore or a fresh session can't wipe the rest from the ⟳ list.
+    cur = {m["session"]: {"dir": m.get("dir", ""), "group": m.get("group", "personal"), "sid": m.get("sid", "")}
+           for m in snap if m.get("dir") and not m.get("ghost")}
+    if not cur:
+        return
+    server = restore.server_id()
+    _update_live(lambda st: restore.merge(st, cur, server))
 
 # ── restart button: bring back every agent after a reboot / restart agents into a new Claude Code ──
 _JOB = {"running": False, "started": 0, "done": 0, "log": []}
@@ -402,8 +413,7 @@ def _wait(pred, secs):
 def restart_plan():
     snap = team.snapshot()
     live = {m["session"] for m in snap}
-    saved = load_live().get("sessions", {})
-    restore = [{"session": n, **v} for n, v in sorted(saved.items()) if n not in live and v.get("sid")]
+    restore_ = [{"session": n, **v} for n, v in restore.candidates(load_live(), live).items()]
     update, skip = [], []
     for m in snap:
         if not m.get("update"):
@@ -412,7 +422,7 @@ def restart_plan():
                else "no conversation id" if not m.get("sid") else "")
         (skip if why else update).append({"session": m["session"], "person": m["person"], "mode": m.get("mode", ""),
                                           "sid": m.get("sid", ""), "why": why, "draft": m.get("draft", "")})
-    return {"restore": restore, "update": update, "skip": skip, "job": dict(_JOB)}
+    return {"restore": restore_, "update": update, "skip": skip, "job": dict(_JOB)}
 
 def _log(msg):
     _JOB["log"].append(msg)
@@ -433,11 +443,11 @@ def _spawn(name, d, grp, resume="", mode=""):
     if grp in VALID_GROUPS:
         g = load_groups(); g[name] = grp; save_groups(g)
 
-def _restart_job(restore, update):
+def _restart_job(wanted, update):
     try:
         plan = restart_plan()
         for r in plan["restore"]:
-            if r["session"] not in restore:
+            if r["session"] not in wanted:
                 continue
             try:
                 d = r.get("dir") or DEV_ROOT
@@ -876,18 +886,18 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _restart(self, data):
         if data.get("forget"):                 # the user doesn't want the saved sessions back
-            try: os.remove(LIVE_FILE)
-            except OSError: pass
+            alive = live_sessions()
+            _update_live(lambda st: restore.forget(st, alive))
             return self._json({"ok": True})
-        restore = {str(s) for s in (data.get("restore") or [])}
+        wanted = {str(s) for s in (data.get("restore") or [])}
         update = {str(s) for s in (data.get("update") or [])}
-        if not restore and not update:
+        if not wanted and not update:
             return self._json({"error": "nothing to do"}, 400)
         with _job_lock:
             if _JOB["running"]:
                 return self._json({"error": "a restart is already running"}, 409)
             _JOB.update({"running": True, "started": int(time.time()), "done": 0, "log": []})
-        threading.Thread(target=_restart_job, args=(restore, update), daemon=True).start()
+        threading.Thread(target=_restart_job, args=(wanted, update), daemon=True).start()
         return self._json({"ok": True})
 
     def _menu(self, data):
@@ -1480,6 +1490,7 @@ class Handler(SimpleHTTPRequestHandler):
                 with open(tmp, "w") as f:
                     json.dump(h, f, indent=2, sort_keys=True)
                 os.replace(tmp, HISTORY_FILE)
+        _update_live(lambda st: restore.rename(st, old, new))
         return self._json({"ok": True, "session": new})
 
     def _kill(self, data):
@@ -1493,6 +1504,7 @@ class Handler(SimpleHTTPRequestHandler):
         g = load_groups()
         if g.pop(sess, None) is not None:
             save_groups(g)
+        _update_live(lambda st: restore.drop(st, sess))       # closed on purpose: never offered for restore
         return self._json({"ok": True, "killed": sess})
 
 
@@ -1639,6 +1651,7 @@ class Handler(SimpleHTTPRequestHandler):
                 with open(tmp, "w") as f:
                     json.dump(h, f, indent=2, sort_keys=True)
                 os.replace(tmp, HISTORY_FILE); done.append("office history")
+        _update_live(lambda st: restore.drop(st, sess))        # never offered for restore again
         # 3. what it wrote elsewhere — only the paths you ticked
         for a in also:
             rm(a, "outside: " + a)
