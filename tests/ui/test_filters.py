@@ -32,7 +32,7 @@ class FiltersPill(BrowserCase):
 
     def test_fold_out_holds_only_the_chips_now(self):
         self.open_floor()
-        self.assertFalse(self.js("!!document.querySelector('.filtercol #restartbtn, .filtercol .navlink.shortcut')"))
+        self.assertFalse(self.js("!!document.querySelector('.filtercol #restartbtn, .filtercol .navlink')"))
         self.assertEqual(self.js("getComputedStyle(document.getElementById('restartbtn')).display"), "none")
 
     def test_gear_is_a_real_touch_target_and_glows_while_pending(self):

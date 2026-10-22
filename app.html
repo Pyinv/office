@@ -102,10 +102,7 @@
   .settingsdlg .stepper .v{font-variant-numeric:tabular-nums;min-width:2.2ch;text-align:center;font-weight:700}
   .settingsdlg .fsample{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.4;background:#0c0f14;color:#e8eef6;border-radius:8px;padding:.5rem .7rem;margin-top:.5rem;white-space:pre}
   .settingsdlg input[type=checkbox]{width:1.25rem;height:1.25rem;accent-color:var(--accent);flex:0 0 auto;margin:0}
-  .settingsdlg .srow.phoneonly{display:none}
-  .settingsdlg .srow a.navlink{border:0;padding:0;font-size:.84rem;font-weight:600}
   .settingsdlg :is(button,input[type=checkbox],a,.srow.action):focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
-  @media (pointer:coarse){.settingsdlg .srow.phoneonly{display:flex}}
   .restartdlg .rlist{display:flex;flex-direction:column;gap:.2rem;max-height:40vh;overflow:auto;margin:.3rem 0 .6rem;font-size:.9rem}
   .restartdlg .rlist div{padding:.25rem .5rem;border-radius:8px;background:var(--panel2)}
   .restartdlg .rlist div.skip{color:var(--faint)}
@@ -669,7 +666,6 @@
       <div class="sc stepper"><button type="button" id="st-fminus" aria-label="Smaller text">−</button><span class="v" id="st-fval">11</span><button type="button" id="st-fplus" aria-label="Larger text">+</button></div>
       <div class="fsample" id="st-fsample">❯ claude  11px</div></div>
     <div class="srow"><label for="st-notify" style="display:block;cursor:pointer"><span class="sl">Notifications</span><span class="ss" id="st-notify-s">Ping me when an agent needs me</span></label><input type="checkbox" id="st-notify"></div>
-    <div class="srow phoneonly" id="st-shortcut-row"><a class="navlink shortcut" id="st-shortcut" href="{{OFFICE_SHORTCUT_URL}}">📲 Share-sheet shortcut →</a></div>
   </div>
   <div class="lk-btns"><button type="button" onclick="this.closest('dialog').close()">Done</button></div>
 </dialog>
@@ -1739,7 +1735,7 @@ async function sendKey(key){
   });
   plan(); setInterval(plan, 30000);
 })();
-// ── Settings: theme, terminal text size, notifications, the agents' restore/update, the phone shortcut.
+// ── Settings: theme, terminal text size, notifications, the agents' restore/update.
 // Every row reads from office.prefs through pref() and repaints through its onPref hook, so the bell,
 // the terminal and this dialog can never disagree.
 (function(){
@@ -1778,8 +1774,6 @@ async function sendKey(key){
     dlg.close(); RESTART.show(); };            // one dialog at a time: closing the restart dialog returns to the page
   row.addEventListener("click", rowGo);
   row.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); rowGo(); } });
-  // the phone shortcut row only exists when a link is configured (the navlink remover already dropped an empty one)
-  if(!document.getElementById("st-shortcut")) document.getElementById("st-shortcut-row").hidden=true;
   // first open after the filters moved out of ⚙: say so once
   window.openSettings=function(){
     paintTheme(); paintFont(); paintNotify(); paintAgentsRow();

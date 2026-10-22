@@ -113,7 +113,7 @@ class DesktopDefaults(BrowserCase):
         self.assertEqual(self.js("getComputedStyle(document.getElementById('settingsbtn')).boxShadow"), "none")   # no glow on desktop
         self.assertEqual(self.js("getComputedStyle(document.getElementById('filtertoggle')).display"), "none")
         self.open_settings()
-        self.assertEqual(self.js("getComputedStyle(document.getElementById('st-shortcut-row')).display"), "none")
+        self.assertIsNone(self.js("document.getElementById('st-shortcut-row')"))
 
 
 @skip_unless_browser

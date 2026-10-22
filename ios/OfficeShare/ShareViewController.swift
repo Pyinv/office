@@ -233,8 +233,14 @@ final class AgentListController: UITableViewController, UITextFieldDelegate {
                 let msg = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? String
                 throw NSError(domain: "Office", code: code, userInfo: [NSLocalizedDescriptionKey: msg ?? "the Office answered \(code)"])
             }
-            let waiting = ((try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["waiting"] as? Bool) ?? false
-            status = waiting ? "Sent ✓ — it goes in once the agent's question is answered" : "Sent ✓"
+            let answer = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+            let waiting = (answer["waiting"] as? Bool) ?? false
+            let who = (answer["to"] as? String) ?? "the agent"
+            switch answer["why"] as? String {
+            case "question": status = "Sent ✓ — \(who) is asking you something; it goes in once you answer"
+            case "draft": status = "Sent ✓ — there is unsent text in \(who)'s box; it goes in once that is sent or cleared"
+            default: status = waiting ? "Sent ✓ — it goes in in a moment" : "Sent ✓ — \(who) has it"
+            }
             tableView.reloadData()
             try? await Task.sleep(nanoseconds: waiting ? 1_400_000_000 : 600_000_000)
             try? FileManager.default.removeItem(at: tmp)
