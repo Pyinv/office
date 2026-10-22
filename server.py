@@ -857,20 +857,21 @@ class Handler(SimpleHTTPRequestHandler):
             try: return max(1, int((q.get(k) or [""])[0]))
             except ValueError: return None
         idx, count = _int("i"), _int("n")         # Repeat Index / Count from the Shortcut, when it sends them
-        if (q.get("text") or [""])[0]:
+        fname = os.path.basename(unquote((q.get("name") or [""])[0]).replace("\\", "/")).strip()
+        is_text = bool((q.get("text") or [""])[0]) or dropbatch.shared_text(fname, body)
+        if is_text:
             text = body.decode("utf-8", "replace").strip()
             if not text:
                 return self._json({"error": "empty text"}, 400)
             item = ("text", text)
             rel = None
         else:
-            name = os.path.basename(unquote((q.get("name") or [""])[0]).replace("\\", "/")).strip()
-            name = re.sub(r"[\x00-\x1f\x7f]", "", name)[:120]
+            name = re.sub(r"[\x00-\x1f\x7f]", "", fname)[:120]
             if not name or name in ("Image", "File", "Photo", "Document"):   # iOS's placeholder names
                 name = time.strftime("%Y-%m-%d_%H%M%S")
             if name.startswith("."):
                 name = "_" + name
-            if "." not in name[1:]:                    # no extension: sniff it, so the agent can open it
+            if not re.fullmatch(r"\.[A-Za-z0-9]{1,5}", os.path.splitext(name)[1]):   # no real extension ("…automatically.")
                 name += _sniff_ext(body)
             inbox = os.path.join(d, "inbox")
             os.makedirs(inbox, exist_ok=True)

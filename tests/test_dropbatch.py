@@ -4,7 +4,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from dropbatch import Batches  # noqa: E402
+from dropbatch import Batches, shared_text  # noqa: E402
 
 
 class Clock:
@@ -121,6 +121,23 @@ class Refused(Rig):
         for _ in range(130):
             self.wait(1)
         self.assertEqual(self.stuck, [("ana", 1)])
+
+
+class SharedText(unittest.TestCase):
+    """WhatsApp hands its texts to the Share Sheet as small text files named after their first words."""
+
+    def test_whatsapp_texts_are_messages(self):
+        t = b"The other MSCONS for single measurement or Energiemengen already exist, I just need to verify them and then they need to be automated"
+        self.assertTrue(shared_text("The other MSCONS for single measurement or Energiemengen already exist, I just need to verify them a.txt", t))
+        t = b"Maybe we can practice with Hamburg, to reply to all of them automatically."
+        self.assertTrue(shared_text("Maybe we can practice with Hamburg, to reply to all of them automatically.", t))
+
+    def test_real_files_stay_files(self):
+        self.assertFalse(shared_text("notes.txt", b"shopping list\nmilk\neggs"))        # its own name
+        self.assertFalse(shared_text("report.csv", b"a,b\n1,2"))                        # not a text share
+        self.assertFalse(shared_text("IMG_1.jpg", b"\xff\xd8\xff\xe0binary"))
+        self.assertFalse(shared_text("big.txt", b"x" * 20000))
+        self.assertFalse(shared_text("Image", b"\x89PNG\r\n\x1a\n\x00"))
 
 
 if __name__ == "__main__":

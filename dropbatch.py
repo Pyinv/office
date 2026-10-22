@@ -19,6 +19,8 @@ Delivery can be refused (the agent shows a question, or has an unsent draft in i
 batch stays and is retried on every tick; after STUCK seconds on_stuck() is called once.
 Pure apart from the callables passed in, so it is tested with a fake clock.
 """
+import os
+import re
 import threading
 import time
 
@@ -113,3 +115,23 @@ class Batches:
             else:
                 lines.append(f"{j}. {v}")
         return "\n".join(lines)
+
+
+def shared_text(name, body):
+    """A WhatsApp/Notes text arrives as a small plain-text FILE named after its own first words.
+    That is a message, not a document: pass it on as text. A real .txt with its own name stays a file."""
+    if len(body) > 16384 or b"\x00" in body:
+        return False
+    try:
+        text = body.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return False
+    if not text:
+        return False
+    stem, ext = os.path.splitext(name)
+    real_ext = bool(re.fullmatch(r"\.[A-Za-z0-9]{1,5}", ext))
+    if real_ext and ext.lower() != ".txt":
+        return False
+    head = re.sub(r"\s+", " ", text)[:24].lower()
+    named_after_it = re.sub(r"\s+", " ", (stem if real_ext else name)).lower().startswith(head[:min(len(head), 16)])
+    return named_after_it or not name
