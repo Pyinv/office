@@ -306,9 +306,19 @@ _STATUSLINE = re.compile(r'\|\s*[+\-]?\d|\bago\b|\$\d|\d+%|agents:|' + HOST + r'
 
 _VERB = re.compile(r'([A-Z][a-zA-Z-]+…)')   # spinner verb, e.g. "Caramelizing…", "Razzle-dazzling…"
 
+_SGR = re.compile(r'\x1b\[[0-9;]*m')
+# Claude Code pre-fills an idle input box with a DIM suggestion of your next prompt (SGR 2). It is
+# not something you typed: drop dim runs before reading the box, or every idle agent looks like it
+# holds an unsent draft (drops wait for nothing, a restart types the suggestion back in).
+_DIM = re.compile(r'\x1b\[2m.*?(?=\x1b\[(?:0|22)?m|$)')
+
+def _undim(line):
+    return _SGR.sub('', _DIM.sub('', line))
+
 def _pane(name):
-    raw = re.sub(r'\x1b\[[0-9;]*m', '', _tmux("capture-pane", "-p", "-t", name, "-S", "-120"))
-    lines = raw.splitlines()
+    raw_e = _tmux("capture-pane", "-p", "-e", "-t", name, "-S", "-120")
+    lines_e = raw_e.splitlines()
+    lines = [_SGR.sub('', l) for l in lines_e]
     # the spinner sits ~7 lines up (above the input box + 3-line statusline), so scan deeper
     working = any(_ACTIVE.search(l) for l in lines[-12:])
     verb = ""
@@ -323,13 +333,14 @@ def _pane(name):
         s = lines[i].strip().strip('│').strip()
         m = _PROMPT.match(s)
         if m:
+            m = _PROMPT.match(_undim(lines_e[i]).strip().strip('│').strip()) or m
             after = m.group(1).strip()
             if after and not _PLACEHOLDER.match(after):
                 typed = after[:240]
                 # the whole draft: the prompt box runs from the ❯ line down to the next rule
                 box = [after]
-                for l in lines[i + 1:]:
-                    t = l.strip().strip('│').strip()
+                for l in lines_e[i + 1:]:
+                    t = _undim(l).strip().strip('│').strip()
                     if not t or t.startswith("─") or t.startswith("╰"):
                         break
                     box.append(t)

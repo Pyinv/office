@@ -128,5 +128,35 @@ class ParseLatest(unittest.TestCase):
             self.assertIsNone(team._parse_latest(d))
 
 
+class PromptBox(unittest.TestCase):
+    """team._pane reads the agent's input box from a captured pane (with colours)."""
+
+    PANE = ("● done.\n"
+            "\x1b[2m" + "─" * 40 + "\x1b[0m\n"
+            "{box}\n"
+            "\x1b[2m" + "─" * 40 + "\x1b[0m\n"
+            "  ~/proj\n  ⏵⏵ auto mode on (shift+tab to cycle)\n")
+
+    def pane(self, box):
+        orig = team._tmux
+        team._tmux = lambda *a: self.PANE.format(box=box)
+        try:
+            return team._pane("x")
+        finally:
+            team._tmux = orig
+
+    def test_claude_codes_dim_suggestion_is_not_a_draft(self):
+        r = self.pane("\x1b[39m❯\xa0\x1b[2mput this example in html\x1b[0m")
+        self.assertEqual(r[6], "")
+        self.assertIsNone(r[1])
+
+    def test_text_you_typed_is_a_draft(self):
+        r = self.pane("\x1b[39m❯\xa0half typed message\x1b[0m")
+        self.assertEqual(r[6], "half typed message")
+
+    def test_empty_box(self):
+        self.assertEqual(self.pane("❯\xa0")[6], "")
+
+
 if __name__ == "__main__":
     unittest.main()
