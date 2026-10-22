@@ -66,6 +66,18 @@ class ExactCount(Rig):
         self.assertIn("(2 of 3 items, 1 didn't arrive)", self.sent[0][1])
 
 
+class NewShare(Rig):
+    def test_a_new_share_closes_an_unfinished_one(self):
+        for k in range(1, 4):
+            self.b.add("ana", "file", f"inbox/old{k}.jpg", i=k, n=22)       # 19 of 22 never came
+        self.b.add("ana", "file", "inbox/new1.jpg", i=1, n=2)
+        self.assertEqual(len(self.sent), 1)
+        self.assertIn("(3 of 22 items, 19 didn't arrive)", self.sent[0][1])
+        self.b.add("ana", "file", "inbox/new2.jpg", i=2, n=2)
+        self.assertEqual(len(self.sent), 2)
+        self.assertIn("1. inbox/new1.jpg\n2. inbox/new2.jpg", self.sent[1][1])
+
+
 class QuietFallback(Rig):
     def test_old_shortcut_groups_by_quiet_time(self):
         self.b.add("ana", "file", "inbox/1.png")
@@ -131,6 +143,10 @@ class SharedText(unittest.TestCase):
         self.assertTrue(shared_text("The other MSCONS for single measurement or Energiemengen already exist, I just need to verify them a.txt", t))
         t = b"Maybe we can practice with Hamburg, to reply to all of them automatically."
         self.assertTrue(shared_text("Maybe we can practice with Hamburg, to reply to all of them automatically.", t))
+
+    def test_a_text_whose_name_looks_like_an_extension(self):
+        t = b"I am modifying the PV meter manually, to give me both directions, i.e. 2.8.0 and 1.8.0"
+        self.assertTrue(shared_text("I am modifying the PV meter manually, to give me both directions, i.e. 2.8.0", t))
 
     def test_real_files_stay_files(self):
         self.assertFalse(shared_text("notes.txt", b"shopping list\nmilk\neggs"))        # its own name

@@ -41,6 +41,9 @@ class Batches:
         t = self.now()
         with self.lock:
             q = self.pending.setdefault(session, [])
+            if q and not q[-1]["closed"] and i is not None and (
+                    (n and q[-1]["n"] and n != q[-1]["n"]) or any(x[0] == i for x in q[-1]["items"])):
+                q[-1]["closed"] = True                  # a NEW share began (index restarted): the old one is done
             if not q or q[-1]["closed"]:                # a batch still waiting to be delivered stays as it is
                 q.append({"items": [], "note": "", "n": None, "last": t,
                           "blocked": None, "warned": False, "closed": False})
@@ -51,7 +54,7 @@ class Batches:
             b["last"] = t
             if b["n"] is not None and len(b["items"]) >= b["n"]:
                 b["closed"] = True
-            done = b["closed"]
+            done = q[0]["closed"]                       # this share is complete, or an older one was just closed
         return self._flush(session) if done else False
 
     def tick(self):
@@ -130,10 +133,10 @@ def shared_text(name, body):
         return False
     if not text:
         return False
+    if not name:
+        return True
+    head = re.sub(r"\s+", " ", text)[:16].lower()
+    if re.sub(r"\s+", " ", name).lower().startswith(head):
+        return True                                 # named after its own words ("… i.e. 2.8.0" too)
     stem, ext = os.path.splitext(name)
-    real_ext = bool(re.fullmatch(r"\.[A-Za-z0-9]{1,5}", ext))
-    if real_ext and ext.lower() != ".txt":
-        return False
-    head = re.sub(r"\s+", " ", text)[:24].lower()
-    named_after_it = re.sub(r"\s+", " ", (stem if real_ext else name)).lower().startswith(head[:min(len(head), 16)])
-    return named_after_it or not name
+    return ext.lower() == ".txt" and re.sub(r"\s+", " ", stem).lower().startswith(head)
