@@ -19,6 +19,8 @@ Delivery can be refused (the agent shows a question, or has an unsent draft in i
 batch stays and is retried on every tick; after STUCK seconds on_stuck() is called once.
 Pure apart from the callables passed in, so it is tested with a fake clock.
 """
+import email.parser
+import email.policy
 import os
 import re
 import threading
@@ -56,6 +58,19 @@ class Batches:
                 b["closed"] = True
             done = q[0]["closed"]                       # this share is complete, or an older one was just closed
         return self._flush(session) if done else False
+
+    def add_all(self, session, items, note=""):
+        """A whole share at once (the app's share sheet): items = [(kind, value), …] in order.
+        It goes out as one message as soon as nothing is in front of it. Returns True if delivered."""
+        if not items:
+            return False
+        with self.lock:
+            q = self.pending.setdefault(session, [])
+            if q and not q[-1]["closed"]:
+                q[-1]["closed"] = True                  # an unfinished Shortcut share goes first, as it is
+            q.append({"items": [(k, kind, v) for k, (kind, v) in enumerate(items, 1)], "note": (note or "").strip(),
+                      "n": len(items), "last": self.now(), "blocked": None, "warned": False, "closed": True})
+        return self._flush(session)
 
     def tick(self):
         """Close batches whose time is up and retry refused ones. Call about once a second."""
@@ -140,3 +155,24 @@ def shared_text(name, body):
         return True                                 # named after its own words ("… i.e. 2.8.0" too)
     stem, ext = os.path.splitext(name)
     return ext.lower() == ".txt" and re.sub(r"\s+", " ", stem).lower().startswith(head)
+
+
+def parse_share(content_type, body):
+    """multipart/form-data from the app's share sheet -> (fields, items) with items in order:
+    ("text", str) for a part named "text", ("file", filename, bytes) for every file part."""
+    msg = email.parser.BytesParser(policy=email.policy.HTTP).parsebytes(
+        b"Content-Type: " + content_type.encode("latin-1") + b"\r\n\r\n" + body)
+    if not msg.is_multipart():
+        raise ValueError("expected multipart/form-data")
+    fields, items = {}, []
+    for part in msg.iter_parts():
+        name = part.get_param("name", header="content-disposition") or ""
+        filename = part.get_filename()
+        data = part.get_payload(decode=True) or b""
+        if filename is not None:
+            items.append(("file", filename, data))
+        elif name == "text":
+            items.append(("text", data.decode("utf-8", "replace")))
+        else:
+            fields[name] = data.decode("utf-8", "replace")
+    return fields, items

@@ -4,7 +4,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from dropbatch import Batches, shared_text  # noqa: E402
+from dropbatch import Batches, parse_share, shared_text  # noqa: E402
 
 
 class Clock:
@@ -76,6 +76,34 @@ class NewShare(Rig):
         self.b.add("ana", "file", "inbox/new2.jpg", i=2, n=2)
         self.assertEqual(len(self.sent), 2)
         self.assertIn("1. inbox/new1.jpg\n2. inbox/new2.jpg", self.sent[1][1])
+
+
+class WholeShare(Rig):
+    def test_a_whole_share_goes_out_at_once_in_order(self):
+        self.assertTrue(self.b.add_all("ana", [("file", "inbox/a.jpg"), ("text", "hi"), ("file", "inbox/b.pdf")], "from the app"))
+        self.assertEqual(self.sent[0][1], '📎 shared from phone (3 items) — from the app\n1. inbox/a.jpg\n2. "hi"\n3. inbox/b.pdf')
+
+    def test_waits_behind_a_question_like_the_rest(self):
+        self.accept = False
+        self.assertFalse(self.b.add_all("ana", [("text", "hi")]))
+        self.accept = True
+        self.wait(1)
+        self.assertEqual(self.sent, [("ana", "📝 shared from phone: hi")])
+
+
+class Multipart(unittest.TestCase):
+    def test_fields_texts_and_binary_files_in_order(self):
+        blob = bytes(range(256)) * 4
+        B = b"XyZ"
+        body = (b"--XyZ\r\nContent-Disposition: form-data; name=\"session\"\r\n\r\nana-x\r\n"
+                b"--XyZ\r\nContent-Disposition: form-data; name=\"note\"\r\n\r\nfrom whatsapp\r\n"
+                b"--XyZ\r\nContent-Disposition: form-data; name=\"file\"; filename=\"PHOTO 1.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n" + blob + b"\r\n"
+                b"--XyZ\r\nContent-Disposition: form-data; name=\"text\"\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nline one\nzwei \xc3\xbc\r\n"
+                b"--XyZ--\r\n")
+        fields, items = parse_share("multipart/form-data; boundary=" + B.decode(), body)
+        self.assertEqual(fields, {"session": "ana-x", "note": "from whatsapp"})
+        self.assertEqual(items[0], ("file", "PHOTO 1.jpg", blob))
+        self.assertEqual(items[1], ("text", "line one\nzwei ü"))
 
 
 class QuietFallback(Rig):

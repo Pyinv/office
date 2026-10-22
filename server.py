@@ -737,6 +737,8 @@ class Handler(SimpleHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/api/drop":      # raw file body, not JSON
             return self._drop()
+        if path == "/api/share":     # multipart from the app's share sheet
+            return self._share()
         try:
             n = int(self.headers.get("Content-Length", 0))
             data = json.loads(self.rfile.read(n) or b"{}")
@@ -837,16 +839,74 @@ class Handler(SimpleHTTPRequestHandler):
             return None
         return d
 
-    def _drop(self):
-        q = parse_qs(urlparse(self.path).query)
-        sess = (q.get("session") or [""])[0].strip()
+    def _drop_target(self, sess):
+        """(session, folder) for a session name or its label, or (None, error response sent)."""
+        sess = (sess or "").strip()
         if sess and sess not in live_sessions():          # the label ("Demo App | Max") works too
             sess = next((s_ for label, s_ in self._drop_rows() if label == sess), sess)
         if not sess or sess not in live_sessions():
-            return self._json({"error": f"no live session '{sess}'"}, 409)
+            self._json({"error": f"no live session '{sess}'"}, 409); return None, None
         d = self._drop_dir(sess)
         if not d:
-            return self._json({"error": "that agent has no folder I'd write into"}, 409)
+            self._json({"error": "that agent has no folder I'd write into"}, 409); return None, None
+        return sess, d
+
+    @staticmethod
+    def _drop_save(d, fname, body):
+        """Save a shared file into <agent>/inbox, never overwriting; returns its path relative to the agent."""
+        name = re.sub(r"[\x00-\x1f\x7f]", "", os.path.basename((fname or "").replace("\\", "/")).strip())[:120]
+        if not name or name in ("Image", "File", "Photo", "Document"):   # iOS's placeholder names
+            name = time.strftime("%Y-%m-%d_%H%M%S")
+        if name.startswith("."):
+            name = "_" + name
+        if not re.fullmatch(r"\.[A-Za-z0-9]{1,5}", os.path.splitext(name)[1]):   # no real extension ("…automatically.")
+            name += _sniff_ext(body)
+        inbox = os.path.join(d, "inbox")
+        os.makedirs(inbox, exist_ok=True)
+        stem, ext = os.path.splitext(name)
+        dest, k = os.path.join(inbox, name), 2
+        while os.path.exists(dest):              # never overwrite an earlier drop
+            dest, k = os.path.join(inbox, f"{stem}-{k}{ext}"), k + 1
+        with open(dest, "wb") as f:
+            f.write(body)
+        return os.path.relpath(dest, d)
+
+    def _share(self):
+        # The app's share sheet: the whole share in ONE multipart request (session, note, then the
+        # items in order: "text" parts and file parts). Delivered as one message, guarded like drops.
+        n = int(self.headers.get("Content-Length", 0) or 0)
+        if n <= 0 or n > self.DROP_MAX:
+            return self._json({"error": "empty or too big (200 MB max)"}, 413)
+        body = self.rfile.read(n)
+        try:
+            fields, parts = dropbatch.parse_share(self.headers.get("Content-Type", ""), body)
+        except Exception as e:
+            return self._json({"error": f"couldn't read the share: {e}"}, 400)
+        sess, d = self._drop_target(fields.get("session"))
+        if not sess:
+            return
+        items = []
+        for p in parts:
+            if p[0] == "text":
+                if p[1].strip():
+                    items.append(("text", p[1].strip()))
+            elif dropbatch.shared_text(p[1], p[2]):
+                items.append(("text", p[2].decode("utf-8").strip()))
+            else:
+                items.append(("file", self._drop_save(d, p[1], p[2])))
+        if not items:
+            return self._json({"error": "nothing to share"}, 400)
+        note = (fields.get("note") or "").strip().replace("\n", " ")
+        sent = DROPS.add_all(sess, items, note)
+        sys.stderr.write(f"office/share: {len(items)} item(s) -> {sess}{'' if sent else ' (waiting)'}\n")
+        return self._json({"ok": True, "to": sess.partition("-")[0].capitalize(), "items": len(items),
+                           "delivered": sent, "waiting": not sent})
+
+    def _drop(self):
+        q = parse_qs(urlparse(self.path).query)
+        sess, d = self._drop_target((q.get("session") or [""])[0])
+        if not sess:
+            return
         n = int(self.headers.get("Content-Length", 0) or 0)
         if n <= 0 or n > self.DROP_MAX:
             return self._json({"error": "empty or too big (200 MB max)"}, 413)
@@ -866,22 +926,7 @@ class Handler(SimpleHTTPRequestHandler):
             item = ("text", text)
             rel = None
         else:
-            name = re.sub(r"[\x00-\x1f\x7f]", "", fname)[:120]
-            if not name or name in ("Image", "File", "Photo", "Document"):   # iOS's placeholder names
-                name = time.strftime("%Y-%m-%d_%H%M%S")
-            if name.startswith("."):
-                name = "_" + name
-            if not re.fullmatch(r"\.[A-Za-z0-9]{1,5}", os.path.splitext(name)[1]):   # no real extension ("…automatically.")
-                name += _sniff_ext(body)
-            inbox = os.path.join(d, "inbox")
-            os.makedirs(inbox, exist_ok=True)
-            stem, ext = os.path.splitext(name)
-            dest, k = os.path.join(inbox, name), 2
-            while os.path.exists(dest):              # never overwrite an earlier drop
-                dest, k = os.path.join(inbox, f"{stem}-{k}{ext}"), k + 1
-            with open(dest, "wb") as f:
-                f.write(body)
-            rel = os.path.relpath(dest, d)
+            rel = self._drop_save(d, fname, body)
             item = ("file", rel)
         # not typed in yet: it joins this agent's batch, which goes out as one message once the
         # share is complete (dropbatch.py) — so ten WhatsApp messages are one turn, in order
