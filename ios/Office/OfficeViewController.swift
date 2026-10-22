@@ -5,7 +5,6 @@ import SafariServices
 /// Full-screen view of your Office. The page does everything (terminals, pull-to-refresh,
 /// the message box); this just hosts it without a browser around it.
 final class OfficeViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
-    private static let urlKey = "officeURL"
     private var web: NoAccessoryWebView!
     private var officeHost = ""
 
@@ -45,8 +44,7 @@ final class OfficeViewController: UIViewController, WKNavigationDelegate, WKUIDe
 
     // MARK: where is the Office
     private func savedURL() -> URL? {
-        guard let s = UserDefaults.standard.string(forKey: Self.urlKey) else { return nil }
-        return URL(string: s)
+        OfficeAddress.url
     }
 
     private func askForURL(message: String = "The address of your Office, e.g. https://office.example.com") {
@@ -56,14 +54,14 @@ final class OfficeViewController: UIViewController, WKNavigationDelegate, WKUIDe
             tf.keyboardType = .URL
             tf.autocapitalizationType = .none
             tf.autocorrectionType = .no
-            tf.text = UserDefaults.standard.string(forKey: Self.urlKey)
+            tf.text = OfficeAddress.url?.absoluteString
         }
         a.addAction(UIAlertAction(title: "Open", style: .default) { [weak self] _ in
             guard let self else { return }
             var s = a.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !s.contains("://") { s = "https://" + s }
             guard let u = URL(string: s), u.host != nil else { self.askForURL(message: "That isn't a valid address."); return }
-            UserDefaults.standard.set(u.absoluteString, forKey: Self.urlKey)
+            OfficeAddress.save(u)
             self.load(u)
         })
         present(a, animated: true)
