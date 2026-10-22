@@ -107,7 +107,9 @@ class Batches:
             if k == "text":
                 return f"📝 shared from phone: {v}" + (f"  — {note}" if note else "")
             return f"📎 shared from phone: {v}" + (f"  — {note}" if note else "  — have a look")
-        lines = [f"📎 shared from phone ({len(items)} items)" + (f" — {note}" if note else "")]
+        got, want = len(items), b.get("n")
+        count = f"{got} of {want} items, {want - got} didn't arrive" if want and got < want else f"{got} items"
+        lines = [f"📎 shared from phone ({count})" + (f" — {note}" if note else "")]
         for j, (k, v) in enumerate(items, 1):
             if k == "text":
                 body = v.replace("\r\n", "\n").strip().replace("\n", "\n   ")

@@ -63,7 +63,7 @@ class ExactCount(Rig):
         self.wait(59)
         self.assertEqual(self.sent, [])
         self.wait(2)
-        self.assertIn("(2 items)", self.sent[0][1])
+        self.assertIn("(2 of 3 items, 1 didn't arrive)", self.sent[0][1])
 
 
 class QuietFallback(Rig):
