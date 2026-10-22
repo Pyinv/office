@@ -190,6 +190,7 @@ def emoji_json():
 sys.path.insert(0, ROOT)
 import team  # noqa: E402
 import restore  # noqa: E402
+import dropbatch  # noqa: E402
 
 # SIGHUP -> re-exec self with fresh code (server.py + team.py + app.html).
 # The listening socket has close-on-exec set by default (PEP 446), so the port
@@ -852,11 +853,15 @@ class Handler(SimpleHTTPRequestHandler):
         body = self.rfile.read(n)
         note = (q.get("note") or [""])[0].strip().replace("\n", " ")
         person = sess.partition("-")[0].capitalize()
+        def _int(k):
+            try: return max(1, int((q.get(k) or [""])[0]))
+            except ValueError: return None
+        idx, count = _int("i"), _int("n")         # Repeat Index / Count from the Shortcut, when it sends them
         if (q.get("text") or [""])[0]:
             text = body.decode("utf-8", "replace").strip()
             if not text:
                 return self._json({"error": "empty text"}, 400)
-            msg = f"📝 shared from phone: {text}" + (f"  — {note}" if note else "")
+            item = ("text", text)
             rel = None
         else:
             name = os.path.basename(unquote((q.get("name") or [""])[0]).replace("\\", "/")).strip()
@@ -876,13 +881,12 @@ class Handler(SimpleHTTPRequestHandler):
             with open(dest, "wb") as f:
                 f.write(body)
             rel = os.path.relpath(dest, d)
-            msg = f"📎 shared from phone: {rel}" + (f"  — {note}" if note else "  — have a look")
-        try:
-            subprocess.run(["tmux", "send-keys", "-t", sess, "-l", "--", msg], check=True)
-            subprocess.run(["tmux", "send-keys", "-t", sess, "Enter"], check=True)
-        except Exception as e:
-            return self._json({"ok": True, "saved": rel, "warning": f"saved but couldn't tell {person}: {e}"})
-        return self._json({"ok": True, "saved": rel, "told": person})
+            item = ("file", rel)
+        # not typed in yet: it joins this agent's batch, which goes out as one message once the
+        # share is complete (dropbatch.py) — so ten WhatsApp messages are one turn, in order
+        sent = DROPS.add(sess, item[0], item[1], note, idx, count)
+        return self._json({"ok": True, "saved": rel, "to": person, "delivered": sent,
+                           "item": idx, "of": count})
 
     def _restart(self, data):
         if data.get("forget"):                 # the user doesn't want the saved sessions back
@@ -1711,6 +1715,42 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json({"error": "could not start the session"}, 502)
         return self._json({"ok": True, "created": name, "dir": d})
 
+# ── phone shares: every upload joins a batch per agent; the batch goes out as one message ──
+def _drop_deliver(sess, msg):
+    """Paste one batch into the agent and press Enter. False = not now (retried every second)."""
+    if sess not in live_sessions():
+        sys.stderr.write(f"office/drop: {sess} is gone; the files stay in its inbox\n")
+        return True                                        # nothing to retry into
+    try:
+        _w, _t, _v, _u, menu, _mode, draft = team._pane(sess)
+    except Exception:
+        menu, draft = False, ""
+    if menu or draft:          # Enter would answer its question, or send your unfinished text with it
+        return False
+    # a named buffer, deleted after the paste, so the user's own copy buffer is left alone;
+    # bracketed paste keeps a multi-line batch one message
+    subprocess.run(["tmux", "set-buffer", "-b", "office-drop", "--", msg], check=True)
+    subprocess.run(["tmux", "paste-buffer", "-b", "office-drop", "-d", "-p", "-t", sess], check=True)
+    time.sleep(0.3)
+    subprocess.run(["tmux", "send-keys", "-t", sess, "Enter"], check=True)
+    return True
+
+def _drop_stuck(sess, count):
+    if NTFY_URL and NTFY_TOPIC and NTFY_TOKEN:
+        threading.Thread(target=_ntfy_post, args=(push_title(sess),
+            f"{count} shared item{'s' if count != 1 else ''} waiting: answer the question or clear the draft, then they go in",
+            f"{OFFICE_URL}/{sess}" if OFFICE_URL else "", "paperclip"), daemon=True).start()
+
+DROPS = dropbatch.Batches(_drop_deliver, _drop_stuck)
+
+def _drop_ticker():
+    while True:
+        time.sleep(1)
+        try:
+            DROPS.tick()
+        except Exception as e:
+            sys.stderr.write(f"office/drop: {e}\n")
+
 def main():
     ip = tailscale_ip()
     if not ip:
@@ -1722,6 +1762,7 @@ def main():
         ALLOWED_HOSTS.add(name)   # live tailnet DNS name (rename-proof)
     os.chdir(ROOT)
     httpd = ThreadingHTTPServer((ip, PORT), Handler)
+    threading.Thread(target=_drop_ticker, daemon=True).start()
     sys.stderr.write(f"office/server: http://{ip}:{PORT}/  ({name or 'office'}:{PORT})\n")
     httpd.serve_forever()
 
