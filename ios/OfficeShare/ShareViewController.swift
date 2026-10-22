@@ -109,8 +109,13 @@ final class AgentListController: UITableViewController, UITextFieldDelegate {
             // a caption ("text below the photo") travels with the item, not as an attachment:
             // it goes right after its photo, unless the app also sent it as a text of its own
             let caption = ext.attributedContentText?.string.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let known = out.contains { if case .text(let t) = $0 { return t.trimmingCharacters(in: .whitespacesAndNewlines) == caption }; return false }
-            if !caption.isEmpty && !known { out.append(.text(caption)) }
+            // WhatsApp also puts all the selected texts, joined, in here: only add what isn't sent already
+            var rest = caption
+            for case .text(let t) in out {
+                let t = t.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !t.isEmpty { rest = rest.replacingOccurrences(of: t, with: "") }
+            }
+            if !rest.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { out.append(.text(caption)) }
             shape.append(["attachments": kinds, "caption": caption.count])
         }
         // what the sending app handed over (types and order only, no content), so the server log can
