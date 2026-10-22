@@ -901,7 +901,8 @@ class Handler(SimpleHTTPRequestHandler):
             menu, draft = False, ""
         sent = DROPS.add_all(sess, items, note)
         why = "" if sent else ("question" if menu else "draft" if draft else "busy")
-        sys.stderr.write(f"office/share: {len(items)} item(s) -> {sess}{'' if sent else ' (waiting)'}\n")
+        sys.stderr.write(f"office/share: {len(items)} item(s) -> {sess}{'' if sent else ' (waiting: ' + why + ')'}"
+                         + (f"  shape={fields['meta'][:600]}" if fields.get("meta") else "") + "\n")
         return self._json({"ok": True, "to": sess.partition("-")[0].capitalize(), "items": len(items),
                            "delivered": sent, "waiting": not sent, "why": why})
 

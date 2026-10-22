@@ -29,6 +29,7 @@ final class AgentListController: UITableViewController, UITextFieldDelegate {
     weak var context: NSExtensionContext?
     private var agents: [String] = []          // labels ("Pyinv Office | Sara"), most recent first; the server accepts them
     private var items: [SharedItem] = []
+    private var meta = ""                       // see loadItems()
     private var status = "Loading…"
     private var sending = false
     private let note = UITextField()
@@ -96,10 +97,25 @@ final class AgentListController: UITableViewController, UITextFieldDelegate {
     /// (the system deletes its own copy as soon as the load callback returns).
     private func loadItems() async -> [SharedItem] {
         var out: [SharedItem] = []
-        let providers = (context?.inputItems as? [NSExtensionItem] ?? []).flatMap { $0.attachments ?? [] }
-        for (n, p) in providers.enumerated() {
-            if let item = await load(p, index: n) { out.append(item) }
+        var n = 0
+        var shape: [[String: Any]] = []
+        for ext in context?.inputItems as? [NSExtensionItem] ?? [] {
+            var kinds: [String] = []
+            for p in ext.attachments ?? [] {
+                kinds.append(p.registeredTypeIdentifiers.joined(separator: ","))
+                if let item = await load(p, index: n) { out.append(item) }
+                n += 1
+            }
+            // a caption ("text below the photo") travels with the item, not as an attachment:
+            // it goes right after its photo, unless the app also sent it as a text of its own
+            let caption = ext.attributedContentText?.string.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let known = out.contains { if case .text(let t) = $0 { return t.trimmingCharacters(in: .whitespacesAndNewlines) == caption }; return false }
+            if !caption.isEmpty && !known { out.append(.text(caption)) }
+            shape.append(["attachments": kinds, "caption": caption.count])
         }
+        // what the sending app handed over (types and order only, no content), so the server log can
+        // show how e.g. WhatsApp orders a selection
+        if let data = try? JSONSerialization.data(withJSONObject: shape), let s = String(data: data, encoding: .utf8) { meta = s }
         return out
     }
 
@@ -264,6 +280,7 @@ final class AgentListController: UITableViewController, UITextFieldDelegate {
         }
         try field("session", session)
         if !note.isEmpty { try field("note", note) }
+        if !meta.isEmpty { try field("meta", meta) }
         for item in items {
             switch item {
             case .text(let s):
