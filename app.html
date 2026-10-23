@@ -1283,7 +1283,22 @@ function filesOf(dt){
   return fs;
 }
 const EXT={"image/png":".png","image/jpeg":".jpg","image/heic":".heic","image/gif":".gif","image/webp":".webp","application/pdf":".pdf"};
+// iPhone screenshots and photos are often HEIC, which the agents can't open: the phone can decode it,
+// so turn it into a JPEG here before it goes up. If the browser can't decode it, it goes up as it is.
+async function asJpegIfHeic(file){
+  if(!/hei[cf]/i.test(file.type) && !/\.hei[cf]$/i.test(file.name||"")) return file;
+  try{
+    const url=URL.createObjectURL(file);
+    const img=await new Promise((ok,no)=>{ const i=new Image(); i.onload=()=>ok(i); i.onerror=no; i.src=url; });
+    const c=document.createElement("canvas"); c.width=img.naturalWidth; c.height=img.naturalHeight;
+    c.getContext("2d").drawImage(img,0,0); URL.revokeObjectURL(url);
+    const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",0.9));
+    if(!blob) return file;
+    return new File([blob], (file.name||"image").replace(/\.hei[cf]$/i,"")+".jpg", {type:"image/jpeg"});
+  }catch(_){ return file; }
+}
 async function uploadToAgent(file){
+  file=await asJpegIfHeic(file);
   const stamp=new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
   const name=(file.name && !/^image\.(png|jpe?g)$/i.test(file.name)) ? file.name : `paste-${stamp}${EXT[file.type]||""}`;
   const r=await fetch(`/api/upload?session=${encodeURIComponent(MODAL_SESSION)}&name=${encodeURIComponent(name)}`,{method:"POST",body:file});

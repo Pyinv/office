@@ -172,6 +172,15 @@ final class AgentListController: UITableViewController, UITextFieldDelegate {
                 } ?? url.lastPathComponent
                 let dest = self.tmp.appendingPathComponent("\(index)-" + UUID().uuidString)
                 do {
+                    // HEIC (iPhone photos and screenshots) can't be opened by the agents: send a JPEG
+                    if let t = UTType(type), t.conforms(to: .heic) || t.conforms(to: .heif),
+                       let img = UIImage(contentsOfFile: url.path), let jpg = img.jpegData(compressionQuality: 0.9) {
+                        let jdest = dest.appendingPathExtension("jpg")
+                        try jpg.write(to: jdest)
+                        let base = (name as NSString).deletingPathExtension
+                        cont.resume(returning: .file(name: base + ".jpg", url: jdest, mime: "image/jpeg"))
+                        return
+                    }
                     try FileManager.default.copyItem(at: url, to: dest)
                     let mime = UTType(type)?.preferredMIMEType ?? "application/octet-stream"
                     cont.resume(returning: .file(name: name, url: dest, mime: mime))
