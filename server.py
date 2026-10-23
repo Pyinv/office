@@ -737,6 +737,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._drop()
         if path == "/api/share":     # multipart from the app's share sheet
             return self._share()
+        if path == "/api/upload":    # a pasted / dropped file: saved to the agent's inbox, nothing typed
+            return self._upload()
         try:
             n = int(self.headers.get("Content-Length", 0))
             data = json.loads(self.rfile.read(n) or b"{}")
@@ -905,6 +907,19 @@ class Handler(SimpleHTTPRequestHandler):
                          + (f"  shape={fields['meta'][:600]}" if fields.get("meta") else "") + "\n")
         return self._json({"ok": True, "to": sess.partition("-")[0].capitalize(), "items": len(items),
                            "delivered": sent, "waiting": not sent, "why": why})
+
+    def _upload(self):
+        # Paste or drag an image/file into an agent's terminal or message box: it is saved to that
+        # agent's inbox/ and only its path comes back — the page inserts it where you are typing.
+        q = parse_qs(urlparse(self.path).query)
+        sess, d = self._drop_target((q.get("session") or [""])[0])
+        if not sess:
+            return
+        n = int(self.headers.get("Content-Length", 0) or 0)
+        if n <= 0 or n > self.DROP_MAX:
+            return self._json({"error": "empty or too big (200 MB max)"}, 413)
+        rel = self._drop_save(d, unquote((q.get("name") or [""])[0]), self.rfile.read(n))
+        return self._json({"ok": True, "path": rel})
 
     def _drop(self):
         q = parse_qs(urlparse(self.path).query)

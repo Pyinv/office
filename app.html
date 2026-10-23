@@ -1274,6 +1274,54 @@ const DEV_ROOT="{{OFFICE_DEV_ROOT}}";
 // Seamless copy: mirror tmux's selection to the OS clipboard on drag-end.
 // The terminal iframe is same-origin, so we hook its own mouseup (the real user
 // gesture) and write from inside it — the path ttyd's async OSC 52 can't take.
+// ── paste or drag an image/file into an agent: it is saved to the agent's inbox/ and only its path is
+//    inserted where you are typing (the phone's message box, or the terminal on a laptop) — nothing is sent
+function filesOf(dt){
+  if(!dt) return [];
+  const fs=[...(dt.files||[])];
+  if(!fs.length) for(const it of (dt.items||[])) if(it.kind==="file"){ const f=it.getAsFile(); if(f) fs.push(f); }
+  return fs;
+}
+const EXT={"image/png":".png","image/jpeg":".jpg","image/heic":".heic","image/gif":".gif","image/webp":".webp","application/pdf":".pdf"};
+async function uploadToAgent(file){
+  const stamp=new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+  const name=(file.name && !/^image\.(png|jpe?g)$/i.test(file.name)) ? file.name : `paste-${stamp}${EXT[file.type]||""}`;
+  const r=await fetch(`/api/upload?session=${encodeURIComponent(MODAL_SESSION)}&name=${encodeURIComponent(name)}`,{method:"POST",body:file});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||`upload failed (${r.status})`);
+  return j.path;
+}
+async function insertUploads(files){
+  if(!MODAL_SESSION || !files.length) return;
+  toast(`uploading ${files.length===1?"…":files.length+" files…"}`);
+  const paths=[];
+  for(const f of files){ try{ paths.push(await uploadToAgent(f)); }catch(e){ toast(e.message, true); } }
+  if(!paths.length) return;
+  const text=paths.join(" ")+" ";
+  const say=document.getElementById("say");
+  const bar=document.getElementById("phonebar");
+  if(say && bar && getComputedStyle(bar).display!=="none"){        // phone: into the message box, at the cursor
+    const a=say.selectionStart ?? say.value.length, b=say.selectionEnd ?? a;
+    const pre=say.value.slice(0,a), sep=pre && !/\s$/.test(pre) ? " " : "";
+    say.value=pre+sep+text+say.value.slice(b);
+    say.selectionStart=say.selectionEnd=(pre+sep+text).length;
+    say.dispatchEvent(new Event("input")); say.focus();
+  } else {                                                           // laptop: typed into the terminal, not sent
+    try{ await fetch("/api/paste",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,text})}); }catch(_){}
+  }
+  toast(paths.length===1 ? `📎 ${paths[0]}` : `📎 ${paths.length} files saved to inbox/`);
+}
+function acceptDrops(el){
+  el.addEventListener("dragover", e=>{ if([...(e.dataTransfer?.types||[])].includes("Files")){ e.preventDefault(); e.dataTransfer.dropEffect="copy"; } }, true);
+  el.addEventListener("drop", e=>{ const fs=filesOf(e.dataTransfer); if(fs.length){ e.preventDefault(); e.stopPropagation(); insertUploads(fs); } }, true);
+}
+// inside the terminal frame: ⌘V of an image and a dropped file go the same way
+function injectFileDrops(frame){
+  let doc; try{ doc=frame.contentDocument; }catch(e){ return; }
+  if(!doc || doc.__files) return; doc.__files=true;
+  acceptDrops(doc);
+  doc.addEventListener("paste", e=>{ const fs=filesOf(e.clipboardData); if(fs.length){ e.preventDefault(); e.stopPropagation(); insertUploads(fs); } }, true);
+}
 function injectAutoCopy(frame){
   let doc; try{ doc=frame.contentDocument; }catch(e){ return; }
   if(!doc || doc.__autocopy) return; doc.__autocopy=true;
@@ -1483,7 +1531,7 @@ function openTerm(session, who, title){
   const f=document.createElement("iframe"); f.id="termframe";
   f.allow="clipboard-read; clipboard-write";
   f.src=`/terminal/?arg=${encodeURIComponent(session)}`;   // same-origin, proxied to localhost ttyd
-  f.addEventListener("load", ()=>{ for(const fn of [termFont, injectReconnect, injectAutoCopy, injectTouchScroll, injectLinks]){ try{ fn(f); }catch(_){} } });   // smaller type on the phone, select-to-copy, swipe-to-scroll, clickable links
+  f.addEventListener("load", ()=>{ for(const fn of [termFont, injectReconnect, injectAutoCopy, injectFileDrops, injectTouchScroll, injectLinks]){ try{ fn(f); }catch(_){} } });   // smaller type on the phone, select-to-copy, swipe-to-scroll, clickable links
   box.appendChild(f);
   document.getElementById("mtitle").textContent=who+"  ·  "+session;
   document.getElementById("say").placeholder="Message "+who+"…";
@@ -1563,6 +1611,18 @@ async function sendKey(key){
       openSettings(); return;
     }
     if(btn.dataset.key==="paste"){          // read the browser clipboard, paste into the pane
+      if(navigator.clipboard && navigator.clipboard.read){   // images and files too; iOS shows its Paste bubble once
+        try{
+          const files=[]; let text="";
+          for(const it of await navigator.clipboard.read()){
+            const t=it.types.find(x=>!x.startsWith("text/"));
+            if(t){ const b=await it.getType(t); files.push(new File([b], "", {type:t})); }
+            else if(it.types.includes("text/plain")) text+=await (await it.getType("text/plain")).text();
+          }
+          if(files.length){ insertUploads(files); return; }
+          if(text){ sendPaste(text); return; }
+        }catch(_){}
+      }
       let t=""; try{ t=await navigator.clipboard.readText(); }catch(_){}
       // many phone browsers refuse the read (no permission, no API): paste into the message box instead
       if(t) sendPaste(t); else { say.focus(); toast("paste into the message box"); }
@@ -1581,6 +1641,9 @@ async function sendKey(key){
   // the message box: type or dictate here, ↑ (or the keyboard's send key) pastes it into the
   // terminal as one block and presses Enter — the terminal itself never needs the focus
   const say=document.getElementById("say"), sendBtn=document.getElementById("saysend");
+  say.addEventListener("paste", e=>{ const fs=filesOf(e.clipboardData); if(fs.length){ e.preventDefault(); insertUploads(fs); } });
+  acceptDrops(document.getElementById("phonebar"));
+  acceptDrops(document.getElementById("modal"));
   const grow=()=>{ say.style.height="auto"; const h=say.scrollHeight; say.style.height=h ? Math.min(h, 120)+"px" : ""; placeKeybar(); };   // hidden box measures 0: leave it to CSS
   say.addEventListener("input", grow);
   say.addEventListener("focus", ()=>setTimeout(placeKeybar,50));
