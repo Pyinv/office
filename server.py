@@ -817,6 +817,17 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _drop_list(self):
         rows = self._drop_rows()
+        if "rich=1" in self.path:
+            # the app's share sheet: name, project and the card's emoji, most recent first (a list keeps the order)
+            emoji = {"web": "🌐", "app": "📱", "api": "🔌", "bot": "🤖", "site": "🌐", "docs": "📄", "data": "📊", "db": "🗄️"}
+            emoji.update(json.loads(emoji_json()))
+            out = []
+            for label, sess in rows:
+                person, _, proj = sess.partition("-")
+                low = proj.lower()
+                out.append({"label": label, "session": sess, "person": person.capitalize(), "project": proj,
+                            "emoji": next((e for k, e in emoji.items() if k in low), "👤")})
+            return self._json({"agents": out})
         if "lines=1" in self.path:
             # one label per line — a Shortcuts "Choose from List" keeps this order, whereas it
             # sorts a dictionary's keys alphabetically

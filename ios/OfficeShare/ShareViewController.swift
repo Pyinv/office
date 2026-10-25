@@ -1,16 +1,21 @@
 import UIKit
 import UniformTypeIdentifiers
 
-/// Share → Office: pick an agent, add an optional note, and everything you shared (texts, links,
-/// photos, files — in the order you selected them) goes to that agent as ONE message, in one upload
-/// (POST /api/share, multipart). Tapping an agent sends.
+/// Share → Office: everything you shared (texts, links, photos, files, in the order the app hands them
+/// over) goes to one agent as ONE message, in one upload (POST /api/share, multipart).
+///
+///   ┌ Cancel      Send to…         Done ┐
+///   │ 📎 3 items · 1 photo, 2 texts       │  status strip: always visible (sending… / Sent ✓ / waiting / error)
+///   │ 🔍 Search agents                    │
+///   │ ─ agents, most recent first ─       │  the only part that scrolls; tap one to send
+///   │ ✏️ Add a note (optional)            │  pinned to the keyboard / bottom edge
+///   └─────────────────────────────────────┘
 final class ShareViewController: UIViewController {
-    private let list = AgentListController()
-
     override func viewDidLoad() {
         super.viewDidLoad()
-        list.context = extensionContext
-        let nav = UINavigationController(rootViewController: list)
+        let sheet = ShareSheetController()
+        sheet.context = extensionContext
+        let nav = UINavigationController(rootViewController: sheet)
         addChild(nav)
         nav.view.frame = view.bounds
         nav.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -25,29 +30,82 @@ private enum SharedItem {
     case file(name: String, url: URL, mime: String)
 }
 
-final class AgentListController: UITableViewController, UITextFieldDelegate {
+private struct Agent: Decodable {
+    let label: String       // "Pyinv Office | Sara" — what /api/share takes as the session
+    let person: String
+    let project: String
+    let emoji: String
+}
+
+final class ShareSheetController: UIViewController, UITableViewDataSource, UITableViewDelegate,
+                                  UISearchBarDelegate, UITextFieldDelegate {
     weak var context: NSExtensionContext?
-    private var agents: [String] = []          // labels ("Pyinv Office | Sara"), most recent first; the server accepts them
+    private var agents: [Agent] = []
+    private var shown: [Agent] = []
     private var items: [SharedItem] = []
     private var meta = ""                       // see loadItems()
-    private var status = "Loading…"
-    private var sending = false
-    private let note = UITextField()
+    private var sendingTo: String?              // label of the agent being sent to
+    private var sent = false
     private let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("share-" + UUID().uuidString)
 
-    init() { super.init(style: .insetGrouped) }
-    required init?(coder: NSCoder) { fatalError() }
+    private let status = StatusStrip()
+    private let waitNote = StatusStrip()
+    private let search = UISearchBar()
+    private let table = UITableView(frame: .zero, style: .insetGrouped)
+    private let noteBox = UIView()
+    private let note = UITextField()
 
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Send to…"
+        view.backgroundColor = .systemGroupedBackground
         navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(cancel))
-        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "c")
-        note.placeholder = "Note (optional)"
+        try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+
+        search.placeholder = "Search agents"
+        search.searchBarStyle = .minimal
+        search.autocapitalizationType = .none
+        search.delegate = self
+
+        table.dataSource = self
+        table.delegate = self
+        table.register(AgentCell.self, forCellReuseIdentifier: "a")
+        table.keyboardDismissMode = .onDrag
+        table.backgroundColor = .clear
+
+        noteBox.backgroundColor = .secondarySystemGroupedBackground
+        noteBox.layer.cornerRadius = 12
+        note.placeholder = "✏️  Add a note (optional)"
         note.clearButtonMode = .whileEditing
         note.returnKeyType = .done
         note.delegate = self
-        try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        waitNote.isHidden = true
+
+        let stack = UIStackView(arrangedSubviews: [status, waitNote, search])
+        stack.axis = .vertical
+        stack.spacing = 6
+        for v in [stack, table, noteBox, note] as [UIView] { v.translatesAutoresizingMaskIntoConstraints = false }
+        view.addSubview(stack); view.addSubview(table); view.addSubview(noteBox); noteBox.addSubview(note)
+        let g = view.safeAreaLayoutGuide
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: g.topAnchor, constant: 6),
+            stack.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 12),
+            stack.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -12),
+            table.topAnchor.constraint(equalTo: stack.bottomAnchor),
+            table.leadingAnchor.constraint(equalTo: g.leadingAnchor),
+            table.trailingAnchor.constraint(equalTo: g.trailingAnchor),
+            table.bottomAnchor.constraint(equalTo: noteBox.topAnchor, constant: -6),
+            noteBox.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
+            noteBox.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
+            noteBox.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -8),
+            note.leadingAnchor.constraint(equalTo: noteBox.leadingAnchor, constant: 12),
+            note.trailingAnchor.constraint(equalTo: noteBox.trailingAnchor, constant: -8),
+            note.topAnchor.constraint(equalTo: noteBox.topAnchor),
+            note.bottomAnchor.constraint(equalTo: noteBox.bottomAnchor),
+            note.heightAnchor.constraint(equalToConstant: 44),
+        ])
+        view.keyboardLayoutGuide.followsUndockedKeyboard = true
+        status.show(.info, icon: "⏳", "Loading…")
         Task { await start() }
     }
 
@@ -58,43 +116,54 @@ final class AgentListController: UITableViewController, UITextFieldDelegate {
         context?.cancelRequest(withError: NSError(domain: "Office", code: 0))
     }
 
+    @objc private func done() {
+        try? FileManager.default.removeItem(at: tmp)
+        context?.completeRequest(returningItems: nil)
+    }
+
     // MARK: loading
 
     private func start() async {
         guard let base = OfficeAddress.url else {
-            status = "Open the Office app once and enter its address, then share again."
-            tableView.reloadData(); return
+            status.show(.bad, icon: "!", "Open the Office app once and enter its address, then share again.")
+            return
         }
-        async let names = loadAgents(base)
+        async let list = loadAgents(base)
         items = await loadItems()
         do {
-            agents = try await names
-            status = agents.isEmpty ? "No agents are running." : summary()
+            agents = try await list
+            filter(search.text ?? "")
+            status.show(.info, icon: "📎", items.isEmpty ? "Nothing to send" : summary())
+            if agents.isEmpty { status.show(.bad, icon: "!", "No agents are running.") }
         } catch {
-            status = "Can't reach the Office (is Tailscale on?) — \(error.localizedDescription)"
+            status.show(.bad, icon: "!", "Can't reach the Office. Is Tailscale on? (\(error.localizedDescription))")
         }
-        tableView.reloadData()
     }
 
     private func summary() -> String {
-        let texts = items.filter { if case .text = $0 { return true }; return false }.count
-        let files = items.count - texts
+        var photos = 0, files = 0, texts = 0
+        for i in items {
+            switch i {
+            case .text: texts += 1
+            case .file(_, _, let mime): if mime.hasPrefix("image/") { photos += 1 } else { files += 1 }
+            }
+        }
         var parts: [String] = []
+        if photos > 0 { parts.append("\(photos) photo\(photos == 1 ? "" : "s")") }
         if files > 0 { parts.append("\(files) file\(files == 1 ? "" : "s")") }
         if texts > 0 { parts.append("\(texts) text\(texts == 1 ? "" : "s")") }
-        return parts.isEmpty ? "Nothing to send" : parts.joined(separator: " · ") + " — tap an agent to send"
+        return "\(items.count) item\(items.count == 1 ? "" : "s") · " + parts.joined(separator: ", ")
     }
 
-    private func loadAgents(_ base: URL) async throws -> [String] {
-        var req = URLRequest(url: base.appendingPathComponent("api/drop").appending(queryItems: [URLQueryItem(name: "lines", value: "1")]))
+    private func loadAgents(_ base: URL) async throws -> [Agent] {
+        var req = URLRequest(url: base.appendingPathComponent("api/drop").appending(queryItems: [URLQueryItem(name: "rich", value: "1")]))
         req.timeoutInterval = 15
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-        return String(decoding: data, as: UTF8.self).split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+        struct List: Decodable { let agents: [Agent] }
+        return try JSONDecoder().decode(List.self, from: data).agents
     }
 
-    /// Every attachment of every input item, in order. Each is turned into a text or a file copy
-    /// (the system deletes its own copy as soon as the load callback returns).
     private func loadItems() async -> [SharedItem] {
         var out: [SharedItem] = []
         var n = 0
@@ -191,94 +260,78 @@ final class AgentListController: UITableViewController, UITextFieldDelegate {
         }
     }
 
-    // MARK: table
+    // MARK: search + list
 
-    override func numberOfSections(in tableView: UITableView) -> Int { 2 }
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) { filter(searchText) }
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) { searchBar.resignFirstResponder() }
 
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        section == 0 ? 1 : agents.count
+    private func filter(_ q: String) {
+        let q = q.trimmingCharacters(in: .whitespaces).lowercased()
+        shown = q.isEmpty ? agents : agents.filter { $0.person.lowercased().contains(q) || $0.project.lowercased().contains(q) }
+        table.reloadData()
     }
 
-    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        section == 0 ? nil : (agents.isEmpty ? nil : "Agents")
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { shown.count }
+
+    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        shown.isEmpty ? nil : ((search.text ?? "").isEmpty ? "Recent" : nil)
     }
 
-    override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        section == 0 ? status : nil
-    }
-
-    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "c", for: indexPath)
-        cell.contentView.subviews.filter { $0 === note }.forEach { $0.removeFromSuperview() }
-        var conf = cell.defaultContentConfiguration()
-        if indexPath.section == 0 {
-            note.translatesAutoresizingMaskIntoConstraints = false
-            cell.contentView.addSubview(note)
-            NSLayoutConstraint.activate([
-                note.leadingAnchor.constraint(equalTo: cell.contentView.layoutMarginsGuide.leadingAnchor),
-                note.trailingAnchor.constraint(equalTo: cell.contentView.layoutMarginsGuide.trailingAnchor),
-                note.topAnchor.constraint(equalTo: cell.contentView.topAnchor),
-                note.bottomAnchor.constraint(equalTo: cell.contentView.bottomAnchor),
-                note.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            ])
-            cell.contentConfiguration = nil
-            cell.selectionStyle = .none
-            return cell
-        }
-        let label = agents[indexPath.row]
-        let parts = label.components(separatedBy: " | ")
-        conf.text = parts.count == 2 ? parts[1] : label
-        conf.secondaryText = parts.count == 2 ? parts[0] : nil
-        conf.secondaryTextProperties.color = .secondaryLabel
-        cell.contentConfiguration = conf
-        cell.selectionStyle = .default
-        cell.accessoryType = .none
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "a", for: indexPath) as! AgentCell
+        let a = shown[indexPath.row]
+        let state: AgentCell.State = sendingTo == nil ? .idle : (sendingTo == a.label ? (sent ? .done : .sending) : .dimmed)
+        cell.set(a.emoji, a.person, a.project, query: search.text ?? "", state: state)
         return cell
     }
 
-    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        guard indexPath.section == 1, !sending, !items.isEmpty, let base = OfficeAddress.url else { return }
-        sending = true
-        note.resignFirstResponder()
-        let label = agents[indexPath.row]
-        status = "Sending to \(label.components(separatedBy: " | ").last ?? label)…"
-        tableView.reloadData()
-        Task { await send(to: label, base: base) }
+        guard sendingTo == nil, !items.isEmpty, let base = OfficeAddress.url else { return }
+        let a = shown[indexPath.row]
+        sendingTo = a.label
+        view.endEditing(true)
+        status.show(.info, icon: "⏳", "Sending \(items.count == 1 ? "1 item" : "\(items.count) items") to \(a.person)…", spinning: true)
+        table.reloadData()
+        Task { await send(to: a, base: base) }
     }
 
     // MARK: sending
 
-    private func send(to label: String, base: URL) async {
+    private func send(to a: Agent, base: URL) async {
         do {
             let boundary = "office-" + UUID().uuidString
-            let body = try multipart(boundary: boundary, session: label, note: note.text ?? "")
+            let body = try multipart(boundary: boundary, session: a.label, note: note.text ?? "")
             var req = URLRequest(url: base.appendingPathComponent("api/share"))
             req.httpMethod = "POST"
             req.timeoutInterval = 300
             req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
             let (data, resp) = try await URLSession.shared.upload(for: req, fromFile: body)
             let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
-            guard code == 200 else {
-                let msg = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? String
-                throw NSError(domain: "Office", code: code, userInfo: [NSLocalizedDescriptionKey: msg ?? "the Office answered \(code)"])
-            }
             let answer = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
-            let waiting = (answer["waiting"] as? Bool) ?? false
-            let who = (answer["to"] as? String) ?? "the agent"
-            switch answer["why"] as? String {
-            case "question": status = "Sent ✓ — \(who) is asking you something; it goes in once you answer"
-            case "draft": status = "Sent ✓ — there is unsent text in \(who)'s box; it goes in once that is sent or cleared"
-            default: status = waiting ? "Sent ✓ — it goes in in a moment" : "Sent ✓ — \(who) has it"
+            guard code == 200 else {
+                throw NSError(domain: "Office", code: code,
+                              userInfo: [NSLocalizedDescriptionKey: (answer["error"] as? String) ?? "the Office answered \(code)"])
             }
-            tableView.reloadData()
-            try? await Task.sleep(nanoseconds: waiting ? 1_400_000_000 : 600_000_000)
-            try? FileManager.default.removeItem(at: tmp)
-            context?.completeRequest(returningItems: nil)
+            sent = true
+            status.show(.ok, icon: "✓", "Sent to \(a.person) · \(items.count == 1 ? "1 item" : "\(items.count) items")")
+            switch answer["why"] as? String {
+            case "question": waitNote.show(.warn, icon: "⏳", "\(a.person) is asking you something. It goes in once you answer.")
+            case "draft": waitNote.show(.warn, icon: "⏳", "There is unsent text in \(a.person)'s box. It goes in once that is sent or cleared.")
+            case "busy": waitNote.show(.warn, icon: "⏳", "It goes in in a moment.")
+            default: break
+            }
+            table.reloadData()
+            navigationItem.leftBarButtonItem = nil
+            navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(done))
+            if waitNote.isHidden {                          // nothing to read: close by itself
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                done()
+            }
         } catch {
-            sending = false
-            status = "Not sent: \(error.localizedDescription)"
-            tableView.reloadData()
+            sendingTo = nil
+            status.show(.bad, icon: "!", "Not sent: \(error.localizedDescription). Tap the agent to retry.")
+            table.reloadData()
         }
     }
 
@@ -310,5 +363,109 @@ final class AgentListController: UITableViewController, UITextFieldDelegate {
         }
         try w("--\(boundary)--\r\n")
         return url
+    }
+}
+
+/// The strip at the top: what's being shared, then sending / sent / waiting / error. Never scrolls away.
+private final class StatusStrip: UIView {
+    enum Kind { case info, ok, warn, bad }
+    private let icon = UILabel()
+    private let text = UILabel()
+    private let spin = UIActivityIndicatorView(style: .medium)
+
+    init() {
+        super.init(frame: .zero)
+        layer.cornerRadius = 12
+        text.numberOfLines = 0
+        text.font = .preferredFont(forTextStyle: .subheadline)
+        icon.font = .preferredFont(forTextStyle: .body)
+        icon.setContentHuggingPriority(.required, for: .horizontal)
+        spin.hidesWhenStopped = true
+        let row = UIStackView(arrangedSubviews: [spin, icon, text])
+        row.spacing = 8
+        row.alignment = .center
+        row.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(row)
+        NSLayoutConstraint.activate([
+            row.topAnchor.constraint(equalTo: topAnchor, constant: 9),
+            row.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -9),
+            row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    func show(_ kind: Kind, icon i: String, _ s: String, spinning: Bool = false) {
+        isHidden = false
+        text.text = s
+        icon.text = spinning ? nil : i
+        icon.isHidden = spinning
+        if spinning { spin.startAnimating() } else { spin.stopAnimating() }
+        switch kind {
+        case .info: backgroundColor = .secondarySystemGroupedBackground; text.textColor = .label
+        case .ok: backgroundColor = .systemGreen.withAlphaComponent(0.16); text.textColor = .systemGreen
+        case .warn: backgroundColor = .systemOrange.withAlphaComponent(0.16); text.textColor = .systemOrange
+        case .bad: backgroundColor = .systemRed.withAlphaComponent(0.14); text.textColor = .systemRed
+        }
+        icon.textColor = text.textColor
+    }
+}
+
+/// An agent row: emoji avatar, name (search match in the accent colour), project.
+private final class AgentCell: UITableViewCell {
+    enum State { case idle, sending, done, dimmed }
+    private let avatar = UILabel()
+    private let name = UILabel()
+    private let project = UILabel()
+    private let spin = UIActivityIndicatorView(style: .medium)
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        avatar.font = .systemFont(ofSize: 17)
+        avatar.textAlignment = .center
+        avatar.layer.cornerRadius = 8
+        avatar.clipsToBounds = true
+        name.font = .systemFont(ofSize: 16, weight: .semibold)
+        project.font = .preferredFont(forTextStyle: .footnote)
+        project.textColor = .secondaryLabel
+        let text = UIStackView(arrangedSubviews: [name, project])
+        text.axis = .vertical
+        let row = UIStackView(arrangedSubviews: [avatar, text, spin])
+        row.spacing = 12
+        row.alignment = .center
+        row.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(row)
+        NSLayoutConstraint.activate([
+            avatar.widthAnchor.constraint(equalToConstant: 32),
+            avatar.heightAnchor.constraint(equalToConstant: 32),
+            row.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
+            row.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+            row.leadingAnchor.constraint(equalTo: contentView.layoutMarginsGuide.leadingAnchor),
+            row.trailingAnchor.constraint(equalTo: contentView.layoutMarginsGuide.trailingAnchor),
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    func set(_ emoji: String, _ person: String, _ proj: String, query: String, state: State) {
+        avatar.text = emoji
+        // a soft colour per name, like the Office cards
+        var h = 0
+        for u in person.unicodeScalars { h = (h * 31 + Int(u.value)) % 360 }
+        avatar.backgroundColor = UIColor(hue: CGFloat(h) / 360, saturation: 0.25, brightness: 0.95, alpha: 1)
+        name.attributedText = highlight(person, query)
+        project.attributedText = highlight(proj, query, base: .secondaryLabel)
+        contentView.alpha = state == .dimmed ? 0.4 : 1
+        selectionStyle = state == .idle ? .default : .none
+        accessoryType = state == .done ? .checkmark : .none
+        if state == .sending { spin.startAnimating() } else { spin.stopAnimating() }
+    }
+
+    private func highlight(_ s: String, _ q: String, base: UIColor = .label) -> NSAttributedString {
+        let out = NSMutableAttributedString(string: s, attributes: [.foregroundColor: base])
+        let q = q.trimmingCharacters(in: .whitespaces)
+        if !q.isEmpty, let r = s.range(of: q, options: .caseInsensitive) {
+            out.addAttribute(.foregroundColor, value: UIColor.tintColor, range: NSRange(r, in: s))
+        }
+        return out
     }
 }
