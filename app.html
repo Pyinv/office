@@ -274,6 +274,11 @@
   .ctx li{margin:.08rem 0}
   .ctx a{color:var(--work)}
   .ctx strong{color:var(--ink)}
+  .mdtable{overflow-x:auto;margin:.3rem 0}
+  .mdtable table{border-collapse:collapse;font-size:.95em}
+  .mdtable th,.mdtable td{border:1px solid var(--line);padding:.18rem .5rem;text-align:left;white-space:nowrap}
+  .mdtable th{background:var(--panel);color:var(--ink);font-weight:600}
+  .mdtable .r{text-align:right}
   .ask code{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:.03em .28em;font-size:.92em}
   .reply{display:flex;gap:.35rem;flex-wrap:wrap}
   .reply input{flex:1;min-width:90px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
@@ -879,6 +884,15 @@ function mdHtml(raw){
       closeList(); const code=[]; i++;
       while(i<lines.length && !/^\s*```/.test(lines[i])){ code.push(lines[i]); i++; }
       i++; out+="<pre><code>"+code.join("\n")+"</code></pre>"; continue;
+    }
+    if(/^\s*\|.*\|\s*$/.test(line) && /^\s*\|[\s:|-]*-[\s:|-]*\|\s*$/.test(lines[i+1]||"")){   // table: header row + |---| row
+      closeList();
+      const cells=l=>l.trim().replace(/^\||\|$/g,"").split("|").map(c=>mdInline(c.trim()));
+      const right=(lines[i+1].trim().replace(/^\||\|$/g,"").split("|")).map(c=>/-:\s*$/.test(c));
+      const td=(t,cs)=>cs.map((c,k)=>`<${t}${right[k]?' class="r"':""}>${c}</${t}>`).join("");
+      out+='<div class="mdtable"><table><thead><tr>'+td("th",cells(line))+"</tr></thead><tbody>"; i+=2;
+      while(i<lines.length && /^\s*\|.*\|\s*$/.test(lines[i])){ out+="<tr>"+td("td",cells(lines[i]))+"</tr>"; i++; }
+      out+="</tbody></table></div>"; continue;
     }
     const h=line.match(/^(#{1,6})\s+(.*)$/);
     if(h){ closeList(); out+='<div class="mdh">'+mdInline(h[2])+"</div>"; i++; continue; }
