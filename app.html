@@ -2191,7 +2191,7 @@ function render(){
 // can tell: device offline, no internet, DNS/server down, or (the usual one for
 // a tailnet-only host) Tailscale is off — then keep retrying and dim the stale cards.
 const NET={down:false, fails:0, diag:null, diagAt:0, busy:false};
-const FLOOR_TIMEOUT=8000;       // a SYN to an unroutable tailnet IP just hangs — don't wait forever
+const FLOOR_TIMEOUT=12000;      // a SYN to an unroutable tailnet IP just hangs — but the floor is ~70 KB, give weak 4G time
 function fetchT(url, ms, opts){
   const c=new AbortController(), t=setTimeout(()=>c.abort(), ms);
   return fetch(url, Object.assign({}, opts||{}, {signal:c.signal})).finally(()=>clearTimeout(t));
@@ -2201,13 +2201,19 @@ async function internetUp(){
   try{ await fetchT("https://1.1.1.1/cdn-cgi/trace", 4000, {mode:"no-cors", cache:"no-store"}); return true; }
   catch(_){ return false; }
 }
+// a tiny file from the Office itself: if it arrives, the tailnet is fine and only the floor was slow
+async function officeUp(){
+  try{ const r=await fetchT("/manifest.json?ping="+Date.now(), 5000, {cache:"no-store"}); return r.ok; }
+  catch(_){ return false; }
+}
 async function diagnose(err, took, status){
   const host=location.hostname, ts=/\.ts\.net$/.test(host);
   if(status) return {i:"🛠️", t:"The Office server isn't answering", d:`The proxy reached this address but got HTTP ${status} — the Office process is probably down. Restart it on the server.`};
   if(navigator.onLine===false) return {i:"📵", t:"No internet connection", d:"This device is offline (no Wi-Fi or mobile data). The Office comes back by itself when the network does."};
   if(!(await internetUp())) return {i:"📵", t:"No internet connection", d:"Nothing on the internet is reachable from here right now. Check Wi-Fi or mobile data."};
+  if(await officeUp()) return {i:"🐢", t:"Slow connection", d:"The Office answers, but the floor didn't arrive in time. Retrying — it fills in as soon as the network keeps up."};
   if(err && err.name==="AbortError" || took>=FLOOR_TIMEOUT-500)
-    return {i:"🔒", t:"Tailscale is off on this device", d:`${host} only exists inside the tailnet — the request went nowhere. Turn Tailscale on (or reconnect it) and this page will recover on its own.`};
+    return {i:"🔒", t:"Can't reach the tailnet", d:`The internet works but ${host} doesn't answer. Tailscale is off, or reconnecting (it does that on a weak or switching network). This page recovers on its own.`};
   if(ts) return {i:"🔍", t:"Can't resolve "+host, d:"MagicDNS isn't answering. In Tailscale enable “Use Tailscale DNS”, or use the public office name instead."};
   return {i:"🔍", t:"Can't reach "+host, d:"DNS gave no answer, or the connection was refused. Check Tailscale is connected; if it is, the server or its proxy is down."};
 }
@@ -2223,6 +2229,8 @@ function setNet(down, diag){
 }
 async function floorFail(err, took, status){
   NET.fails++;
+  // one lost poll on a shaky network is normal: retry quietly, say something only on the second in a row
+  if(NET.fails<2 && !NET.down && !status){ setTimeout(()=>{ if(!document.hidden) load(); }, 1500); return; }
   const first=!NET.down; NET.down=true;
   // re-diagnose at most every 30s — the probe itself costs a few seconds
   if(!NET.diag || Date.now()-NET.diagAt>30000){ NET.diag=await diagnose(err, took, status); NET.diagAt=Date.now(); }
@@ -2284,7 +2292,8 @@ async function load(){
   }
   catch(e){ await floorFail(e, Date.now()-t0, 0); return; }
   finally{ NET.busy=false; }
-  if(NET.down){ NET.down=false; NET.fails=0; NET.diag=null; setNet(false); toast("✅ back online"); }
+  if(NET.down){ NET.down=false; NET.diag=null; setNet(false); toast("✅ back online"); }
+  NET.fails=0;
   const _prev={}; (LAST||[]).forEach(m=>_prev[m.session]=m.state);
   LAST=data.team||[];
   { const _v=document.getElementById("ver"); if(_v&&data.version) _v.textContent=data.version; checkVersion(data.build); }
