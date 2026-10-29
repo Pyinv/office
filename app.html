@@ -1924,9 +1924,10 @@ document.addEventListener("keydown",e=>{
 });
 
 // ── the floor: rooms of desks (DESIGN.md). A desk is a face, a name, a project and one line.
-//    Seats never move — pinned first, then by name — so who needs you shows as the amber note on
-//    the desk, not by shuffling the room. A tap opens that person's panel; double-click, the terminal.
-const ROOMS=CATS.map(c=>({id:c.id, name:c.label.replace(/^\S+\s+/,"")}));     // "💼 Clients" -> "Clients"
+//    Ventures, Clients, Personal; in each room pinned first, then the most recently active. A tap opens that person's panel; double-click, the terminal.
+const ROOM_ORDER=["ventures","clients","personal"];                          // the floor's room order (Ventures first)
+const ROOMS=CATS.map(c=>({id:c.id, name:c.label.replace(/^\S+\s+/,"")}))     // "💼 Clients" -> "Clients"
+  .sort((a,b)=>ROOM_ORDER.indexOf(a.id)-ROOM_ORDER.indexOf(b.id));
 const roomName=g=>(ROOMS.find(r=>r.id===g)||{name:g||"Elsewhere"}).name;
 // the last readable line of a markdown reply: no table rules, fences or list/heading marks
 function lastLine(md){
@@ -2160,9 +2161,9 @@ function render(){
   const shown=team.filter(st).filter(catTest).filter(m=>!s || searchScore(m,s)>0);
   const floor=document.getElementById("floor");
   if(!shown.length){ floor.innerHTML=`<div class="empty">Nobody here${s?" matches “"+esc(s)+"”":" in this view"}.</div>`; LAYOUT=""; refreshDesk(); return; }
-  // a seat: pinned first, ghosts last, then by name — never by activity, so desks stay put
+  // within a room: pinned first, ghosts last, then the most recently active first
   const byName=(a,b)=>(a.person||a.project).localeCompare(b.person||b.project) || a.session.localeCompare(b.session);
-  const seat=(a,b)=>((b.pinned?1:0)-(a.pinned?1:0)) || ((a.ghost?1:0)-(b.ghost?1:0)) || byName(a,b);
+  const seat=(a,b)=>((b.pinned?1:0)-(a.pinned?1:0)) || ((a.ghost?1:0)-(b.ghost?1:0)) || ((b.ts||0)-(a.ts||0)) || byName(a,b);
   const rooms = s
     ? [{id:"search", name:"Matches", list:shown.slice().sort((a,b)=>searchScore(b,s)-searchScore(a,s) || seat(a,b))}]
     : ROOMS.map(r=>({...r, list:shown.filter(m=>m.group===r.id).sort(seat)}))

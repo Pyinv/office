@@ -34,14 +34,13 @@ class Floor(BrowserCase):
         self.writes.append((route.request.url.rsplit("/", 1)[-1], route.request.post_data))
         route.fulfill(status=200, content_type="application/json", body='{"ok":true}')
 
-    def test_rooms_hold_desks_by_name_and_the_needs_you_note(self):
+    def test_rooms_hold_desks_by_activity_and_the_needs_you_note(self):
         self.open_floor()
         self.assertEqual(self.js("[...document.querySelectorAll('.rhead')].map(h=>h.firstChild.textContent)"),
-                         ["Clients", "Ventures", "Personal"])
-        # seats are by name inside a room, not by activity: Amy before Zed although Zed is newer
-        self.assertEqual(self.js("[...document.querySelectorAll('.room')][0].querySelectorAll('.desk .wn').length"), 2)
-        self.assertEqual(self.js("[...[...document.querySelectorAll('.room')][0].querySelectorAll('.desk .wn')].map(n=>n.textContent)"),
-                         ["Amy", "Zed"])
+                         ["Ventures", "Clients", "Personal"])
+        # inside a room the most recently active comes first: Zed (1 min ago) before Amy (2 min ago)
+        self.assertEqual(self.js("[...[...document.querySelectorAll('.room')][1].querySelectorAll('.desk .wn')].map(n=>n.textContent)"),
+                         ["Zed", "Amy"])
         self.assertEqual(self.js("document.querySelector('[data-session=amy-beta] .note').textContent"), "Answer")
         self.assertEqual(self.js("document.querySelector('[data-session=cy-delta] .note').textContent"), "Draft")
         self.assertIsNone(self.js("document.querySelector('[data-session=zed-alpha] .note')"))

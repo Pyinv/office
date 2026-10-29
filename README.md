@@ -10,7 +10,7 @@ It reads tmux + Claude Code transcripts to tell, per session, whether Claude is 
 
 ## Features
 
-- **Live floor** — rooms (clients / ventures / personal) of desks, one per tmux session: face, name, project and one line. Seats stay put (pinned first, then by name); a session that is asking you gets an amber *Answer* note on its desk and a chip in the *Your move* row. The look is written down in `DESIGN.md`.
+- **Live floor** — rooms (ventures / clients / personal) of desks, one per tmux session: face, name, project and one line, the most recently active first (pinned before all); a session that is asking you gets an amber *Answer* note on its desk and a chip in the *Your move* row. The look is written down in `DESIGN.md`.
 - **A person's panel** — tap a desk: the whole last reply, a question's choices as buttons, a box to answer (typed in via `tmux send-keys`) and one ⋯ menu for terminal, pin, mute, focus note, move, rename, close and erase. A side panel on a laptop, a full-screen sheet on the phone; double-click a desk to go straight to its terminal.
 - **Full terminal** — a real interactive terminal per session (via [ttyd](https://github.com/tsl0922/ttyd)), with seamless select-to-copy, an open-in-new-tab button and, on a laptop, a rail of faces to hop between desks. Each terminal has its own address (`/<session-name>`), so a refresh, a bookmark or a shared link lands straight in it.
 - **Phone terminal** — on touch devices, swipe to scroll and a key bar above the keyboard with esc, tab, arrows, enter and the Ctrl keys (^B works as the tmux prefix). Paste uses the clipboard when the browser allows it and falls back to a paste box when it doesn't.
