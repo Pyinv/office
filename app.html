@@ -16,8 +16,9 @@
 <meta name="theme-color" content="#F7F6F3" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#121211" media="(prefers-color-scheme: dark)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap">
+<!-- the fonts never hold the page back: fetched alongside, applied when they arrive (system fonts until then) -->
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap">
 <script>
 // theme before first paint: "system" follows the OS (and keeps following it), dark/light are fixed.
 // The stylesheet below keys every colour off html[data-theme]; the choice lives in office.prefs.

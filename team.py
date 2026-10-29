@@ -63,6 +63,29 @@ def _children():
         kids.setdefault(ppid, []).append(int(d))
     return kids
 
+# every transcript under ~/.claude/projects, by the first 8 characters of its name (the short session
+# id). One scan serves a whole snapshot — globbing every project folder once per agent was most of
+# the floor's time. Rebuilt when it is older than a couple of seconds, so a new transcript shows up.
+_JIDX = {"at": 0.0, "idx": {}}
+
+def _transcripts(sid):
+    if time.time() - _JIDX["at"] > 2:
+        idx = {}
+        try:
+            for d in os.scandir(PROJ):
+                if not d.is_dir():
+                    continue
+                try:
+                    for f in os.scandir(d.path):
+                        if f.name.endswith(".jsonl"):
+                            idx.setdefault(f.name[:8], []).append(f.path)
+                except OSError:
+                    pass
+        except OSError:
+            pass
+        _JIDX.update(at=time.time(), idx=idx)
+    return [p for p in _JIDX["idx"].get(sid[:8], []) if os.path.basename(p).startswith(sid)]
+
 def _by_pid(pane_pid, kids):
     if not pane_pid:
         return None
@@ -80,7 +103,7 @@ def _by_pid(pane_pid, kids):
                     # transcript was written to last, not just sessionId
                     sids = {str(v) for v in meta.values()                # full ids, or the 8-char short form
                             if isinstance(v, str) and re.fullmatch(r"[0-9a-f]{8}(-[0-9a-f-]{27})?", v)}
-                    hits = [h for sid in sids for h in glob.glob(os.path.join(PROJ, "*", sid + "*.jsonl"))]
+                    hits = [h for sid in sids for h in _transcripts(sid)]
                     if hits:
                         hits.sort(key=lambda h: -os.path.getmtime(h))
                         return _parse_one(hits[0])

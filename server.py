@@ -11,7 +11,7 @@ Binds to the Tailscale IP ONLY. Refuses to start without one, so the reply
 endpoint (which can type into live Claude sessions) is never exposed to the LAN
 or the internet — same trust boundary as sitting at the tower.
 """
-import json, subprocess, sys, os, time, importlib, signal, socket, threading, shutil, re, tempfile, shlex
+import json, subprocess, sys, os, time, importlib, signal, socket, threading, shutil, re, tempfile, shlex, gzip
 from urllib.parse import urlparse, parse_qs, unquote
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -558,14 +558,24 @@ class Handler(SimpleHTTPRequestHandler):
         except Exception:
             return False
 
-    def _json(self, obj, code=200):
-        body = json.dumps(obj).encode()
+    def _send(self, body, ctype, code=200):
+        # gzip anything worth it when the client takes it: the floor is ~70 KB of JSON every 5 s and
+        # the page ~170 KB, which on weak mobile data is most of the wait; both shrink to about a quarter
+        gz = len(body) > 1024 and "gzip" in (self.headers.get("Accept-Encoding") or "")
+        if gz:
+            body = gzip.compress(body, compresslevel=5)
         self.send_response(code)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", ctype)
+        if gz:
+            self.send_header("Content-Encoding", "gzip")
+        self.send_header("Vary", "Accept-Encoding")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+
+    def _json(self, obj, code=200):
+        self._send(json.dumps(obj).encode(), "application/json", code)
 
     def _serve_html(self, filepath):
         # Serve an HTML file with {{OFFICE_*}} placeholders filled from config,
@@ -581,13 +591,7 @@ class Handler(SimpleHTTPRequestHandler):
                      ("OFFICE_STATUS_URL", STATUS_URL), ("OFFICE_FILES_URL", FILES_URL),
                      ("OFFICE_SECRETARY_NAME", SECRETARY)):
             html = html.replace("{{" + k + "}}", v)
-        body = html.encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
+        self._send(html.encode("utf-8"), "text/html; charset=utf-8")
 
     def do_GET(self):
         if self.path == "/" or self.path.startswith("/?"):
