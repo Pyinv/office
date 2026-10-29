@@ -90,6 +90,18 @@ class Floor(BrowserCase):
         self.assertTrue(self.js("document.getElementById('dp-menu').hidden"))
 
 
+    def test_dragging_a_desk_to_another_room_moves_it(self):
+        self.open_floor()
+        self.page.drag_and_drop("[data-session=zed-alpha]", ".room[data-room=personal] .rhead")
+        self.page.wait_for_timeout(200)
+        self.assertEqual(self.writes[0][0], "group")
+        self.assertEqual(json.loads(self.writes[0][1]), {"session": "zed-alpha", "group": "personal"})
+        # dropping on its own room does nothing
+        self.page.drag_and_drop("[data-session=bo-gamma]", ".room[data-room=ventures] .rhead")
+        self.page.wait_for_timeout(200)
+        self.assertEqual(len(self.writes), 1)
+
+
 @skip_unless_browser
 class PhoneFloor(BrowserCase):
     device = IPHONE

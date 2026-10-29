@@ -542,6 +542,9 @@
   .desk.stale .av,.desk.ghost .av{filter:grayscale(1);opacity:.55}
   .desk.stale .who,.desk.ghost .who,.desk.stale .line,.desk.ghost .line{color:var(--faint)}
   .desk.dispatched{animation:dispatch 2s ease-out}
+  .desk.dragging{opacity:.4}
+  .room{border-radius:14px;transition:background .12s,box-shadow .12s}
+  .room.droppable{background:color-mix(in srgb,var(--ink) 5%,transparent);box-shadow:0 0 0 2px color-mix(in srgb,var(--ink) 30%,transparent);outline-offset:6px}
   /* the one authored moment: a note sticking out of the desk when it's your move */
   .note{position:absolute;top:-.62rem;right:.6rem;z-index:1;background:#e08a00;color:#1e1300;font-size:.68rem;font-weight:600;line-height:1;
     padding:.32rem .5rem;border-radius:4px;transform:rotate(2.5deg);box-shadow:0 2px 0 rgba(0,0,0,.14);pointer-events:none}
@@ -1965,6 +1968,7 @@ function paintDesk(el,m){
 }
 function desk(m){
   const el=document.createElement("div"); el.dataset.session=m.session; el.tabIndex=0; el.setAttribute("role","button");
+  if(!PHONE) el.draggable=true;                       // drag a desk to another room (laptop; the phone has ⋯ → Move to)
   paintDesk(el,m); return el;
 }
 
@@ -2180,7 +2184,7 @@ function render(){
   for(const k in CARDS) if(!keep.has(k)) delete CARDS[k];
   floor.textContent="";
   for(const r of rooms){
-    const sec=document.createElement("section"); sec.className="room";
+    const sec=document.createElement("section"); sec.className="room"; sec.dataset.room=r.id;
     const n=need(r);
     sec.innerHTML=`<h2 class="rhead">${esc(r.name)}<small>${r.list.length} desk${r.list.length===1?"":"s"}${n?` · ${n} need${n===1?"s":""} you`:""}</small></h2>`;
     const g=document.createElement("div"); g.className="desks";
@@ -2375,6 +2379,30 @@ document.getElementById("floor").addEventListener("click",e=>{
   if(e.detail>=2){ const m=LAST.find(x=>x.session===d.dataset.session); if(m) openTerm(m.session,(m.person||m.project),tabTitle(m)); return; }
   openDesk(d.dataset.session);
 });
+// drag a desk onto another room to move it there — the same as ⋯ → Move to
+{
+  const floor=document.getElementById("floor"); let dragging="";
+  const roomAt=e=>{ const r=e.target.closest(".room"); return r && ROOMS.some(x=>x.id===r.dataset.room) ? r : null; };
+  const clear=()=>floor.querySelectorAll(".room.droppable").forEach(r=>r.classList.remove("droppable"));
+  floor.addEventListener("dragstart",e=>{
+    const d=e.target.closest(".desk"); if(!d) return;
+    dragging=d.dataset.session; e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain",dragging);
+    d.classList.add("dragging");
+  });
+  floor.addEventListener("dragover",e=>{
+    const r=dragging && roomAt(e); if(!r) return;
+    const m=LAST.find(x=>x.session===dragging); if(!m || m.group===r.dataset.room) return;
+    e.preventDefault(); e.dataTransfer.dropEffect="move";
+    if(!r.classList.contains("droppable")){ clear(); r.classList.add("droppable"); }
+  });
+  floor.addEventListener("dragleave",e=>{ const r=roomAt(e); if(r && !r.contains(e.relatedTarget)) r.classList.remove("droppable"); });
+  floor.addEventListener("drop",e=>{
+    const r=dragging && roomAt(e); clear(); if(!r) return;
+    e.preventDefault(); const s=dragging; dragging="";
+    const m=LAST.find(x=>x.session===s); if(m && m.group!==r.dataset.room) setGroup(s, r.dataset.room);
+  });
+  floor.addEventListener("dragend",()=>{ dragging=""; clear(); floor.querySelectorAll(".desk.dragging").forEach(d=>d.classList.remove("dragging")); });
+}
 document.getElementById("floor").addEventListener("keydown",e=>{
   const d=e.target.closest(".desk"); if(d && (e.key==="Enter"||e.key===" ")){ e.preventDefault(); openDesk(d.dataset.session); }
 });
