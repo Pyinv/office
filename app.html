@@ -619,11 +619,16 @@
   }
   /* ── the terminal: a rail of faces beside it on a laptop ── */
   .mrow{flex:1;display:flex;min-height:0}
-  .rail{flex:0 0 58px;display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:.6rem 0;background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;scrollbar-width:none}
-  .rail .av{position:relative;width:38px;height:38px;flex:0 0 38px;border-radius:10px;border:0;font-size:1.1rem;cursor:pointer;padding:0;
-    background:hsl(var(--h) 22% 24%)}
-  .rail .av.on{outline:2px solid var(--ink);outline-offset:2px}
-  .rail .av i{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:#f0a020;border:2px solid var(--panel)}
+  .rail{flex:0 0 76px;display:flex;flex-direction:column;align-items:stretch;gap:.35rem;padding:.6rem .3rem;background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;scrollbar-width:none}
+  /* faces repeat (many 👤, 🚗), so every face carries its name */
+  .rail .rp{display:flex;flex-direction:column;align-items:center;gap:.2rem;border:0;background:none;padding:.3rem .1rem;border-radius:10px;cursor:pointer;color:var(--dim);font:inherit;min-width:0}
+  .rail .rp:hover{background:var(--panel2);color:var(--ink)}
+  .rail .rp.on{background:var(--panel2);color:var(--ink)}
+  .rail .rp .av{position:relative;width:34px;height:34px;flex:0 0 34px;border-radius:9px;font-size:1rem;background:hsl(var(--h) 22% 24%)}
+  .rail .rp.on .av{outline:2px solid var(--ink);outline-offset:2px}
+  .rail .rp .av i{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:#f0a020;border:2px solid var(--panel)}
+  .rail .rp .rn{font-size:.66rem;font-weight:500;line-height:1.15;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rail .floorbtn{align-self:center;flex:0 0 auto}
   .rail .grow{flex:1}
   .rail .floorbtn{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);cursor:pointer;font-size:1rem}
   @media (max-width:600px),(pointer:coarse){ .rail{display:none} }
@@ -1574,8 +1579,8 @@ function paintRail(session){
   const wait=LAST.filter(m=>m.state==="waiting" && !m.ghost).sort((a,b)=>(b.ts||0)-(a.ts||0));
   const rest=LAST.filter(m=>!m.ghost && m.ts && !wait.includes(m)).sort((a,b)=>(b.ts||0)-(a.ts||0));
   const cur=LAST.find(m=>m.session===session);
-  const list=[cur, ...wait, ...rest].filter((m,i,a)=>m && a.indexOf(m)===i).slice(0,14);
-  rail.innerHTML=list.map(m=>`<button class="av${m.session===session?" on":""}" style="--h:${hueFor(m.person||m.project)}" data-s="${esc(m.session)}" title="${esc(tabTitle(m))}">${esc(m.emoji||emojiFor(m.project))}${m.state==="waiting"?"<i></i>":""}</button>`).join("")
+  const list=[cur, ...wait, ...rest].filter((m,i,a)=>m && a.indexOf(m)===i).slice(0,10);
+  rail.innerHTML=list.map(m=>`<button class="rp${m.session===session?" on":""}" data-s="${esc(m.session)}" title="${esc(tabTitle(m))}"><span class="av" style="--h:${hueFor(m.person||m.project)}">${esc(m.emoji||emojiFor(m.project))}${m.state==="waiting"?"<i></i>":""}</span><span class="rn">${esc(m.person||m.project)}</span></button>`).join("")
     +`<span class="grow"></span><button class="floorbtn" title="back to the floor (Esc)" aria-label="back to the floor">▦</button>`;
   rail.querySelectorAll("button[data-s]").forEach(b=>b.onclick=()=>{ if(b.dataset.s!==MODAL_SESSION) openTermByName(b.dataset.s); });
   rail.querySelector(".floorbtn").onclick=closeTerm;
