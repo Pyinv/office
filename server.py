@@ -1427,13 +1427,13 @@ class Handler(SimpleHTTPRequestHandler):
         if working and verb:
             rows.append(f'<div class="work">✻ {_h.escape(str(verb))} <span class="dim">(esc to interrupt)</span></div>')
         page = ("<!doctype html><html><head><meta charset=utf-8><title>" + project + "</title><style>"
-                "html,body{margin:0;height:100%;background:#0c0f14;color:#e8eef6;"
+                "html,body{margin:0;height:100%;background:#111312;color:#e6e8e4;"
                 "font:14px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}"
                 ".wrap{padding:18px 20px 96px;max-width:920px}.dim{color:#7c8797}"
                 ".you{color:#8fd4ff;white-space:pre-wrap}.asst{white-space:pre-wrap}"
                 ".work{color:#3fb6ff}.sp{height:10px}"
                 ".box{position:fixed;left:20px;right:20px;bottom:34px;border:1px solid #252d3a;"
-                "border-radius:8px;padding:9px 12px;color:#7c8797;background:#0c0f14}"
+                "border-radius:8px;padding:9px 12px;color:#7c8797;background:#111312}"
                 ".cur{display:inline-block;width:8px;height:15px;background:#3fb6ff;vertical-align:-2px;"
                 "animation:b 1.1s steps(1) infinite}@keyframes b{50%{opacity:0}}"
                 ".bar{position:fixed;left:0;right:0;bottom:0;padding:6px 20px;background:#141922;"

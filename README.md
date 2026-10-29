@@ -10,20 +10,20 @@ It reads tmux + Claude Code transcripts to tell, per session, whether Claude is 
 
 ## Features
 
-- **Live floor** — one card per tmux session (who/what/state), most-recently-active first.
-- **Answer inline** — reply to a session; it's typed in via `tmux send-keys`.
-- **Full terminal** — a real interactive terminal per session (via [ttyd](https://github.com/tsl0922/ttyd)), with seamless select-to-copy and an open-in-new-tab button. Each terminal has its own address (`/<session-name>`), so a refresh, a bookmark or a shared link lands straight in it.
+- **Live floor** — rooms (clients / ventures / personal) of desks, one per tmux session: face, name, project and one line. Seats stay put (pinned first, then by name); a session that is asking you gets an amber *Answer* note on its desk and a chip in the *Your move* row. The look is written down in `DESIGN.md`.
+- **A person's panel** — tap a desk: the whole last reply, a question's choices as buttons, a box to answer (typed in via `tmux send-keys`) and one ⋯ menu for terminal, pin, mute, focus note, move, rename, close and erase. A side panel on a laptop, a full-screen sheet on the phone; double-click a desk to go straight to its terminal.
+- **Full terminal** — a real interactive terminal per session (via [ttyd](https://github.com/tsl0922/ttyd)), with seamless select-to-copy, an open-in-new-tab button and, on a laptop, a rail of faces to hop between desks. Each terminal has its own address (`/<session-name>`), so a refresh, a bookmark or a shared link lands straight in it.
 - **Phone terminal** — on touch devices, swipe to scroll and a key bar above the keyboard with esc, tab, arrows, enter and the Ctrl keys (^B works as the tmux prefix). Paste uses the clipboard when the browser allows it and falls back to a paste box when it doesn't.
-- **Organize** — pin, categorize (clients / ventures / personal), and attach a **focus note** (main task + sub-tasks) that stays pinned to the card.
-- **Manage** — rename a session (tmux and its Office state move together), kill it, or spawn a new one from a form (person, project, folder, category) confined to your dev root. Sessions that died or were killed stay in history, so "+ New" can bring one back by name with its old folder and category — and resume its last Claude conversation. When Claude exits inside a session, the pane drops to a shell instead of closing.
-- **Erase** (🔥 on the card) — removes an agent completely: the tmux session, its folder, its Office entries, and everything Claude keeps about that folder (transcripts, memory directory, file-history snapshots, prompt-history lines). It is a dry run first: the dialog lists what would go and, read from the agent's own transcripts, every file it wrote *outside* its folder and every shell command that touched outside paths — you tick what should go too, type the session name, then it runs. A folder shared with another session is kept.
+- **Organize** — pin, categorize (clients / ventures / personal), and attach a **focus note** (main task + sub-tasks) that stays on the desk.
+- **Manage** — rename a session (tmux and its Office state move together), kill it, or spawn a new one from a form (person, project, folder, category) confined to your dev root. Sessions that died or were killed stay in history, so "New desk" can bring one back by name with its old folder and category — and resume its last Claude conversation. When Claude exits inside a session, the pane drops to a shell instead of closing.
+- **Erase** (in a desk's ⋯ menu) — removes an agent completely: the tmux session, its folder, its Office entries, and everything Claude keeps about that folder (transcripts, memory directory, file-history snapshots, prompt-history lines). It is a dry run first: the dialog lists what would go and, read from the agent's own transcripts, every file it wrote *outside* its folder and every shell command that touched outside paths — you tick what should go too, type the session name, then it runs. A folder shared with another session is kept.
 - **⟳ Restore / Update agents** — the server keeps `live.json` (which sessions are alive, with folder, group and conversation id). After a reboot or a tmux crash the header offers *Restore N agents*: every session comes back in one click, each on its own conversation (`claude --resume`). When a new tmux server starts, the old server's set is kept as a restore baseline, so restoring one agent by hand or starting a new one first doesn't drop the others from the list; an agent closed or erased through the Office is never offered again (`restore.py`). When Claude Code installs a new version ("Restart to update"), the same button offers *Update N agents*: each idle agent is quit (`/exit`) and started again in the same pane on the same conversation, with the same permission mode and any unsent draft typed back in; agents that are working or showing a question are left alone and listed. `GET /api/restart` is the plan, `POST /api/restart {restore:[…], update:[…]}` runs it, and the plan's `job.log` is the report.
-- **Settings (⚙)** — per device, kept in the browser: appearance (system / dark / light — the terminal itself stays dark so the agents' own colours stay readable), terminal text size (also reachable from the `Aa` key on the phone's key bar, applies to the open terminal at once), notifications, and the agents' restore/update row. After a reboot a banner under the header offers to bring the lost agents back in one tap. On the phone the Team/Status chips fold out behind a **Filters** pill next to the search box.
+- **Settings (⚙)** — per device, kept in the browser: appearance (system / dark / light — the terminal itself stays dark so the agents' own colours stay readable), terminal text size (also reachable from the `Aa` key on the phone's key bar, applies to the open terminal at once), notifications, and the agents' restore/update row. After a reboot a banner under the header offers to bring the lost agents back in one tap. The Team/Status chips fold out behind a **Filters** button next to the search box.
 - **Share from the phone** — `GET /api/drop` lists the live agents (`"Demo App | Max": "max-demo-app"`, most recent first) and `POST /api/drop?session=<s>&name=<file>` with the file as the body saves it to that agent's `inbox/` and tells the agent in its terminal; `POST /api/drop?session=<s>&text=1` types the body as a message. The iPhone app's Share Sheet entry (`ios/`) sends a whole share in one request (`POST /api/share`); `/api/drop` serves anything else that can post a file, e.g. an iOS Shortcut. Several items shared at once (WhatsApp messages and photos, a set of screenshots) arrive as **one** message, in order: each upload joins a batch for that agent, which goes out when item `n` of `n` arrives (`&i=<index>&n=<count>`), or after a few quiet seconds when the Shortcut doesn't send a count. A batch waits while the agent has a question open or an unsent draft, and pushes a notification if it waits long.
 - **iPhone app** (`ios/`) — an optional native shell around the same page, for one reason: iOS puts a keyboard accessory bar above every web text field and only a native app can remove it. Build it once with `sh ios/make.sh` on a Mac with Xcode; the Office keeps working the same for everyone without it. See `ios/README.md`.
-- **Secretary** — a chief-of-staff panel above the floor: type *"ask Lena to run the risk file, then have Mara draft the section"* and it finds those sessions and relays the instruction (real `send-keys`).
+- **Secretary** — a chief of staff at the front desk (the bottom of the floor on a laptop, the top on the phone): type *"ask Lena to run the risk file, then have Mara draft the section"* and it finds those sessions and relays the instruction (real `send-keys`).
 - **Usage dashboard** — tokens, spend, and rate-limit meters at `/status/`.
-- **Phone push** — optional: when a session turns to you with a question, the server posts "*Name* needs you" plus the question to an [ntfy](https://ntfy.sh) topic, with a tap target straight into that terminal; also when it finishes, when a Secretary follow-up fires, and when a session disappears. A 🔔 on each card mutes pushes for that session. Point it at your own ntfy server and nothing leaves your network (iOS still gets its wake-up through ntfy.sh, carrying only the topic name and a message id). See `OFFICE_NTFY_*` in `.env.example`.
+- **Phone push** — optional: when a session turns to you with a question, the server posts "*Name* needs you" plus the question to an [ntfy](https://ntfy.sh) topic, with a tap target straight into that terminal; also when it finishes, when a Secretary follow-up fires, and when a session disappears. *Mute phone pushes* in a desk's ⋯ menu mutes them for that session. Point it at your own ntfy server and nothing leaves your network (iOS still gets its wake-up through ntfy.sh, carrying only the topic name and a message id). See `OFFICE_NTFY_*` in `.env.example`.
 
 ## How it works
 
@@ -83,7 +83,7 @@ source of truth for identity — there is no roster file.
 | `OFFICE_TITLE` | `Office` | Header + browser-tab title |
 | `OFFICE_EMAIL` | *(empty)* | Optional, shown on the status page |
 | `OFFICE_TAILNET_HOST` | *(auto)* | Optional; the machine's tailnet name is auto-detected from `tailscale status` |
-| `OFFICE_DEV_ROOT` | `~/develop` | Where "+ New" may create project folders |
+| `OFFICE_DEV_ROOT` | `~/develop` | Where "New desk" may create project folders |
 | `OFFICE_CLAUDE_BIN` | `$(which claude)` | Path to the `claude` binary |
 | `OFFICE_PORT` | `8899` | Port for the web server |
 | `OFFICE_STATUS_URL` | `/status/` | Header "Usage &amp; limits" link; empty hides it |
@@ -108,14 +108,14 @@ fictional.
 
 ## Secretary
 
-The **Secretary** panel sits above the floor — your chief of staff. Type a plain-language
+The **Secretary** sits at the front desk — your chief of staff. Type a plain-language
 instruction and it routes it to the right session:
 
 > ask Lena to run the risk file, then have Mara draft the key-usage section
 
 It matches the names against the live team, relays a polite instruction (`Please run the risk
 file`) into that session via `tmux send-keys`, and confirms who it went to. In **demo mode** there's
-no real tmux, so it simulates the dispatch and the target card visibly reacts on the floor. Rename
+no real tmux, so it simulates the dispatch and the target desk visibly reacts on the floor. Rename
 the assistant with `OFFICE_SECRETARY_NAME`.
 
 ## Security model

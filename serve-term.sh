@@ -20,6 +20,6 @@ rm -f "$DIR/ttyd.sock"          # clear any stale socket left by a previous cras
 # a VPN falling back to a relay) stalls for a few seconds; with a 5 s ping that stall closed the
 # websocket and every open terminal showed "Reconnecting". 30 s still finds a dead connection.
 exec ttyd --writable --url-arg -i "$DIR/ttyd.sock" --base-path /terminal -P 30 \
-  -t fontSize=14 -t 'theme={"background":"#0c0f14","foreground":"#e8eef6"}' \
+  -t fontSize=14 -t 'theme={"background":"#111312","foreground":"#e6e8e4"}' \
   -t disableLeaveAlert=true -t reconnect=2 \
   "$DIR/attach.sh"

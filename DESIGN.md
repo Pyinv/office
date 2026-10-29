@@ -130,4 +130,5 @@ Radii: 6px for small controls and code, 10px for desks, inputs and buttons, 14px
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-10-29 | Initial design system created | Created by /design-consultation from the product context, with independent proposals from Codex and a Claude subagent |
-| 2026-10-29 | Stage 1 shipped: palette, fonts, header count | Purple, gradients, glows and card stripes removed; the floor layout comes next |
+| 2026-10-29 | Stage 1 shipped: palette, fonts, header count | Purple, gradients, glows and card stripes removed |
+| 2026-10-29 | Floor of desks, the person's panel, face rail, front desk | Rooms with fixed seats; a desk opens a panel (side panel / phone sheet) with the reply, answer buttons and one ⋯ menu; Nadia sits at the bottom on a laptop but stays at the top on the phone, where a bottom bar fights the keyboard |

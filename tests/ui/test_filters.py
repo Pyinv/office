@@ -18,7 +18,7 @@ class FiltersPill(BrowserCase):
         self.assertEqual(self.js("document.getElementById('filtertoggle').getAttribute('aria-expanded')"), "true")
         self.assertEqual(self.js("getComputedStyle(document.querySelector('.filtercol')).display"), "flex")
         self.assertTrue(self.prefs()["filters"])
-        self.page.reload(); self.page.wait_for_selector(".card")
+        self.page.reload(); self.page.wait_for_selector(".desk")
         self.assertTrue(self.js("document.body.classList.contains('filters-open')"))
 
     def test_active_filter_count_on_the_pill(self):

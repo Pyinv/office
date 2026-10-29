@@ -50,7 +50,7 @@ class Theme(BrowserCase):
         self.js("document.querySelector('input[name=theme][value=dark]').click()")
         self.assertEqual(self.js("document.documentElement.dataset.theme"), "dark")
         self.assertNotIn("terminal stays dark", self.js("document.getElementById('st-theme-s').textContent"))
-        self.page.reload(); self.page.wait_for_selector(".card")
+        self.page.reload(); self.page.wait_for_selector(".desk")
         self.assertEqual(self.js("document.documentElement.dataset.theme"), "dark")
         self.assertEqual(self.prefs()["theme"], "dark")
 
@@ -77,12 +77,12 @@ class TerminalTextSize(BrowserCase):
         self.assertEqual(self.js("document.getElementById('st-fval').textContent"), "8")
         self.assertTrue(self.js("document.getElementById('st-fminus').disabled"))
         self.assertEqual(self.js("document.getElementById('st-fsample').style.fontSize"), "8px")
-        self.page.reload(); self.page.wait_for_selector(".card")
+        self.page.reload(); self.page.wait_for_selector(".desk")
         self.assertEqual(self.js("termFontSize()"), 8)
 
     def test_change_reaches_the_open_terminal_and_the_aa_key_opens_settings(self):
         self.open_floor()
-        session = self.js("document.querySelector('.card').dataset.session")
+        session = self.js("document.querySelector('.desk').dataset.session")
         self.page.goto(self.page.url.rstrip('/') + "/" + session)
         self.page.wait_for_selector("#termframe")
         self.page.wait_for_function("(()=>{ try{ return !!document.getElementById('termframe').contentWindow.term; }catch(e){ return false; } })()", timeout=15000)
@@ -96,7 +96,7 @@ class TerminalTextSize(BrowserCase):
         self.assertEqual(self.js("document.getElementById('termframe').contentWindow.term.options.fontSize"), 12)
         # the terminal's own chrome keeps the dark tokens whatever the page theme
         self.js("document.querySelector('input[name=theme][value=light]').click()")
-        self.assertEqual(self.js("getComputedStyle(document.querySelector('.mbar')).backgroundColor"), "rgb(21, 27, 36)")
+        self.assertEqual(self.js("getComputedStyle(document.querySelector('.mbar')).backgroundColor"), "rgb(28, 30, 29)")
 
 
 @skip_unless_browser
@@ -110,8 +110,12 @@ class DesktopDefaults(BrowserCase):
         self.assertEqual(self.js("[...document.querySelectorAll('.titlerow > button')].map(b=>b.id).join(' ')"),
                          "restartbtn bell settingsbtn")
         self.assertEqual(self.js("document.getElementById('restartbtn').textContent"), "⟳ Update 1 agent")
-        self.assertEqual(self.js("getComputedStyle(document.getElementById('settingsbtn')).boxShadow"), "none")   # no glow on desktop
-        self.assertEqual(self.js("getComputedStyle(document.getElementById('filtertoggle')).display"), "none")
+        # the update lives behind the gear on the laptop too: the button hides, the gear lights up
+        self.assertEqual(self.js("getComputedStyle(document.getElementById('restartbtn')).display"), "none")
+        self.assertNotEqual(self.js("getComputedStyle(document.getElementById('settingsbtn')).boxShadow"), "none")
+        # the filter chips fold behind the Filters button on the laptop as well
+        self.assertNotEqual(self.js("getComputedStyle(document.getElementById('filtertoggle')).display"), "none")
+        self.assertEqual(self.js("getComputedStyle(document.querySelector('.filtercol')).display"), "none")
         self.open_settings()
         self.assertIsNone(self.js("document.getElementById('st-shortcut-row')"))
 

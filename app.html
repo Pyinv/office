@@ -85,6 +85,7 @@
   .netbar.restorebar button{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
   /* Settings: rows of label + control, the dialog chrome is the shared .newdlg.linkdlg */
   .settingsdlg h2{outline:none}
+  .newdlg.linkdlg.settingsdlg{width:min(92vw,480px)}
   .newdlg.settingsdlg .preview{font-family:inherit;font-size:.8rem}
   .settingsdlg [hidden]{display:none!important}
   .settingsdlg .sbody{display:flex;flex-direction:column;margin-top:.4rem}
@@ -99,13 +100,13 @@
   .settingsdlg .srow.action:hover .sl{color:var(--accent)}
   .settingsdlg .srow.action .sc{color:var(--faint);font-size:1rem}
   .settingsdlg #st-agents{order:5}
-  .settingsdlg.pending #st-agents{order:0;border-top:0;box-shadow:inset 3px 0 0 var(--accent);padding-left:.7rem}
+  .settingsdlg.pending #st-agents{order:0;border-top:0;background:var(--panel2);border-radius:10px;padding-left:.8rem;padding-right:.8rem}
   .settingsdlg.pending #st-agents .sl{color:var(--accent)}
   .settingsdlg #st-agents.err .sl{color:var(--wait)}
-  .settingsdlg .radios{display:flex;gap:.3rem;flex-wrap:nowrap}
-  .settingsdlg .radios label{position:relative;flex-direction:row;align-items:center;min-height:2.5rem;border:1px solid var(--line);border-radius:999px;
-    padding:.3rem .7rem;cursor:pointer;color:var(--ink);font-weight:600;font-size:.8rem;white-space:nowrap}
-  .settingsdlg .radios label:has(:checked){border-color:var(--accent);background:var(--work2);color:var(--accent)}
+  .newdlg.settingsdlg .radios{display:flex;gap:0;flex-wrap:nowrap;background:var(--panel2);border-radius:10px;padding:3px}
+  .newdlg.settingsdlg .radios label{position:relative;flex-direction:row;align-items:center;justify-content:center;min-height:2.3rem;border:0;border-radius:8px;
+    padding:.3rem .8rem;cursor:pointer;color:var(--dim);font-weight:500;font-size:.82rem;white-space:nowrap}
+  .newdlg.settingsdlg .radios label:has(:checked){background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.1)}
   .settingsdlg .radios label:has(:focus-visible){box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
   .settingsdlg .radios input{position:absolute;opacity:0;width:0;height:0;margin:0}
   .settingsdlg .stepper{display:flex;align-items:center;gap:.4rem}
@@ -174,28 +175,6 @@
   .chip.cat.on .c{background:color-mix(in srgb,var(--bg) 25%,transparent);color:var(--on-accent)}
 
   .wrap{max-width:1180px;margin:0 auto;padding:.4rem 1.1rem 5rem}
-  .glabel{margin:1.4rem 0 .55rem;font:600 1rem var(--disp);letter-spacing:0;
-    text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:.5rem}
-  .glabel .n{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
-    padding:0 .5rem;font-size:.68rem;color:var(--faint)}
-  .grid{display:grid;gap:.65rem;grid-template-columns:1fr}
-  @media(min-width:600px){.grid{grid-template-columns:1fr 1fr}}
-  @media(min-width:960px){.grid{grid-template-columns:1fr 1fr 1fr}}
-
-  .card{cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:14px;
-    padding:.75rem .85rem;display:flex;flex-direction:column;gap:.55rem;
-    box-shadow:var(--shadow);position:relative;overflow:hidden;transition:transform .12s,border-color .12s}
-  .card:hover{transform:translateY(-1px)}
-  /* "live" = touched within RECENT_SEC (see refreshAgo): the few you're actually working with
-     right now. A soft accent wash + lit top edge + glow lifts them out of a crowded wall. */
-  .card.recent:not(.working):not(.waiting){border-color:color-mix(in srgb,var(--ink) 28%,var(--line))}
-  .rdot{display:none}
-  .card.stale{opacity:.55;transition:opacity .15s}
-  .card.stale:hover{opacity:1}
-  .card.waiting{border-color:color-mix(in srgb,var(--wait) 60%,var(--line))}
-  .card.typed{border-color:color-mix(in srgb,var(--pend) 50%,var(--line))}
-  .card.working{border-color:color-mix(in srgb,var(--work) 45%,var(--line))}
-  .top{display:flex;align-items:center;gap:.55rem}
   .av{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:1.15rem;
     flex:0 0 38px;background:var(--panel2)}
   .av[style*="--h"]{background:hsl(var(--h) var(--face-s) var(--face-l))}
@@ -207,29 +186,12 @@
     box-shadow:0 0 0 3px color-mix(in srgb,var(--rev) 25%,transparent)}
   .ago{font-size:.74rem;font-weight:700;color:var(--faint);white-space:nowrap;font-variant-numeric:tabular-nums}
   .ago.fresh{color:var(--rev)}
-  .pill{margin-left:.45rem;font-size:.63rem;font-weight:700;letter-spacing:.02em;
-    padding:.16rem .5rem;border-radius:999px;white-space:nowrap;text-transform:uppercase}
-  .p-waiting{color:var(--wait);background:var(--wait2)} .p-typed{color:var(--pend);background:var(--pend2)}
-  .p-review{color:var(--rev);background:var(--rev2)} .p-working{color:var(--work);background:var(--work2)}
-  .p-idle,.p-busy{color:var(--idle);background:var(--panel2)}
-
-  .youline{font-size:.74rem;color:var(--faint);line-height:1.3;
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .youline b{color:var(--dim);font-weight:600}
-  .ask{font-size:.85rem;color:var(--ink);line-height:1.4;font-weight:500}
   .sent-note,.working-note{font-size:.82rem;color:var(--work);font-weight:600;display:flex;align-items:center;gap:.45rem}
-  .working-note{text-transform:lowercase}
   .sent-note .dots,.working-note .dots{width:9px;height:9px;border-radius:50%;background:var(--work);flex:0 0 9px;
     box-shadow:0 0 0 0 var(--work);animation:pulse 1.2s infinite}
   .typedline{font-size:.82rem;color:var(--pend);font-family:var(--mono);line-height:1.4;
     background:var(--pend2);border:1px solid color-mix(in srgb,var(--pend) 45%,transparent);
     border-radius:9px;padding:.4rem .55rem;word-break:break-word}
-  .youbox{background:var(--panel2);
-    border-radius:8px;padding:.35rem .55rem;color:var(--ink);font-size:.79rem;line-height:1.42;
-    cursor:pointer;word-break:break-word}
-  .youbox b{color:var(--accent);font-weight:700;text-transform:uppercase;font-size:.66rem;letter-spacing:.05em;margin-right:.2rem}
-  .youbox .yt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-  .youbox.full .yt{-webkit-line-clamp:unset;overflow:visible}
   /* focus note — the user's pinned reminder of a session's main task + sub-tasks */
   .taskbox{background:var(--panel2);
     border-radius:8px;padding:.38rem .55rem;color:var(--ink);font-size:.78rem;line-height:1.38;word-break:break-word}
@@ -249,11 +211,6 @@
   .taskbtns .tsave{background:var(--accent);color:var(--on-accent)}
   .taskbtns .tsave:hover{filter:brightness(1.08)}
   .taskbtns .tcancel{background:var(--panel2);border:1px solid var(--line);color:var(--ink)}
-  .taskbtns .tcancel:hover{border-color:var(--accent)}
-  .iconbtn.task:hover{border-color:var(--accent);color:var(--accent)}
-  .card.editing .iconbtn.task{background:color-mix(in srgb,var(--accent) 25%,var(--panel2));
-    border-color:var(--accent);color:var(--ink)}
-  .card.editing .taskbox{display:none}
   .ctx{font-size:.79rem;line-height:1.5;color:var(--dim);word-break:break-word;
     max-height:170px;overflow-y:auto;background:var(--bg2);border:1px solid var(--line);
     border-radius:10px;padding:.55rem .65rem}
@@ -278,24 +235,7 @@
   .mdtable th,.mdtable td{border:1px solid var(--line);padding:.18rem .5rem;text-align:left;white-space:nowrap}
   .mdtable th{background:var(--panel);color:var(--ink);font-weight:600}
   .mdtable .r{text-align:right}
-  .ask code{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:.03em .28em;font-size:.92em}
-  .reply{display:flex;gap:.35rem;flex-wrap:wrap}
-  .reply input{flex:1;min-width:90px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
-    border-radius:9px;padding:.42rem .6rem;font-size:.83rem;font-family:inherit}
-  .reply input:focus{outline:none;border-color:var(--wait);box-shadow:0 0 0 3px var(--wait2)}
-  .reply button{border:0;border-radius:9px;font-weight:700;font-size:.82rem;cursor:pointer;padding:.42rem .75rem}
-  .reply .alt{background:var(--panel2);border:1px solid var(--line);color:var(--ink)}
-  .reply .alt:hover{border-color:var(--wait)}
-  .reply .draft{background:var(--pend);color:#1a1400}
-  .quick{display:flex;gap:.32rem;flex-wrap:wrap}
-  .quick button{background:var(--panel2);border:1px solid var(--line);color:var(--ink);
-    border-radius:8px;padding:.26rem .6rem;font-size:.76rem;font-weight:600;cursor:pointer}
-  .quick button:hover{border-color:var(--wait);color:var(--wait)}
-  .termbtn{margin-left:.3rem;background:var(--panel2);border:1px solid var(--line);color:var(--dim);
-    border-radius:8px;width:26px;height:26px;font-size:.85rem;cursor:pointer;flex:0 0 26px;
-    display:grid;place-items:center;padding:0}
-  .termbtn:hover{border-color:var(--accent);color:var(--ink)}
-  .modal{position:fixed;inset:0;background:rgba(4,7,12,.72);backdrop-filter:blur(4px);
+  .modal{position:fixed;inset:0;background:rgba(18,18,17,.62);backdrop-filter:blur(4px);
     z-index:100;display:none;align-items:center;justify-content:center;padding:2.5vh 2vw}
   .modal.open{display:flex}
   .mbox{width:96vw;max-width:1300px;height:95vh;background:#111312;border:1px solid var(--line);
@@ -312,7 +252,7 @@
   /* "+ New" session dialog: a real form, nothing is created until you hit Create */
   .newdlg{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);
     padding:0;width:min(92vw,420px);box-shadow:0 20px 60px rgba(0,0,0,.45)}
-  .newdlg::backdrop{background:rgba(4,7,12,.6);backdrop-filter:blur(4px)}
+  .newdlg::backdrop{background:rgba(18,18,17,.45);backdrop-filter:blur(4px)}
   .newdlg form{display:flex;flex-direction:column;gap:.75rem;padding:1.1rem 1.2rem 1rem}
   .newdlg h2{margin:0 0 .2rem;font-size:1.05rem}
   .newdlg label{display:flex;flex-direction:column;gap:.25rem;font-size:.8rem;font-weight:600;color:var(--faint)}
@@ -409,22 +349,6 @@
     body.termkeys .mbox{position:absolute;left:0;right:0;top:var(--vvtop,0px);height:calc(var(--vvh,100vh) - var(--barh,0px));
       width:auto;max-width:none;border-radius:0;border:0}
   }
-  .cathead{margin:1.8rem 0 .3rem;display:flex;align-items:center;gap:.55rem;
-    font-size:.95rem;font-weight:800;letter-spacing:-.01em;padding-bottom:.4rem;border-bottom:2px solid var(--line)}
-  .cathead .n{font-size:.7rem;font-weight:700;background:var(--panel2);border:1px solid var(--line);
-    border-radius:999px;padding:.05rem .5rem;color:var(--faint)}
-  .cathead:first-child{margin-top:.4rem}
-  .cfoot{display:flex;align-items:center;gap:.4rem;margin-top:.1rem;padding-top:.5rem;border-top:1px solid var(--line)}
-  .grpsel{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:7px;
-    font-size:.72rem;padding:.16rem .3rem;font-family:inherit;cursor:pointer;max-width:120px}
-  .grpsel:focus{outline:none;border-color:var(--accent)}
-  .iconbtn{background:var(--panel2);border:1px solid var(--line);color:var(--faint);border-radius:7px;
-    width:28px;height:26px;cursor:pointer;font-size:.82rem;display:grid;place-items:center;padding:0}
-  .iconbtn:hover{border-color:var(--accent);color:var(--ink)}
-  .iconbtn.kill:hover{border-color:#e5484d;color:#e5484d}
-  .iconbtn.pin.on{background:color-mix(in srgb,var(--accent) 25%,var(--panel2));border-color:var(--accent)}
-  .iconbtn.mute.on{background:color-mix(in srgb,var(--wait) 22%,var(--panel2));border-color:var(--wait)}
-  .card.pinned{outline:1.5px solid color-mix(in srgb,var(--accent) 70%,transparent);outline-offset:-1px}
   .newbtn{background:var(--accent);color:var(--on-accent);border:0;border-radius:999px;font-weight:700;
     font-size:.8rem;padding:.3rem .8rem;cursor:pointer;white-space:nowrap}
   .newbtn:hover{filter:brightness(1.08)}
@@ -470,10 +394,10 @@
   .ptr .spin{margin:0}
   html{overscroll-behavior-y:contain}
   .toast{position:fixed;left:50%;bottom:1.3rem;transform:translateX(-50%) translateY(10px);
-    background:var(--rev);color:#04160e;font-weight:700;font-size:.84rem;padding:.55rem 1rem;
+    background:var(--ink);color:var(--bg);font-weight:600;font-size:.84rem;padding:.55rem 1rem;
     border-radius:11px;opacity:0;transition:all .22s;pointer-events:none;box-shadow:var(--shadow)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  .toast.err{background:var(--wait);color:#160800}
+  .toast.err{background:#c2412d;color:#fff}
   .toast.tap{pointer-events:auto;cursor:pointer;background:var(--accent);color:var(--on-accent)}
   .toast.tap::after{content:" ›";opacity:.75;font-weight:700}
 
@@ -505,7 +429,27 @@
     input:not([type=checkbox]):not([type=radio]),textarea,select{font-size:16px}
   }
   .navlink .shr{display:none}
-  .filtertoggle{display:none}
+  /* laptop: one header row — title, count, bell, gear | New desk, search, Filters; the chips fold out below */
+  @media (min-width:601px){
+    .hin{display:flex;flex-wrap:wrap;align-items:center;column-gap:1rem;padding:.75rem 1.1rem}
+    .titlerow{flex:1;min-width:0;align-items:center}
+    .controls{display:contents}
+    .actioncol{flex-direction:row;align-items:center;gap:.5rem;order:2}
+    .filtercol{order:3;flex-basis:100%;display:none;padding:.6rem 0 .1rem} body.filters-open .filtercol{display:flex}
+    .filtertoggle{display:inline-flex;align-items:center;justify-content:center;width:2.25rem;height:2.25rem;position:relative;
+      border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--dim);font:inherit;cursor:pointer}
+    .filtertoggle .c{position:absolute;top:-.3rem;right:-.3rem;min-width:1.1rem;height:1.1rem;line-height:1.1rem;text-align:center;font-size:.66rem;font-weight:700;
+      background:var(--accent);color:var(--on-accent);border-radius:999px;padding:0 .25rem}
+    .filtertoggle.active{border-color:var(--accent);color:var(--accent)}
+    body.filters-open .filtertoggle{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+    .search{width:230px}
+    .search:focus{width:300px}
+    .navlink .lng{display:none} .navlink .shr{display:inline}
+    .newbtn{padding:.42rem .9rem;font-size:.85rem}
+    /* updating the agents lives in Settings (its first row) — the gear lights up while there's one */
+    #restartbtn{display:none}
+    .bell.settings.pending{border-color:var(--accent);color:var(--accent);opacity:1;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+  }
   @media (max-width:600px){
     /* phone: what you use all the time (New + search) comes first; the filter rows and the
        secretary fold away behind a tap and remember their state */
@@ -561,7 +505,6 @@
   .sec-btn:hover{filter:brightness(1.08)}
   .sec-reply{margin-top:.55rem;font-size:.9rem;min-height:1.1em}
   .sec-reply.ok{color:var(--rev)} .sec-reply.err{color:var(--wait)} .sec-reply.think{color:var(--faint)}
-  .card.dispatched{animation:dispatch 2s ease-out}
   @keyframes dispatch{0%,30%,72%,100%{box-shadow:0 0 0 0 transparent}
     12%,50%{box-shadow:0 0 0 3px var(--accent)}}
   @media(max-width:600px){.secretary{display:block;padding:.8rem .95rem .85rem 1rem}
@@ -569,6 +512,148 @@
     .sec-head{padding-left:42px;min-height:32px;gap:.2rem .5rem;margin-bottom:.5rem}
     .sec-sub{font-size:.74rem}.kbd{display:none}
     .sec-form{flex-direction:column;gap:.45rem}}
+
+  /* ── the floor: rooms of desks (DESIGN.md) ── */
+  .room{margin:1.3rem 0 .4rem}
+  .rhead{display:flex;align-items:baseline;gap:.6rem;margin:0 0 .85rem;font:600 1.05rem var(--disp);letter-spacing:0}
+  .rhead small{font:400 .8rem "General Sans",sans-serif;color:var(--dim)}
+  .rhead::after{content:"";flex:1;height:1px;background:var(--line);transform:translateY(-.25rem)}
+  .desks{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:1rem .75rem}
+  .desk{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.62rem .7rem .55rem;
+    display:grid;grid-template-columns:34px minmax(0,1fr) auto;column-gap:.6rem;row-gap:.32rem;align-items:center;
+    cursor:pointer;min-width:0;transition:border-color .15s;-webkit-tap-highlight-color:transparent}
+  .desk:hover{border-color:var(--faint)}
+  .desk:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--ink) 18%,transparent)}
+  .desk.sel{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+  .desk .av{width:34px;height:34px;flex:0 0 34px;border-radius:9px;font-size:1.05rem}
+  .desk .nm{min-width:0}
+  .desk .who{display:flex;align-items:center;gap:.35rem;font-size:.98rem;white-space:nowrap}
+  .desk .wn{overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .desk .ago{font-size:.7rem;font-weight:500;align-self:start;padding-top:.15rem}
+  .desk .line{grid-column:1/-1;font-size:.8rem;line-height:1.35;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.08em}
+  .desk .line.q{color:var(--ink)}
+  .desk .dtask{grid-column:1/-1;font-size:.74rem;color:var(--ink);background:var(--panel2);border-radius:6px;padding:.1rem .45rem;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .desk.recent:not(.waiting):not(.typed):not(.sel){border-color:color-mix(in srgb,var(--ink) 22%,var(--line))}
+  .desk.waiting{border-color:color-mix(in srgb,var(--wait) 60%,var(--line))}
+  .desk.typed{border-color:color-mix(in srgb,var(--pend) 55%,var(--line))}
+  .desk.stale,.desk.ghost{background:transparent;border-style:dashed}
+  .desk.stale .av,.desk.ghost .av{filter:grayscale(1);opacity:.55}
+  .desk.stale .who,.desk.ghost .who,.desk.stale .line,.desk.ghost .line{color:var(--faint)}
+  .desk.dispatched{animation:dispatch 2s ease-out}
+  /* the one authored moment: a note sticking out of the desk when it's your move */
+  .note{position:absolute;top:-.62rem;right:.6rem;z-index:1;background:#e08a00;color:#1e1300;font-size:.68rem;font-weight:600;line-height:1;
+    padding:.32rem .5rem;border-radius:4px;transform:rotate(2.5deg);box-shadow:0 2px 0 rgba(0,0,0,.14);pointer-events:none}
+  html[data-theme=dark] .note{background:var(--wait)}
+  .note.draft{background:var(--pend);color:#1e1300}
+  .pinhead{position:absolute;top:-5px;left:14px;width:10px;height:10px;border-radius:50%;background:#b08d3a;box-shadow:0 1px 0 rgba(0,0,0,.3)}
+  .wdot{width:7px;height:7px;border-radius:50%;background:var(--work);flex:0 0 7px;animation:breathe 2s ease-in-out infinite}
+  @keyframes breathe{0%,100%{opacity:1}50%{opacity:.3}}
+  .mtag{font:500 .62rem "General Sans",sans-serif;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 .3rem}
+  @media (prefers-reduced-motion:reduce){.wdot,.live,.rchip.working .d{animation:none}}
+  /* "Your move" + "Recent" under Nadia */
+  .mchip{border:0;background:var(--wait2);color:var(--ink);border-radius:999px;padding:.2rem .7rem .2rem .2rem;font:inherit;font-size:.8rem;font-weight:500;
+    cursor:pointer;display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;flex:0 0 auto}
+  .mchip .f{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.8rem;background:hsl(var(--h) var(--face-s) var(--face-l))}
+  .mchip em{font-style:normal;color:var(--dim);font-size:.74rem}
+  .mchip:hover{filter:brightness(.97)}
+  .rsep{width:1px;align-self:stretch;background:var(--line);margin:0 .35rem;flex:0 0 1px}
+  .recentrow .rl{text-transform:none;letter-spacing:0;font-size:.78rem;font-weight:600;color:var(--ink)}
+  /* ── a person's panel ── */
+  .deskpanel{position:fixed;top:0;right:0;bottom:0;width:440px;max-width:100vw;z-index:40;background:var(--panel);
+    border-left:1px solid var(--line);display:flex;flex-direction:column;box-shadow:-16px 0 40px -24px rgba(0,0,0,.45);animation:dpin .2s ease-out}
+  .deskpanel[hidden]{display:none}
+  @keyframes dpin{from{transform:translateX(18px);opacity:0}}
+  @media (min-width:1100px){ body.deskopen{padding-right:440px} }
+  .dp-head{position:relative;display:flex;align-items:center;gap:.65rem;padding:calc(.95rem + env(safe-area-inset-top)) 1rem .95rem 1.1rem;border-bottom:1px solid var(--line)}
+  .dp-head .av{width:44px;height:44px;flex:0 0 44px;font-size:1.4rem;border-radius:12px}
+  .dp-t{flex:1;min-width:0}
+  .dp-n{font:650 1.25rem/1.15 var(--disp);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dp-state{font-size:.78rem;color:var(--dim);display:flex;align-items:center;gap:.35rem;margin-top:.1rem}
+  .dp-state::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 7px}
+  .dp-state.waiting{color:var(--wait)} .dp-state.working{color:var(--work)} .dp-state.review{color:var(--rev)}
+  .dp-state.typed{color:var(--pend)} .dp-state.ghost{color:var(--faint)}
+  .dp-btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:.45rem .8rem;font:inherit;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap}
+  .dp-btn:hover,.dp-icon:hover{border-color:var(--faint)}
+  .dp-icon{width:36px;height:36px;flex:0 0 36px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;font:inherit;font-size:1rem;cursor:pointer;display:grid;place-items:center;padding:0}
+  .dp-icon[aria-expanded=true]{border-color:var(--ink)}
+  .dp-menu{position:absolute;right:1rem;top:calc(100% - .35rem);width:230px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:.35rem;z-index:3}
+  .dp-menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:.5rem .65rem;border-radius:8px;font:inherit;font-size:.9rem;color:var(--ink);cursor:pointer}
+  .dp-menu button:hover,.dp-menu button:focus-visible{background:var(--panel2);outline:none}
+  .dp-menu .danger{color:#c2412d}
+  html[data-theme=dark] .dp-menu .danger{color:#f07a66}
+  .dp-menu hr{border:0;border-top:1px solid var(--line);margin:.3rem 0}
+  .dp-body{flex:1;min-height:0;overflow-y:auto;padding:1rem 1.1rem;display:flex;flex-direction:column;gap:.85rem;overscroll-behavior:contain}
+  .dp-you{align-self:flex-end;max-width:88%;background:var(--panel2);border-radius:12px 12px 4px 12px;padding:.5rem .75rem;font-size:.9rem;line-height:1.45;
+    cursor:pointer;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+  .dp-you.full{-webkit-line-clamp:unset;overflow:visible}
+  .ctx.dp-reply{max-height:none;overflow:visible;background:none;border:0;padding:0;font-size:.92rem;line-height:1.55;color:var(--ink)}
+  .dp-empty{color:var(--faint);font-size:.9rem}
+  .dp-q{display:flex;flex-direction:column;gap:.5rem;border-top:1px solid var(--line);padding-top:.85rem}
+  .dp-q .opt{display:flex;gap:.65rem;align-items:baseline;width:100%;text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:10px;
+    padding:.65rem .8rem;font:inherit;font-size:.92rem;color:var(--ink);cursor:pointer}
+  .dp-q .opt b{font:500 .78rem var(--mono);color:var(--dim)}
+  .dp-q .opt:hover{border-color:var(--ink)}
+  .dp-draft{display:flex;flex-direction:column;gap:.5rem}
+  .dp-senddraft{align-self:flex-start;border:0;background:var(--pend);color:#1e1300;border-radius:10px;padding:.5rem .9rem;font:inherit;font-weight:600;cursor:pointer}
+  .dp-compose{display:flex;gap:.5rem;align-items:flex-end;padding:.75rem .9rem calc(.75rem + env(safe-area-inset-bottom));border-top:1px solid var(--line);margin:0}
+  .dp-compose textarea{flex:1;min-width:0;resize:none;background:var(--panel2);border:1px solid transparent;border-radius:12px;padding:.6rem .75rem;
+    font:inherit;font-size:.95rem;line-height:1.4;color:var(--ink);max-height:160px}
+  .dp-compose textarea:focus{outline:none;border-color:var(--line);background:var(--panel)}
+  .dp-compose button{width:40px;height:40px;flex:0 0 40px;border-radius:12px;border:0;background:var(--accent);color:var(--on-accent);font-size:1.1rem;cursor:pointer}
+  /* ── Nadia's front desk: at the bottom of the floor on a laptop, always in reach ── */
+  @media (min-width:601px){
+    .secretary{position:sticky;bottom:.9rem;z-index:6;margin:1.4rem auto 0;max-width:860px;padding:.6rem .7rem .6rem .75rem;align-items:center;
+      box-shadow:0 1px 2px rgba(0,0,0,.06),0 14px 34px -16px rgba(0,0,0,.35)}
+    .sec-ava{width:36px;height:36px;flex:0 0 36px;font-size:1.15rem;border-radius:10px}
+    .sec-main{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:.75rem}
+    .sec-head{margin:0}
+    .sec-sub{display:none}
+    .sec-head .kbd{margin-left:.4rem}
+    .sec-reply{grid-column:1/-1;max-height:40vh;overflow-y:auto}
+    .sec-reply:empty{display:none}
+    .sec-in{height:2.4rem}
+    .sec-btn{height:2.4rem;padding:.45rem .95rem}
+    .toast{bottom:6.2rem}
+  }
+  /* ── the terminal: a rail of faces beside it on a laptop ── */
+  .mrow{flex:1;display:flex;min-height:0}
+  .rail{flex:0 0 58px;display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:.6rem 0;background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;scrollbar-width:none}
+  .rail .av{position:relative;width:38px;height:38px;flex:0 0 38px;border-radius:10px;border:0;font-size:1.1rem;cursor:pointer;padding:0;
+    background:hsl(var(--h) 22% 24%)}
+  .rail .av.on{outline:2px solid var(--ink);outline-offset:2px}
+  .rail .av i{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:#f0a020;border:2px solid var(--panel)}
+  .rail .grow{flex:1}
+  .rail .floorbtn{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);cursor:pointer;font-size:1rem}
+  @media (max-width:600px),(pointer:coarse){ .rail{display:none} }
+  /* ── dialogs ── */
+  .newdlg{border-radius:16px}
+  .newdlg h2{font:650 1.25rem var(--disp);letter-spacing:-.005em}
+  .newdlg .radios.rooms{display:flex;background:var(--panel2);border-radius:10px;padding:3px;gap:0}
+  .newdlg .radios.rooms label{flex:1;justify-content:center;border:0;border-radius:8px;padding:.4rem .5rem;color:var(--dim);font-weight:500}
+  .newdlg .radios.rooms label:has(:checked){background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.1)}
+  .newdlg .radios.rooms input{position:absolute;opacity:0;pointer-events:none}
+  .newdlg .radios.rooms label:has(:focus-visible){box-shadow:0 0 0 3px color-mix(in srgb,var(--ink) 18%,transparent)}
+  /* ── phone: three seats a row — face, name, project; the line lives in the panel ── */
+  @media (max-width:600px){
+    .room{margin:1rem 0 .3rem}
+    .rhead{font-size:1rem;margin-bottom:.8rem}
+    .desks{grid-template-columns:repeat(3,minmax(0,1fr));gap:.9rem .5rem}
+    .desk{grid-template-columns:minmax(0,1fr);justify-items:center;text-align:center;padding:.8rem .3rem .55rem;row-gap:.22rem;border-radius:12px}
+    .desk .av{width:42px;height:42px;flex:0 0 42px;font-size:1.35rem;border-radius:12px}
+    .desk .nm{width:100%}
+    .desk .who{justify-content:center;font-size:.9rem}
+    .desk .proj{font-size:.6rem}
+    .desk .line,.desk .ago,.desk .dtask{display:none}
+    .note{right:.3rem;font-size:.6rem;padding:.26rem .4rem}
+    .pinhead{left:10px}
+    .deskpanel{width:100vw;top:var(--vvtop,0px);bottom:auto;height:var(--vvh,100dvh);border-left:0;box-shadow:none;animation-name:dpup}
+    @keyframes dpup{from{transform:translateY(24px);opacity:0}}
+    .dp-head{padding-left:1rem}
+    .dp-btn{padding:.45rem .6rem}
+    .dp-compose textarea{font-size:16px}
+    body.deskopen{overflow:hidden}
+  }
 </style>
 </head>
 <body>
@@ -588,7 +673,7 @@
       <div class="chiprow"><span class="frow-l">Status</span><div class="chips" id="chips"></div></div>
     </div>
     <div class="actioncol">
-      <button class="newbtn" id="newbtn">+ New</button>
+      <button class="newbtn" id="newbtn">New desk</button>
       <span class="searchwrap" id="searchwrap"><input type="search" class="search" id="search" placeholder="search  ·  who, project, “waiting”, “clients”…  (⌘F)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button type="button" class="searchx" id="searchx" title="clear search" aria-label="clear search">×</button></span>
       <div class="sugg" id="sugg" role="listbox"></div>
       <button class="filtertoggle" id="filtertoggle" title="show / hide the team and status filters" aria-label="Filters" aria-expanded="false"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 5h18l-7 8v5l-4 2v-7L3 5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span class="c" id="filtercount" hidden></span></button>
@@ -619,6 +704,21 @@
     <a href="https://github.com/Pyinv/office/blob/master/LICENSE" target="_blank" rel="noopener">MIT</a>
   </footer>
 </div>
+<aside class="deskpanel" id="desk" hidden aria-label="agent">
+  <div class="dp-head">
+    <div class="av" id="dp-av"></div>
+    <div class="dp-t"><div class="dp-n" id="dp-name"></div><div class="proj" id="dp-proj"></div><div class="dp-state" id="dp-state"></div></div>
+    <button class="dp-btn" id="dp-term" title="open the terminal">Terminal</button>
+    <button class="dp-icon" id="dp-more" title="more" aria-label="more" aria-haspopup="menu" aria-expanded="false">⋯</button>
+    <button class="dp-icon" id="dp-x" title="close (Esc)" aria-label="close">✕</button>
+    <div class="dp-menu" id="dp-menu" role="menu" hidden></div>
+  </div>
+  <div class="dp-body" id="dp-body"></div>
+  <form class="dp-compose" id="dp-compose" autocomplete="off">
+    <textarea id="dp-in" rows="1" placeholder="Reply…" autocomplete="off" autocorrect="on" autocapitalize="sentences" enterkeyhint="send"></textarea>
+    <button type="submit" id="dp-send" title="send" aria-label="send">↑</button>
+  </form>
+</aside>
 <div class="toast" id="toast"></div>
 <div class="ptr" id="ptr"></div>
 <div class="modal" id="modal">
@@ -629,7 +729,8 @@
       <button class="mx" id="mpop" title="open in a new tab (run two side by side)">↗</button>
       <button class="mx" id="mx" title="close">✕</button>
     </div>
-    <iframe id="termframe" src="about:blank" allow="clipboard-read; clipboard-write"></iframe>
+    <div class="mrow"><nav class="rail" id="rail" aria-label="switch desk"></nav>
+    <iframe id="termframe" src="about:blank" allow="clipboard-read; clipboard-write"></iframe></div>
   </div>
 </div>
 <dialog class="newdlg linkdlg" id="linkdlg">
@@ -678,7 +779,7 @@
 </dialog>
 <dialog class="newdlg" id="rendlg">
   <form method="dialog" autocomplete="off">
-    <h2>Rename session</h2>
+    <h2>Rename</h2>
     <label>New name <input name="sess" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required pattern="[A-Za-z0-9_]+-[A-Za-z0-9_-]+" title="person-project, e.g. juno-manasek"></label>
     <div class="preview">person-project · the part before the first dash is the person</div>
     <div class="btns"><button type="button" onclick="this.closest('dialog').close()">Cancel</button><button value="rename">Rename</button></div>
@@ -694,23 +795,23 @@
 </dialog>
 <dialog class="newdlg" id="newdlg">
   <form method="dialog" id="newform" autocomplete="off">
-    <h2>New session</h2>
+    <h2>New desk</h2>
     <label id="recreate" hidden>Bring back a past session
       <input type="search" name="past" placeholder="type to search past sessions…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <div class="pastlist" id="pastlist" hidden></div></label>
-    <label>Person <input name="who" list="people" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="max" required pattern="[A-Za-z0-9_]+" title="letters and digits only"></label>
+    <label>Name <input name="who" list="people" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="max" required pattern="[A-Za-z0-9_]+" title="letters and digits only"></label>
     <label>Project <input name="project" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="pyinv-tax-accountant" required pattern="[A-Za-z0-9_-]+" title="letters, digits, - and _"></label>
     <label>Folder <input name="dir" list="folders" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="pyinv-tax-accountant"></label>
     <input type="hidden" name="resume">
     <div class="preview" id="newprev"></div>
-    <div class="radios">
-      <label><input type="radio" name="group" value="personal" checked>personal</label>
-      <label><input type="radio" name="group" value="clients">clients</label>
-      <label><input type="radio" name="group" value="ventures">ventures</label>
+    <div class="radios rooms" role="radiogroup" aria-label="room">
+      <label><input type="radio" name="group" value="clients">Clients</label>
+      <label><input type="radio" name="group" value="ventures">Ventures</label>
+      <label><input type="radio" name="group" value="personal" checked>Personal</label>
     </div>
     <datalist id="people"></datalist>
     <datalist id="folders"></datalist>
-    <div class="btns"><button value="cancel" type="button" id="newcancel">Cancel</button><button value="create">Create</button></div>
+    <div class="btns"><button value="cancel" type="button" id="newcancel">Cancel</button><button value="create">Open desk</button></div>
   </form>
 </dialog>
 <div class="phonebar" id="phonebar">
@@ -915,13 +1016,14 @@ const RECENT_SEC = 3*3600;      // "recent" (lit) window: the sessions you're wo
 const STALE_SEC  = 7*24*3600;   // older than a week -> dimmed, recedes into the background
 function refreshAgo(){
   const now=Date.now()/1000;
-  document.querySelectorAll("#floor .card").forEach(el=>{
+  document.querySelectorAll("#floor .desk").forEach(el=>{
     const a=el.querySelector(".ago"); if(!a) return;
     const ts=el._ts||0, gh=el._ghost;
     a.textContent=agoText(ts);
     a.classList.toggle("fresh", !gh && ts>0 && (now-ts)<3600);            // < 1h = highlighted (not ghosts — their time is tmux noise)
     el.classList.toggle("recent", !gh && ts>0 && (now-ts)<RECENT_SEC);    // touched < 3h -> lit (ghosts never light up)
-    el.classList.toggle("stale",  (gh || (ts>0 && (now-ts)>STALE_SEC)) && !el.classList.contains("pinned"));  // ghosts + >1 week -> dimmed (pinned never dims; hover restores)
+    const yours=el.classList.contains("waiting")||el.classList.contains("typed");   // a question you owe never fades, however old
+    el.classList.toggle("stale",  (gh || (ts>0 && (now-ts)>STALE_SEC)) && !el.classList.contains("pinned") && !yours);  // ghosts + >1 week -> dimmed (pinned never dims)
   });
 }
 setInterval(refreshAgo, 15000);   // keep the "time ago" fresh even without a data refresh
@@ -953,7 +1055,7 @@ function taskInner(m){
 function taskBlock(m){ return taskLines(m.task).length?`<div class="taskbox">${taskInner(m)}</div>`:""; }
 // has-task ("T") is part of catOf so GAINING/LOSING the note is a structural rebuild.
 const catOf=m=>(m.pinned?"P":"")+(taskLines(m.task).length?"T":"")+(m._sent?"sent":m.typed?"typed":m.state==="waiting"?("waiting"+((m.options&&m.options.length)?"q":"")):"plain");
-// m.task in the content signature so editing the note refreshes via updateCard.
+// m.task in the content signature so editing the note repaints the desk and its panel.
 const sigOf=m=>[m.state,m.attached,m.ask,m.typed,m.full,m.you,m.ts,m._sent?1:0,m.pinned?1:0,m.muted?1:0,m.task||""].join("");
 // apply optimistic "just sent" overrides + expire them once Claude actually replies
 function applySent(team){
@@ -999,118 +1101,8 @@ async function post(body, okmsg, inputEl){
 function say(session,text,inputEl){ if(text.trim()) post({session,text}, "Sent → "+session.split("-")[0], inputEl); }
 function submitDraft(session){ post({session,submit:true}, "Sent draft → "+session.split("-")[0]); }
 
-// your prompt, ABOVE the box. Clamped to 3 lines (some prompts are huge); click to expand.
-function youBlock(m){ return m.you?`<div class="youbox" title="click to expand"><span class="yt"><b>YOU</b> ${mdInline(esc(m.you))}</span></div>`:""; }
-// the box = just Claude's reply (markdown), or a muted placeholder when there's nothing yet.
-function convoBox(m){
-  const inner=mdHtml(m.full||"");
-  if(inner.trim()) return `<div class="ctx">${inner}</div>`;
-  return `<div class="ctx empty">${esc(m.attached?"you're in here now":"· "+pillOf(m))}</div>`;
-}
-
-function card(m){
-  const L=LABEL[m.state]||LABEL.idle, who=m.person||m.project, hue=hueFor(who);
-  const el=document.createElement("div"); el.className="card "+L.cls+(m.pinned?" pinned":""); el._sess=m.session; el.dataset.session=m.session;
-  el.style.setProperty("--ring",`hsl(${hue} 55% 55% / .8)`);
-  let h=`<span class="rdot"></span><div class="top">
-      <div class="av" style="--h:${hue}">${esc(m.emoji||emojiFor(m.project))}</div>
-      <div class="nm"><div class="who">${esc(who)}</div><div class="proj">${esc(m.project)}${m.ghost?" · 👻":""}</div></div>
-      ${m.attached?'<span class="att" title="you are attached"></span>':""}
-      <span class="ago" title="last activity in this session"></span>
-      <span class="pill p-${m.typed?'typed':m.state}">${esc(pillOf(m))}</span>
-    </div>`;
-  // focus note pinned at the very top, then the inline editor (hidden until 🎯),
-  // then your prompt; then the reply box (dropped while a send is in flight — the old
-  // reply is stale until Claude answers again).
-  h+=taskBlock(m);
-  h+=`<div class="taskedit" hidden>
-      <textarea rows="3" placeholder="Main task&#10;sub-task&#10;sub-task">${esc(m.task||"")}</textarea>
-      <div class="taskbtns"><button class="tsave">Save</button><button class="tcancel">Cancel</button></div>
-    </div>`;
-  h+=youBlock(m);
-  if(m._sent){
-    h+=`<div class="sent-note"><span class="dots"></span> Sent — Claude is replying…</div>`;
-  } else if(m.typed){
-    h+=convoBox(m);
-    h+=`<div class="typedline">❯ ${esc(m.typed)}</div>`;
-    h+=`<div class="reply"><button class="draft" title="accept Claude's suggestion and send it">Send this ▶</button>
-        <input placeholder="or type your own…" autocomplete="off" autocorrect="off" enterkeyhint="send"><button class="alt">Send</button></div>`;
-  } else if(m.state==="waiting"){
-    h+=convoBox(m);
-    if(m.options && m.options.length)
-      h+=`<div class="quick">`+m.options.map(o=>`<button data-say="${esc(o)}">${esc(o)}</button>`).join("")+`</div>`;
-    h+=`<div class="reply"><input placeholder="reply to ${esc(who)}…" autocomplete="off" autocorrect="off" enterkeyhint="send"><button class="alt">Send</button></div>`;
-  } else {
-    h+=convoBox(m);   // review / working — working shows via the pulsing card frame (CSS)
-  }
-  // footer: category select · terminal · kill
-  h+=`<div class="cfoot">
-      <select class="grpsel" title="category">
-        ${CATS.map(c=>`<option value="${c.id}"${m.group===c.id?" selected":""}>${c.short}</option>`).join("")}
-      </select>
-      <span style="margin-left:auto"></span>
-      <button class="iconbtn erase" title="erase — the session, its folder and every trace Claude keeps of it (dry run first)">🔥</button>
-      <button class="iconbtn kill" title="kill this session">🗑</button>
-      <button class="iconbtn mute${m.muted?' on':''}" title="${m.muted?'muted — no phone pushes; click to unmute':'mute phone pushes for this session'}">${m.muted?'🔕':'🔔'}</button>
-      <button class="iconbtn pin${m.pinned?' on':''}" title="${m.pinned?'unpin':'pin to top'}">📌</button>
-      <button class="iconbtn task" title="focus note — the session's main task">🎯</button>
-      <button class="iconbtn rename" title="rename this session">✏️</button>
-      <button class="iconbtn termbtn" title="open terminal">⛶</button>
-    </div>`;
-  el.innerHTML=h; el._sig=sigOf(m); el._cat=catOf(m); el._grp=m.group; el._ts=m.ts||0; el._ghost=!!m.ghost;
-  wireCard(el,m);
-  return el;
-}
-
-function wireCard(el,m){
-  const ctx=el.querySelector(".ctx");
-  // start the box scrolled to the bottom so the latest / the question shows first
-  if(ctx) requestAnimationFrame(()=>{ ctx.scrollTop=ctx.scrollHeight; });
-  const input=el.querySelector(".reply input");
-  if(input){
-    input.addEventListener("focus",()=>{ FROZEN=true; });
-    input.addEventListener("blur",()=>{ FROZEN=false; });   // always unfreeze on blur — no stuck freeze
-    input.addEventListener("keydown",e=>{ if(e.key==="Enter") say(m.session,input.value,input); });
-  }
-  const alt=el.querySelector(".reply .alt"); if(alt) alt.onclick=()=>say(m.session,input.value,input);
-  const draft=el.querySelector(".reply .draft"); if(draft) draft.onclick=()=>submitDraft(m.session);
-  el.querySelectorAll(".quick button").forEach(b=>b.onclick=()=>say(m.session,b.dataset.say,null));
-  const tb=el.querySelector(".termbtn"); if(tb) tb.onclick=()=>openTerm(m.session,(m.person||m.project),tabTitle(m));
-  const gs=el.querySelector(".grpsel"); if(gs) gs.onchange=()=>setGroup(m.session,gs.value);
-  const kb=el.querySelector(".kill"); if(kb) kb.onclick=()=>killCard(m.session,(m.person||m.project));
-  const eb=el.querySelector(".erase"); if(eb) eb.onclick=()=>eraseCard(m.session,(m.person||m.project));
-  const rn=el.querySelector(".rename"); if(rn) rn.onclick=()=>renameCard(m.session);
-  const pn=el.querySelector(".pin"); if(pn) pn.onclick=()=>pinCard(m.session,!m.pinned);
-  const mu=el.querySelector(".mute"); if(mu) mu.onclick=()=>muteCard(m.session,!m.muted);
-  // focus-note editor: 🎯 toggles, textarea pauses polling while focused (same as reply)
-  const taskbtn=el.querySelector(".iconbtn.task");
-  if(taskbtn) taskbtn.onclick=()=>{ const ed=el.querySelector(".taskedit"); ed.hidden ? openTaskEditor(el,m.session) : closeTaskEditor(el); };
-  const tta=el.querySelector(".taskedit textarea");
-  if(tta){
-    tta.addEventListener("focus",()=>{ FROZEN=true; });
-    tta.addEventListener("blur",()=>{ FROZEN=false; });   // always unfreeze on blur
-    tta.addEventListener("keydown",e=>{
-      if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){ e.preventDefault(); saveTask(m.session,tta.value,el); }
-      else if(e.key==="Escape"){ e.preventDefault(); closeTaskEditor(el); }
-    });
-  }
-  const ts=el.querySelector(".tsave"); if(ts) ts.onclick=()=>saveTask(m.session,el.querySelector(".taskedit textarea").value,el);
-  const tc=el.querySelector(".tcancel"); if(tc) tc.onclick=()=>closeTaskEditor(el);
-}
-
-function openTaskEditor(el, session){
-  const cur=(LAST.find(x=>x.session===session)||{}).task||"";   // freshest text, not stale closure
-  const ed=el.querySelector(".taskedit"), ta=ed.querySelector("textarea");
-  ta.value=cur; ed.hidden=false; el.classList.add("editing");
-  ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
-}
-function closeTaskEditor(el){
-  const ed=el.querySelector(".taskedit"); if(ed) ed.hidden=true;
-  el.classList.remove("editing"); FROZEN=false;
-}
 async function saveTask(session, text, el){
   const t=(text||"").trim();
-  if(el) closeTaskEditor(el);                       // close first so a reuse (updateCard) doesn't leave it open
   const m=LAST.find(x=>x.session===session); if(m) m.task=t;   // optimistic
   LAYOUT=""; render();
   try{
@@ -1158,6 +1150,7 @@ async function renameCard(session){
       dlg.close();
       if(SENT[session]){ SENT[j.session]=SENT[session]; delete SENT[session]; }
       if(MODAL_SESSION===session){ MODAL_SESSION=j.session; history.replaceState({session:j.session},"","/"+j.session); }
+      if(DESK===session) DESK=j.session;          // the open panel follows the new name
       const sb=document.getElementById("search"); if(sb && sb.value.trim().toLowerCase()===session){ sb.value=j.session; SEARCH=j.session; }  // keep the renamed card in view
       LAYOUT=""; toast("Renamed to "+j.session); load();
     }catch(err){ toast("⚠ "+err.message,true); }
@@ -1440,6 +1433,7 @@ function linkSheet(url){
 // Terminal text size: a per-device setting (Settings → Terminal text size). The phone defaults to a
 // smaller font so more of the conversation fits; the laptop to ttyd's own 14.
 const TTYD_FONT=14, TERM_FONT_DEFAULT=PHONE ? 11 : TTYD_FONT;
+const TERM_THEME={background:"#111312", foreground:"#e6e8e4", cursor:"#e6e8e4", cursorAccent:"#111312", selectionBackground:"#3a3f3b"};
 function termFontSize(){ const v=+pref("termFont"); return v>=8 && v<=20 ? v : TERM_FONT_DEFAULT; }
 function termFont(frame){
   // ttyd re-applies the server's font size whenever its websocket (re)connects, which on a slow
@@ -1447,18 +1441,20 @@ function termFont(frame){
   // Every resize makes the agent's screen redraw (and leaves ghost lines), so the size must not flip
   // 14 → 11 on each reconnect: xterm's option validator is patched so any fontSize written becomes ours.
   // When the setting is ttyd's own 14 there is nothing to enforce and the frame is left untouched.
+  // The Office's terminal colours (DESIGN.md) are pinned the same way — a colour change never resizes.
   let pinned=false;
   const apply=()=>{
     try{
       const t=frame.contentWindow.term; if(!t) return;
       const want=termFontSize();
       if(!pinned){
-        if(want===TTYD_FONT) return;
         const os=t._core.optionsService, orig=os._sanitizeAndValidateOption.bind(os);
-        os._sanitizeAndValidateOption=(k,v)=>orig(k, k==="fontSize" ? termFontSize() : v);
+        os._sanitizeAndValidateOption=(k,v)=>orig(k, k==="fontSize" && termFontSize()!==TTYD_FONT ? termFontSize()
+                                                    : k==="theme" ? Object.assign({}, v, TERM_THEME) : v);
         pinned=true;
       }
-      if(t.options.fontSize!==want){ t.options.fontSize=want; t.fit(); }
+      if((t.options.theme||{}).background!==TERM_THEME.background) t.options.theme=Object.assign({}, t.options.theme, TERM_THEME);
+      if(want!==TTYD_FONT && t.options.fontSize!==want){ t.options.fontSize=want; t.fit(); }
     }catch(_){}
   };
   apply();
@@ -1553,8 +1549,9 @@ function tabTitle(m){
 function openTerm(session, who, title){
   MODAL_SESSION=session;
   if(location.pathname!=="/"+session) history.pushState({session}, "", "/"+session);   // address bar = the terminal; refresh/share lands here
-  const box=document.querySelector(".mbox");
+  const box=document.querySelector(".mrow");
   const old=document.getElementById("termframe"); if(old) old.remove();
+  paintRail(session);
   const f=document.createElement("iframe"); f.id="termframe";
   f.allow="clipboard-read; clipboard-write";
   f.src=`/terminal/?arg=${encodeURIComponent(session)}`;   // same-origin, proxied to localhost ttyd
@@ -1568,6 +1565,19 @@ function openTerm(session, who, title){
   document.body.classList.add("termkeys");        // show the phone key-bar
   if(window.restoreDraft) restoreDraft();          // an unsent message for this session comes back (after the bar is visible, so the box can be measured)
   if(window.placeKeybar) setTimeout(placeKeybar,60);
+}
+// the face rail beside a laptop terminal: whoever needs you, then the ones you touched last — one click
+// hops desk to desk without going back to the floor; an amber dot means that person is asking you
+function paintRail(session){
+  const rail=document.getElementById("rail"); if(!rail) return;
+  const wait=LAST.filter(m=>m.state==="waiting" && !m.ghost).sort((a,b)=>(b.ts||0)-(a.ts||0));
+  const rest=LAST.filter(m=>!m.ghost && m.ts && !wait.includes(m)).sort((a,b)=>(b.ts||0)-(a.ts||0));
+  const cur=LAST.find(m=>m.session===session);
+  const list=[cur, ...wait, ...rest].filter((m,i,a)=>m && a.indexOf(m)===i).slice(0,14);
+  rail.innerHTML=list.map(m=>`<button class="av${m.session===session?" on":""}" style="--h:${hueFor(m.person||m.project)}" data-s="${esc(m.session)}" title="${esc(tabTitle(m))}">${esc(m.emoji||emojiFor(m.project))}${m.state==="waiting"?"<i></i>":""}</button>`).join("")
+    +`<span class="grow"></span><button class="floorbtn" title="back to the floor (Esc)" aria-label="back to the floor">▦</button>`;
+  rail.querySelectorAll("button[data-s]").forEach(b=>b.onclick=()=>{ if(b.dataset.s!==MODAL_SESSION) openTermByName(b.dataset.s); });
+  rail.querySelector(".floorbtn").onclick=closeTerm;
 }
 const BASE_TITLE=document.title;
 function closeTerm(){
@@ -1880,11 +1890,15 @@ async function sendKey(key){
 // scroll up to it; if the terminal is open, close it first so you land straight on it.
 function gotoSecretary(){
   if(MODAL_OPEN) closeTerm();
-  window.scrollTo({top:0, behavior:"smooth"});
+  if(matchMedia("(max-width:600px)").matches) window.scrollTo({top:0, behavior:"smooth"});
   const s=document.getElementById("sec-in");
   if(s){ s.focus({preventScroll:true}); s.select(); }
 }
-// the 🏢 in the header is the "back to the top" tap — the header sticks, the page is long
+{ const sec=document.getElementById("sec"), floor=document.getElementById("floor"), row=document.getElementById("recent"),
+        wide=matchMedia("(min-width:601px)");
+  const place=()=>{ if(wide.matches) floor.after(sec); else row.before(sec); };
+  place(); wide.addEventListener("change", place); }
+// the logo in the header is the "back to the top" tap — the header sticks, the page is long
 (function(){
   const l=document.getElementById("logo"); if(!l) return;
   const up=()=>window.scrollTo({top:0, behavior:"smooth"});
@@ -1893,6 +1907,7 @@ function gotoSecretary(){
 })();
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&MODAL_OPEN){ closeTerm(); return; }
+  if(e.key==="Escape"&&DESK&&!document.querySelector("dialog[open]")){ closeDesk(); return; }
   if((e.metaKey||e.ctrlKey)&&(e.key==="k"||e.key==="K")){ e.preventDefault(); gotoSecretary(); }
   // ⌘F / Ctrl-F (and "/" when not typing) go to the Office search, not the browser's find —
   // the floor is what you're searching. Inside a terminal or a dialog the browser keeps it.
@@ -1901,36 +1916,157 @@ document.addEventListener("keydown",e=>{
     e.preventDefault(); const sb=document.getElementById("search"); sb.focus(); sb.select(); }
 });
 
-// update a reused card's TEXT in place — never touches the open/closed ctx or the input,
-// so an expanded message stays expanded and typed text is preserved across refreshes.
-function updateCard(el,m){
-  // preserve the transient "editing" class — updateCard only runs when catOf is
-  // unchanged, so an open task editor must survive an in-place refresh.
-  const editing=el.classList.contains("editing");
-  el.className="card "+(LABEL[m.state]||{cls:"review"}).cls+(m.pinned?" pinned":"")+(editing?" editing":"");
-  const mb=el.querySelector(".iconbtn.mute");   // 🔔/🔕 follows the server's mute state
-  if(mb){ mb.classList.toggle("on",!!m.muted); mb.textContent=m.muted?"🔕":"🔔";
-          mb.title=m.muted?"muted — no phone pushes; click to unmute":"mute phone pushes for this session"; mb.onclick=()=>muteCard(m.session,!m.muted); }
-  el.style.setProperty("--ring",`hsl(${hueFor(m.person||m.project)} 55% 55% / .8)`);
-  const pill=el.querySelector(".pill"); if(pill){ pill.className="pill p-"+(m.typed?"typed":m.state); pill.textContent=pillOf(m); }
-  const tl=el.querySelector(".typedline"); if(tl && m.typed) tl.textContent="❯ "+m.typed;
-  // focus-note block (top): task presence is in catOf (structural), so here we only
-  // refresh its content in place — never touching the .taskedit the user may be in.
-  const tbx=el.querySelector(".taskbox"); if(tbx && m.task) tbx.innerHTML=taskInner(m);
-  // you-block (below the note): create/update/remove, keeping its expanded state
-  let yb=el.querySelector(".youbox");
-  if(m.you){ if(!yb){ yb=document.createElement("div"); yb.className="youbox"; yb.title="click to expand"; el.querySelector(".taskedit").after(yb); }
-             yb.innerHTML=`<span class="yt"><b>YOU</b> ${mdInline(esc(m.you))}</span>`; }
-  else if(yb){ yb.remove(); }
-  const ctx=el.querySelector(".ctx");
-  if(ctx){
-    const pinned = ctx.scrollHeight-ctx.scrollTop-ctx.clientHeight < 30;
+// ── the floor: rooms of desks (DESIGN.md). A desk is a face, a name, a project and one line.
+//    Seats never move — pinned first, then by name — so who needs you shows as the amber note on
+//    the desk, not by shuffling the room. A tap opens that person's panel; double-click, the terminal.
+const ROOMS=CATS.map(c=>({id:c.id, name:c.label.replace(/^\S+\s+/,"")}));     // "💼 Clients" -> "Clients"
+const roomName=g=>(ROOMS.find(r=>r.id===g)||{name:g||"Elsewhere"}).name;
+// the last readable line of a markdown reply: no table rules, fences or list/heading marks
+function lastLine(md){
+  const ls=(md||"").split("\n").map(l=>l.trim()).filter(l=>l && !/^\|?[\s:|-]+\|?$/.test(l) && !/^```/.test(l));
+  return (ls.pop()||"").replace(/^[#>*+\-\d.\s|]+/,"").replace(/[*`|]+/g," ").replace(/\s+/g," ").trim();
+}
+function deskLine(m){
+  if(m._sent) return "Sent, replying…";
+  if(m.typed) return "❯ "+m.typed;
+  if(m.ghost) return "Not running";
+  if(m.state==="waiting" && m.ask) return m.ask;
+  return lastLine(m.full) || (m.state==="working" ? "Working…" : "");
+}
+const noteOf=m=>m._sent ? "" : m.typed ? "Draft" : m.state==="waiting" ? "Answer" : "";
+const deskState=m=>m._sent ? "working" : m.typed ? "typed" : (m.state||"review");
+const deskSig=m=>[sigOf(m),m.ghost?1:0,m.group,m.emoji||"",m.person||"",(m.options||[]).join("\u0001")].join("\u0002");
+function deskHtml(m){
+  const who=m.person||m.project, note=noteOf(m), task=taskLines(m.task)[0];
+  return (note?`<span class="note${m.typed?" draft":""}">${note}</span>`:"")
+    +(m.pinned?`<span class="pinhead" title="pinned"></span>`:"")
+    +`<div class="av" style="--h:${hueFor(who)}">${esc(m.emoji||emojiFor(m.project))}</div>`
+    +`<div class="nm"><div class="who"><span class="wn">${esc(who)}</span>`
+    +(deskState(m)==="working"?`<span class="wdot" title="working"></span>`:"")
+    +(m.attached?`<span class="att" title="you're in its terminal"></span>`:"")
+    +(m.muted?`<span class="mtag">muted</span>`:"")
+    +`</div><div class="proj">${esc(m.project)}</div></div>`
+    +`<span class="ago"></span>`
+    +`<div class="line${note?" q":""}">${esc(deskLine(m))}</div>`
+    +(task?`<div class="dtask">${esc(task)}</div>`:"");
+}
+function paintDesk(el,m){
+  el.className="desk "+deskState(m)+(m.ghost?" ghost":"")+(m.pinned?" pinned":"")+(m.session===DESK?" sel":"");
+  el.innerHTML=deskHtml(m); el._sig=deskSig(m); el._ts=m.ts||0; el._ghost=!!m.ghost;
+  el.title=tabTitle(m);
+}
+function desk(m){
+  const el=document.createElement("div"); el.dataset.session=m.session; el.tabIndex=0; el.setAttribute("role","button");
+  paintDesk(el,m); return el;
+}
+
+// ── a person's panel: their whole last reply, the answers to a question as big buttons, a box to
+//    reply, and one ⋯ menu for pin / mute / focus note / move / rename / close. Side panel on a
+//    laptop, a full-screen sheet on the phone. It follows the floor's poll while it is open.
+let DESK="", DESK_SIG="";
+const DP=id=>document.getElementById(id);
+function markSel(){
+  document.querySelectorAll("#floor .desk.sel").forEach(e=>e.classList.remove("sel"));
+  const el=DESK && CARDS[DESK]; if(el) el.classList.add("sel");
+}
+function openDesk(session){
+  const m=LAST.find(x=>x.session===session); if(!m) return;
+  if(DESK!==session){ DP("dp-in").value=""; DP("dp-menu").hidden=true; }
+  DESK=session; DESK_SIG="";
+  DP("desk").hidden=false; document.body.classList.add("deskopen");
+  refreshDesk(true); markSel();
+  if(!PHONE) DP("dp-in").focus({preventScroll:true});
+}
+function closeDesk(){
+  if(!DESK) return;
+  DESK=""; DP("desk").hidden=true; DP("dp-menu").hidden=true; document.body.classList.remove("deskopen"); markSel();
+}
+const STATE_TEXT={waiting:"Asking you", typed:"Unsent draft in the box", working:"Working", review:"Finished"};
+function refreshDesk(force){
+  if(!DESK) return;
+  const m=LAST.find(x=>x.session===DESK); if(!m){ closeDesk(); return; }
+  const who=m.person||m.project, st=m.ghost?"ghost":deskState(m);
+  const av=DP("dp-av"); av.textContent=m.emoji||emojiFor(m.project); av.style.setProperty("--h",hueFor(who));
+  DP("dp-name").textContent=who;
+  DP("dp-proj").textContent=m.project+" · "+roomName(m.group);
+  const se=DP("dp-state"); se.className="dp-state "+st;
+  se.textContent=(m.ghost?"Not running":m._sent?"Replying…":STATE_TEXT[st]||st)+(m.ts&&!m._sent?" · "+agoText(m.ts):"");
+  DP("dp-in").placeholder=m.typed ? "or type your own…" : "Reply to "+who+"…";
+  const sig=deskSig(m); if(!force && sig===DESK_SIG) return;
+  const body=DP("dp-body");
+  if(body.querySelector(".taskedit:not([hidden])")) return;          // never rebuild under the note editor
+  DESK_SIG=sig;
+  const atEnd=force || body.scrollHeight-body.scrollTop-body.clientHeight<40;
+  let h=taskBlock(m)+`<div class="taskedit" hidden><textarea rows="3" placeholder="Main task&#10;sub-task&#10;sub-task"></textarea>
+      <div class="taskbtns"><button class="tsave">Save</button><button class="tcancel">Cancel</button></div></div>`;
+  if(m.you) h+=`<div class="dp-you">${mdInline(esc(m.you))}</div>`;
+  if(m._sent) h+=`<div class="sent-note"><span class="dots"></span> Sent, ${esc(who)} is replying…</div>`;
+  else{
     const inner=mdHtml(m.full||"");
-    ctx.innerHTML = inner.trim() ? inner : esc(m.attached?"you're in here now":"· "+pillOf(m));
-    if(pinned) ctx.scrollTop=ctx.scrollHeight;
+    h+=inner.trim() ? `<div class="ctx dp-reply">${inner}</div>` : `<div class="dp-empty">${esc(m.attached?"You're in its terminal right now.":m.ghost?"Not running. Open the terminal to start it again.":"Nothing to read yet.")}</div>`;
   }
-  el._ts=m.ts||0; el._ghost=!!m.ghost;
-  el._sig=sigOf(m);
+  if(!m._sent && m.state==="waiting" && m.options && m.options.length)
+    h+=`<div class="dp-q">`+m.options.map((o,i)=>`<button class="opt" data-i="${i}"><b>${i+1}</b><span>${esc(o)}</span></button>`).join("")+`</div>`;
+  if(!m._sent && m.typed)
+    h+=`<div class="dp-draft"><div class="typedline">❯ ${esc(m.typed)}</div><button class="dp-senddraft">Send this</button></div>`;
+  body.innerHTML=h;
+  body.querySelectorAll(".dp-q .opt").forEach(b=>b.onclick=()=>say(m.session,m.options[+b.dataset.i],null));
+  const sd=body.querySelector(".dp-senddraft"); if(sd) sd.onclick=()=>submitDraft(m.session);
+  const yb=body.querySelector(".dp-you"); if(yb) yb.onclick=()=>yb.classList.toggle("full");
+  const ed=body.querySelector(".taskedit"), ta=ed.querySelector("textarea");
+  const closeEd=()=>{ ed.hidden=true; DESK_SIG=""; };
+  ed.querySelector(".tsave").onclick=()=>{ const v=ta.value; ed.hidden=true; saveTask(m.session,v,null); };
+  ed.querySelector(".tcancel").onclick=()=>{ closeEd(); refreshDesk(true); };
+  ta.addEventListener("keydown",e=>{
+    if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){ e.preventDefault(); ed.querySelector(".tsave").click(); }
+    else if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); ed.querySelector(".tcancel").click(); }
+  });
+  if(atEnd) body.scrollTop=body.scrollHeight;
+}
+function deskMenu(m){
+  const it=(label,act,cls)=>`<button role="menuitem" data-act="${act}"${cls?` class="${cls}"`:""}>${label}</button>`;
+  return it("Open terminal","term")
+    +it(m.pinned?"Unpin":"Pin to the front","pin")
+    +it(m.muted?"Unmute phone pushes":"Mute phone pushes","mute")
+    +it(taskLines(m.task).length?"Edit focus note":"Focus note","task")
+    +ROOMS.filter(r=>r.id!==m.group).map(r=>it("Move to "+esc(r.name),"mv:"+r.id)).join("")
+    +it("Rename","rename")+`<hr>`
+    +it("Close desk…","kill","danger")+it("Erase everything…","erase","danger");
+}
+{
+  const menu=DP("dp-menu");
+  DP("dp-x").onclick=closeDesk;
+  DP("dp-term").onclick=()=>{ const m=LAST.find(x=>x.session===DESK); if(m) openTerm(m.session,(m.person||m.project),tabTitle(m)); };
+  DP("dp-more").onclick=e=>{
+    e.stopPropagation();
+    const m=LAST.find(x=>x.session===DESK); if(!m) return;
+    if(menu.hidden){ menu.innerHTML=deskMenu(m); menu.hidden=false; DP("dp-more").setAttribute("aria-expanded","true"); }
+    else{ menu.hidden=true; DP("dp-more").setAttribute("aria-expanded","false"); }
+  };
+  document.addEventListener("click",e=>{ if(!menu.hidden && !e.target.closest("#dp-menu,#dp-more")){ menu.hidden=true; DP("dp-more").setAttribute("aria-expanded","false"); } });
+  menu.addEventListener("click",e=>{
+    const b=e.target.closest("button[data-act]"); if(!b) return;
+    menu.hidden=true; DP("dp-more").setAttribute("aria-expanded","false");
+    const m=LAST.find(x=>x.session===DESK); if(!m) return;
+    const who=m.person||m.project, act=b.dataset.act;
+    if(act==="term") DP("dp-term").click();
+    else if(act==="pin") pinCard(m.session,!m.pinned);
+    else if(act==="mute") muteCard(m.session,!m.muted);
+    else if(act==="task"){ const ed=DP("dp-body").querySelector(".taskedit"), ta=ed.querySelector("textarea");
+      ta.value=m.task||""; ed.hidden=false; DP("dp-body").scrollTop=0; ta.focus(); ta.setSelectionRange(ta.value.length,ta.value.length); }
+    else if(act.startsWith("mv:")) setGroup(m.session,act.slice(3));
+    else if(act==="rename") renameCard(m.session);
+    else if(act==="kill") killCard(m.session,who);
+    else if(act==="erase") eraseCard(m.session,who);
+  });
+  // the reply box: Enter sends, Shift-Enter is a new line; it grows with what you type
+  const inp=DP("dp-in"), grow=()=>{ inp.style.height="auto"; inp.style.height=Math.min(inp.scrollHeight,160)+"px"; };
+  inp.addEventListener("input",grow);
+  inp.addEventListener("keydown",e=>{ if(e.key==="Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); DP("dp-compose").requestSubmit(); } });
+  DP("dp-compose").addEventListener("submit",e=>{
+    e.preventDefault(); if(!DESK || !inp.value.trim()) return;
+    say(DESK,inp.value,inp); setTimeout(grow,0);
+  });
 }
 
 // phone: the filter rows and the secretary fold away (remembered per device, in office.prefs)
@@ -1978,21 +2114,34 @@ function renderChips(team){
   });
   markFilters();
 }
-// the agents you touched most recently, as one row of chips under the secretary
+// the row under Nadia: "Your move" — everyone asking you something, newest first (opens their
+// panel) — then "Recent", the few you touched last (straight into the terminal, as before)
 let RECENT_SIG="";
 function renderRecent(team){
-  const top=team.filter(m=>!m.ghost && m.ts).sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,10);
-  const sig=top.map(m=>m.session+":"+m.state+":"+Math.floor((m.ts||0)/60)).join(",");
+  const wait=team.filter(m=>m.state==="waiting" && !m.ghost && !m._sent).sort((a,b)=>(b.ts||0)-(a.ts||0));
+  const recent=team.filter(m=>!m.ghost && m.ts && !wait.includes(m)).sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,6);
+  const sig=wait.map(m=>m.session).join(",")+"|"+recent.map(m=>m.session+":"+m.state+":"+Math.floor((m.ts||0)/60)).join(",");
   if(sig===RECENT_SIG) return; RECENT_SIG=sig;
   const box=document.getElementById("recent"); box.innerHTML="";
-  if(!top.length) return;
-  const l=document.createElement("span"); l.className="rl"; l.textContent="Recent"; box.appendChild(l);
-  top.forEach(m=>{
-    const b=document.createElement("button"); b.className="rchip "+(m.state||""); b.title=tabTitle(m)+" — open terminal";
-    b.innerHTML=`<span class="d"></span>${esc(m.person||m.project)} <span class="p">${esc(m.project)}</span> <span class="t">${esc(agoText(m.ts))}</span>`;
-    b.onclick=()=>openTerm(m.session,(m.person||m.project),tabTitle(m));
-    box.appendChild(b);
-  });
+  const label=t=>{ const l=document.createElement("span"); l.className="rl"; l.textContent=t; box.appendChild(l); };
+  const face=m=>`<span class="f" style="--h:${hueFor(m.person||m.project)}">${esc(m.emoji||emojiFor(m.project))}</span>`;
+  if(wait.length){
+    label("Your move");
+    wait.forEach(m=>{
+      const b=document.createElement("button"); b.className="mchip"; b.title=tabTitle(m)+" — open";
+      b.innerHTML=`${face(m)}${esc(m.person||m.project)} <em>answer</em>`;
+      b.onclick=()=>openDesk(m.session); box.appendChild(b);
+    });
+  }
+  if(recent.length){
+    if(wait.length){ const sp=document.createElement("span"); sp.className="rsep"; box.appendChild(sp); }
+    label("Recent");
+    recent.forEach(m=>{
+      const b=document.createElement("button"); b.className="rchip "+deskState(m); b.title=tabTitle(m)+" — open terminal";
+      b.innerHTML=`<span class="d"></span>${esc(m.person||m.project)} <span class="t">${esc(agoText(m.ts))}</span>`;
+      b.onclick=()=>openTerm(m.session,(m.person||m.project),tabTitle(m)); box.appendChild(b);
+    });
+  }
 }
 function render(){
   document.getElementById("searchwrap").classList.toggle("has", !!SEARCH);
@@ -2001,42 +2150,40 @@ function render(){
   renderRecent(team);
   const st=stateTest();
   const s=SEARCH.trim().toLowerCase();
-  // ONE flat list, MOST-RECENTLY-INTERACTED first (ts = last activity, not just Claude's reply).
-  // Category is a filter now, not the layout — the freshest work is always on top.
-  const shown=team.filter(st).filter(catTest)
-    .filter(m=>!s || searchScore(m,s)>0)
-    .sort((a,b)=>
-      (s ? searchScore(b,s)-searchScore(a,s) : 0)                // searching: best match first
-      || ((b.pinned?1:0)-(a.pinned?1:0))                            // pinned block always on top
-      || ((a.ghost?1:0)-(b.ghost?1:0))                           // ghosts always sink below real sessions
-      || ((b.ts||0)-(a.ts||0))                                   // then most-recently-interacted first
-      || (a.person||a.project).localeCompare(b.person||b.project));
+  const shown=team.filter(st).filter(catTest).filter(m=>!s || searchScore(m,s)>0);
   const floor=document.getElementById("floor");
-
-  if(!shown.length){ floor.innerHTML=`<div class="empty">Nobody here${s?" matches “"+esc(s)+"”":" in this view"}. ✨</div>`; LAYOUT=""; return; }
-
-  // include catOf + group so a STRUCTURE change (gains/loses reply box, moves category)
-  // forces a rebuild via the reconcile path, not just an in-place text update.
-  const layout=FILTER+"|"+CATFILTER+"|"+s+"|"+shown.map(m=>m.session+":"+catOf(m)+":"+m.group).join(",");
+  if(!shown.length){ floor.innerHTML=`<div class="empty">Nobody here${s?" matches “"+esc(s)+"”":" in this view"}.</div>`; LAYOUT=""; refreshDesk(); return; }
+  // a seat: pinned first, ghosts last, then by name — never by activity, so desks stay put
+  const byName=(a,b)=>(a.person||a.project).localeCompare(b.person||b.project) || a.session.localeCompare(b.session);
+  const seat=(a,b)=>((b.pinned?1:0)-(a.pinned?1:0)) || ((a.ghost?1:0)-(b.ghost?1:0)) || byName(a,b);
+  const rooms = s
+    ? [{id:"search", name:"Matches", list:shown.slice().sort((a,b)=>searchScore(b,s)-searchScore(a,s) || seat(a,b))}]
+    : ROOMS.map(r=>({...r, list:shown.filter(m=>m.group===r.id).sort(seat)}))
+        .concat([{id:"other", name:"Elsewhere", list:shown.filter(m=>!ROOMS.some(r=>r.id===m.group)).sort(seat)}])
+        .filter(r=>r.list.length);
+  const need=r=>r.list.filter(m=>m.state==="waiting").length;
+  const layout=FILTER+"|"+CATFILTER+"|"+s+"|"+rooms.map(r=>r.id+"/"+need(r)+":"+r.list.map(m=>m.session).join(",")).join(";");
   if(layout===LAYOUT){
-    for(const m of shown){ const c=CARDS[m.session]; if(c && c._sig!==sigOf(m)) updateCard(c,m); }
-    refreshAgo(); return;
+    for(const m of shown){ const el=CARDS[m.session]; if(el && el._sig!==deskSig(m)) paintDesk(el,m); }
+    refreshAgo(); refreshDesk(); return;
   }
   LAYOUT=layout;
-
   const keep=new Set(shown.map(m=>m.session));
   for(const k in CARDS) if(!keep.has(k)) delete CARDS[k];
-
   floor.textContent="";
-  const grid=document.createElement("div"); grid.className="grid";
-  for(const m of shown){
-    let el=CARDS[m.session];
-    if(el && el._cat===catOf(m) && el._grp===m.group){ if(el._sig!==sigOf(m)) updateCard(el,m); }
-    else { el=card(m); CARDS[m.session]=el; }
-    grid.appendChild(el);
+  for(const r of rooms){
+    const sec=document.createElement("section"); sec.className="room";
+    const n=need(r);
+    sec.innerHTML=`<h2 class="rhead">${esc(r.name)}<small>${r.list.length} desk${r.list.length===1?"":"s"}${n?` · ${n} need${n===1?"s":""} you`:""}</small></h2>`;
+    const g=document.createElement("div"); g.className="desks";
+    for(const m of r.list){
+      let el=CARDS[m.session];
+      if(!el){ el=desk(m); CARDS[m.session]=el; } else if(el._sig!==deskSig(m)) paintDesk(el,m);
+      g.appendChild(el);
+    }
+    sec.appendChild(g); floor.appendChild(sec);
   }
-  floor.appendChild(grid);
-  refreshAgo();
+  refreshAgo(); markSel(); refreshDesk();
 }
 
 // ── connectivity ──────────────────────────────────────────────────────────
@@ -2203,15 +2350,16 @@ function hueOf(m){ let h=0; for(const c of (m.session||"")) h=(h*31+c.charCodeAt
   document.getElementById("searchx").addEventListener("click",()=>{ inp.value=""; SEARCH=""; render(); renderSugg(); inp.focus(); });
   box.addEventListener("mousedown",e=>{ const r=e.target.closest(".row"); if(r){ e.preventDefault(); SUGSEL=+r.dataset.i; openSel(); } });
 }
-// click anywhere on a card to open its terminal — except on things that do their own job
-// (buttons, the reply box, the note editor, the category select, links) and the YOU box,
-// which expands; a drag that selected text is not a click.
+// a tap on a desk opens that person's panel; a double-click (laptop) goes straight to the terminal
 document.getElementById("floor").addEventListener("click",e=>{
-  const yb=e.target.closest(".youbox"); if(yb){ yb.classList.toggle("full"); return; }
-  if(e.target.closest("button, a, input, textarea, select, label, .reply, .taskedit, .quick, .grpsel")) return;
-  const card=e.target.closest(".card"); if(!card) return;
+  if(e.target.closest("a, button, input, textarea, select")) return;
+  const d=e.target.closest(".desk"); if(!d) return;
   try{ if(String(getSelection()).length) return; }catch(_){}
-  const m=LAST.find(x=>x.session===card.dataset.session); if(m) openTerm(m.session,(m.person||m.project),tabTitle(m));
+  if(e.detail>=2){ const m=LAST.find(x=>x.session===d.dataset.session); if(m) openTerm(m.session,(m.person||m.project),tabTitle(m)); return; }
+  openDesk(d.dataset.session);
+});
+document.getElementById("floor").addEventListener("keydown",e=>{
+  const d=e.target.closest(".desk"); if(d && (e.key==="Enter"||e.key===" ")){ e.preventDefault(); openDesk(d.dataset.session); }
 });
 // deep link: /<session> opens that terminal once the floor is known
 load().then(()=>{ if(location.pathname.length>1 && !MODAL_OPEN) openTermByName(decodeURIComponent(location.pathname.slice(1))); });

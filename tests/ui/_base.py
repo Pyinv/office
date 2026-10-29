@@ -78,7 +78,7 @@ class BrowserCase(unittest.TestCase):
 
     def open_floor(self):
         self.page.goto(OFFICE_URL + "/")
-        self.page.wait_for_selector(".card")
+        self.page.wait_for_selector(".desk")
         self.page.wait_for_timeout(500)       # the first plan() poll
 
     def js(self, expr):
