@@ -664,7 +664,7 @@ class Handler(SimpleHTTPRequestHandler):
                            "watch_events": events, "version": __version__,
                            "build": _build_id()}).encode()
 
-    def _send(self, body, ctype, code=200):
+    def _send(self, body, ctype, code=200, cache=None):
         # gzip anything worth it when the client takes it: the floor is ~70 KB of JSON every 5 s and
         # the page ~170 KB, which on weak mobile data is most of the wait; both shrink to about a quarter.
         # A GET also carries an ETag: the browser asks "still this?" and an unchanged floor or page
@@ -690,7 +690,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         if etag:
             self.send_header("ETag", etag)
-        self.send_header("Cache-Control", "no-cache" if etag else "no-store")
+        self.send_header("Cache-Control", cache or ("no-cache" if etag else "no-store"))
         self.end_headers()
         self.wfile.write(body)
 
@@ -1531,7 +1531,8 @@ class Handler(SimpleHTTPRequestHandler):
         is_ws = self.headers.get("Upgrade", "").lower() == "websocket"
         if not is_ws and self.command == "GET" and self.path in ("/terminal/", "/terminal/index.html"):
             try:
-                return self._send(self._ttyd_page(), "text/html")
+                # the same for every agent and only changes with a ttyd upgrade: kept 10 minutes, no asking
+                return self._send(self._ttyd_page(), "text/html", cache="max-age=600")
             except Exception:
                 pass                          # fall through: ttyd answers (or the 502 below) as before
         up = None
