@@ -227,13 +227,13 @@
   .ctx pre{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:.4rem .55rem;
     overflow-x:auto;margin:.3rem 0}
   .ctx pre code{background:none;border:0;padding:0}
-  .ctx ul,.ctx ol{margin:.2rem 0;padding-left:1.15rem}
+  .ctx ul,.ctx ol{margin:.2rem 0;padding-inline-start:1.15rem}
   .ctx li{margin:.08rem 0}
   .ctx a{color:var(--work)}
   .ctx strong{color:var(--ink)}
   .mdtable{overflow-x:auto;margin:.3rem 0}
   .mdtable table{border-collapse:collapse;font-size:.95em}
-  .mdtable th,.mdtable td{border:1px solid var(--line);padding:.18rem .5rem;text-align:left;white-space:nowrap}
+  .mdtable th,.mdtable td{border:1px solid var(--line);padding:.18rem .5rem;text-align:start;white-space:nowrap}
   .mdtable th{background:var(--panel);color:var(--ink);font-weight:600}
   .mdtable .r{text-align:right}
   .modal{position:fixed;inset:0;background:rgba(18,18,17,.62);backdrop-filter:blur(4px);
@@ -983,6 +983,10 @@ function mdInline(s){   // s must already be esc()'d
     // so this only adds anchors. (^|\s) so we never re-wrap a URL already inside href="…" or >…<.
     .replace(/(^|\s)(https?:\/\/[^\s<]*[^\s<.,!?\]}])/g,(m,pre,u)=>{ u=trimUrl(u); return pre+'<a href="'+u+'" target="_blank" rel="noopener">'+u+'</a>'+m.slice(pre.length+u.length); });
 }
+// right to left when the first letter is Arabic/Hebrew — for a list or a table as a whole, whose items set
+// their own dir (and dir="auto" on the container ignores children that have one)
+const RTL_FIRST=/^[^A-Za-z\u00C0-\u024F\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]*[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+const dirOf=t=>RTL_FIRST.test(t||"") ? "rtl" : "ltr";
 function mdHtml(raw){
   const lines=esc(raw||"").split("\n");
   let out="", list=null, i=0;
@@ -999,16 +1003,16 @@ function mdHtml(raw){
       const cells=l=>l.trim().replace(/^\||\|$/g,"").split("|").map(c=>mdInline(c.trim()));
       const right=(lines[i+1].trim().replace(/^\||\|$/g,"").split("|")).map(c=>/-:\s*$/.test(c));
       const td=(t,cs)=>cs.map((c,k)=>`<${t} dir="auto"${right[k]?' class="r"':""}>${c}</${t}>`).join("");
-      out+='<div class="mdtable"><table><thead><tr>'+td("th",cells(line))+"</tr></thead><tbody>"; i+=2;
+      out+=`<div class="mdtable" dir="${dirOf(line.replace(/^\s*\|/,""))}"><table><thead><tr>`+td("th",cells(line))+"</tr></thead><tbody>"; i+=2;
       while(i<lines.length && /^\s*\|.*\|\s*$/.test(lines[i])){ out+="<tr>"+td("td",cells(lines[i]))+"</tr>"; i++; }
       out+="</tbody></table></div>"; continue;
     }
     const h=line.match(/^(#{1,6})\s+(.*)$/);
     if(h){ closeList(); out+='<div class="mdh" dir="auto">'+mdInline(h[2])+"</div>"; i++; continue; }
     const b=line.match(/^\s*[-*]\s+(.*)$/);
-    if(b){ if(list!=="ul"){ closeList(); out+="<ul>"; list="ul"; } out+='<li dir="auto">'+mdInline(b[1])+"</li>"; i++; continue; }
+    if(b){ if(list!=="ul"){ closeList(); out+=`<ul dir="${dirOf(b[1])}">`; list="ul"; } out+=`<li dir="${dirOf(b[1])}">`+mdInline(b[1])+"</li>"; i++; continue; }
     const n=line.match(/^\s*\d+\.\s+(.*)$/);
-    if(n){ if(list!=="ol"){ closeList(); out+="<ol>"; list="ol"; } out+='<li dir="auto">'+mdInline(n[1])+"</li>"; i++; continue; }
+    if(n){ if(list!=="ol"){ closeList(); out+=`<ol dir="${dirOf(n[1])}">`; list="ol"; } out+=`<li dir="${dirOf(n[1])}">`+mdInline(n[1])+"</li>"; i++; continue; }
     if(line.trim()===""){ closeList(); i++; continue; }
     closeList(); out+='<div class="mdrow" dir="auto">'+mdInline(line)+"</div>"; i++;
   }
