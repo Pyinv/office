@@ -1564,7 +1564,7 @@ function openTerm(session, who, title){
   paintRail(session);
   const f=document.createElement("iframe"); f.id="termframe";
   f.allow="clipboard-read; clipboard-write";
-  f.src=`/terminal/?arg=${encodeURIComponent(session)}`;   // same-origin, proxied to localhost ttyd
+  f.src=`/terminal/#arg=${encodeURIComponent(session)}`;   // same-origin ttyd; one address for every agent, so its page is cached once
   f.addEventListener("load", ()=>{ for(const fn of [termFont, injectReconnect, injectAutoCopy, injectFileDrops, injectTouchScroll, injectLinks]){ try{ fn(f); }catch(_){} } });   // smaller type on the phone, select-to-copy, swipe-to-scroll, clickable links
   box.appendChild(f);
   document.getElementById("mtitle").textContent=who+"  ·  "+session;
@@ -2101,9 +2101,12 @@ function markFilters(){ const t=document.getElementById("filtertoggle"), c=docum
   document.getElementById("sec-in").addEventListener("focus", _open);
   new MutationObserver(()=>{ if(document.getElementById("sec-reply").textContent.trim()) _open(); }).observe(document.getElementById("sec-reply"),{childList:true,characterData:true,subtree:true});
 }
+let CHIPS_SIG="";
 function renderChips(team){
   // category chips — counts respect the current STATUS filter
   const st=stateTest();
+  const sig=FILTER+"|"+CATFILTER+"|"+team.map(m=>m.group+m.state).join(",");
+  if(sig===CHIPS_SIG) return; CHIPS_SIG=sig;
   const inState=team.filter(st);
   const cbox=document.getElementById("catchips"); cbox.innerHTML="";
   CATFILTERS.forEach(cf=>{
@@ -2203,7 +2206,7 @@ function render(){
 // The floor poll is the heartbeat. When it fails we say WHY as far as a browser
 // can tell: device offline, no internet, DNS/server down, or (the usual one for
 // a tailnet-only host) Tailscale is off — then keep retrying and dim the stale cards.
-const NET={down:false, fails:0, diag:null, diagAt:0, busy:false};
+const NET={down:false, fails:0, diag:null, diagAt:0, busy:false, etag:""};
 const FLOOR_TIMEOUT=12000;      // a SYN to an unroutable tailnet IP just hangs — but the floor is ~70 KB, give weak 4G time
 function fetchT(url, ms, opts){
   const c=new AbortController(), t=setTimeout(()=>c.abort(), ms);
@@ -2299,14 +2302,21 @@ async function load(){
   NET.busy=true;
   let data; const t0=Date.now();
   try{
-    const r=await fetchT("/api/floor", FLOOR_TIMEOUT, {cache:"no-store"});
-    if(!r.ok){ await floorFail(null, Date.now()-t0, r.status); return; }
-    data=await r.json();
+    // "still this one?" — the same floor as last time comes back as a bodiless 304: nothing to download,
+    // read or redraw. Not while a "just sent" card waits to time out: only a render does that.
+    const ask=NET.etag && !Object.keys(SENT).length ? {"If-None-Match":NET.etag} : {};
+    const r=await fetchT("/api/floor", FLOOR_TIMEOUT, {cache:"no-store", headers:ask});
+    if(r.status===304) data=null;
+    else{
+      if(!r.ok){ await floorFail(null, Date.now()-t0, r.status); return; }
+      data=await r.json(); NET.etag=r.headers.get("ETag")||"";
+    }
   }
   catch(e){ await floorFail(e, Date.now()-t0, 0); return; }
   finally{ NET.busy=false; }
   if(NET.down){ NET.down=false; NET.diag=null; setNet(false); toast("✅ back online"); }
   NET.fails=0;
+  if(!data) return;
   const _prev={}; (LAST||[]).forEach(m=>_prev[m.session]=m.state);
   LAST=data.team||[];
   { const _v=document.getElementById("ver"); if(_v&&data.version) _v.textContent=data.version; checkVersion(data.build); }

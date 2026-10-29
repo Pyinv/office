@@ -11,7 +11,7 @@ Binds to the Tailscale IP ONLY. Refuses to start without one, so the reply
 endpoint (which can type into live Claude sessions) is never exposed to the LAN
 or the internet — same trust boundary as sitting at the tower.
 """
-import json, subprocess, sys, os, time, importlib, signal, socket, threading, shutil, re, tempfile, shlex, gzip
+import json, subprocess, sys, os, time, importlib, signal, socket, threading, shutil, re, tempfile, shlex, gzip, hashlib
 from urllib.parse import urlparse, parse_qs, unquote
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -92,6 +92,36 @@ for _h in cfg("OFFICE_TAILNET_HOST").split(","):
 # Exact-match — immune to ../ and %2e traversal that a prefix check would allow.
 STATIC_OK = {"/status/chart.umd.min.js", "/status/data.json", "/manifest.json",
              "/icons/icon-180.png", "/icons/icon-192.png", "/icons/icon-512.png"}
+# Reload a module only when its file changed on disk: edits still apply without a restart, but a
+# reload on every poll threw away team.py's caches and made every floor a cold one.
+_MTIMES = {}
+def _fresh(mod):
+    try:
+        mt = os.stat(mod.__file__).st_mtime
+    except (OSError, AttributeError, TypeError):
+        return
+    if _MTIMES.setdefault(mod.__name__, mt) != mt:
+        _MTIMES[mod.__name__] = mt
+        try:
+            importlib.reload(mod)
+        except Exception:
+            pass
+
+# One floor serves every device that asks within FLOOR_TTL (a phone and a laptop polling at once
+# cost one snapshot, not two). Any POST empties it, so what you just did shows on the next poll.
+FLOOR_TTL = 1.5
+_FLOOR = {"at": 0.0, "body": b""}
+_FLOOR_LOCK = threading.Lock()
+# what the snapshot carries for the server's own bookkeeping (restore, restart) — the page never reads it
+_FLOOR_PRIVATE = {"dir", "sid", "mode", "draft", "menu", "update", "verb"}
+
+# ttyd's page (~700 KB, ~180 KB gzipped) — the same for every agent, but the agent's name rode in its
+# address (?arg=), so the browser fetched it again for each one. Served from here at one address:
+# a line at the top of <head> moves "#arg=<session>" into the query before ttyd's own script reads it.
+_TTYD_INDEX = {"at": 0.0, "body": b""}
+_TTYD_ARG_SHIM = (b"<script>if(location.hash.indexOf('#arg=')===0)"
+                  b"history.replaceState(null,'',location.pathname+'?'+location.hash.slice(1))</script>")
+
 _SEC_OVERLAY = {}   # demo: session -> {you,state,verb,ts} set by the Secretary, shown live on the floor
 
 # ── phone push (ntfy) ──────────────────────────────────────────────────────
@@ -558,10 +588,98 @@ class Handler(SimpleHTTPRequestHandler):
         except Exception:
             return False
 
+    def _floor(self):
+        """The floor as JSON bytes: the snapshot plus the Office's own state, watches fired, version."""
+        _fresh(team)                     # pick up team.py edits without a restart
+        snap = team.snapshot()
+        groups = load_groups()
+        pins = load_pins()
+        mutes = load_mutes()
+        tasks = load_tasks()
+        for m in snap:
+            # state files win; otherwise fall back to any value the snapshot
+            # already carries (lets demo.json fixtures set group/task/pinned).
+            m["group"] = groups.get(m["session"], m.get("group", "personal"))
+            m["pinned"] = (m["session"] in pins) or bool(m.get("pinned"))
+            m["muted"] = m["session"] in mutes
+            m["task"] = tasks.get(m["session"], m.get("task", ""))
+        if not cfg("OFFICE_DEMO"):
+            try: record_history(snap)
+            except Exception: pass
+            try: record_live(snap)
+            except Exception: pass
+            try: notify_changes(snap)
+            except Exception: pass
+        now = int(time.time())
+        if _SEC_OVERLAY and cfg("OFFICE_DEMO"):   # show/advance what the Secretary dispatched
+            for m in snap:
+                ov = _SEC_OVERLAY.get(m["session"])
+                if not ov:
+                    continue
+                m["ask"], m["options"], m["typed"] = "", [], None
+                if now - ov.get("ts", now) > 25:            # simulate the task completing
+                    m["state"], m["verb"], m["you"] = "review", "", ov["you"]
+                    m["full"] = "✓ Done — " + ov["you"]
+                    m["ts"] = ov.get("ts", now) + 25
+                else:
+                    m["state"], m["verb"], m["you"] = "working", ov.get("verb", "On it…"), ov["you"]
+                    m["ts"] = ov["ts"]
+        events = []                                          # follow-up watches that just fired
+        with _WATCHES_LOCK:                                   # two concurrent polls must not double-fire/remove
+            if _WATCHES:
+                by = {m["session"]: m for m in snap}
+                for w in _WATCHES[:]:
+                    tm = by.get(w["session"])
+                    cur = tm["state"] if tm else "gone"
+                    if cur == "review" and w.get("prev") != "review":
+                        act = w["act"]
+                        if "dispatch" in act:
+                            dm = act["dispatch"]
+                            if cfg("OFFICE_DEMO"):
+                                _SEC_OVERLAY[w["session"]] = {"you": dm, "state": "working", "verb": "On it…", "ts": now}
+                                if tm:
+                                    tm.update({"you": dm, "state": "working", "verb": "On it…",
+                                               "ask": "", "options": [], "typed": None, "full": ""})
+                            elif w["session"] in live_sessions():
+                                try:
+                                    subprocess.run(["tmux", "send-keys", "-t", w["session"], "-l", "--", dm], check=True)
+                                    subprocess.run(["tmux", "send-keys", "-t", w["session"], "Enter"], check=True)
+                                except Exception:
+                                    pass
+                            events.append({"person": w["person"], "session": w["session"],
+                                           "reply": f'{w["person"]} finished — I sent: "{dm}"'})
+                            notify_event(w["person"], w["session"], f'finished — I sent: "{dm}"')
+                        else:
+                            events.append({"person": w["person"], "session": w["session"],
+                                           "reply": f'{w["person"]} just finished — your move.'})
+                            notify_event(w["person"], w["session"], "just finished — your move")
+                        try:
+                            _WATCHES.remove(w)
+                        except ValueError:
+                            pass
+                    elif tm:
+                        w["prev"] = cur
+        team_out = [{k: v for k, v in m.items() if k not in _FLOOR_PRIVATE} for m in snap]
+        return json.dumps({"team": team_out, "groups": VALID_GROUPS,
+                           "watch_events": events, "version": __version__,
+                           "build": _build_id()}).encode()
+
     def _send(self, body, ctype, code=200):
         # gzip anything worth it when the client takes it: the floor is ~70 KB of JSON every 5 s and
-        # the page ~170 KB, which on weak mobile data is most of the wait; both shrink to about a quarter
+        # the page ~170 KB, which on weak mobile data is most of the wait; both shrink to about a quarter.
+        # A GET also carries an ETag: the browser asks "still this?" and an unchanged floor or page
+        # comes back as a bodiless 304 (always revalidated — no-cache — so it is never stale).
         gz = len(body) > 1024 and "gzip" in (self.headers.get("Accept-Encoding") or "")
+        etag = None
+        if self.command == "GET" and code == 200:
+            etag = '"' + hashlib.blake2b(body, digest_size=10).hexdigest() + ("-gz" if gz else "") + '"'
+            if etag in (self.headers.get("If-None-Match") or ""):
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Vary", "Accept-Encoding")
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                return
         if gz:
             body = gzip.compress(body, compresslevel=5)
         self.send_response(code)
@@ -570,7 +688,9 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Content-Encoding", "gzip")
         self.send_header("Vary", "Accept-Encoding")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        if etag:
+            self.send_header("ETag", etag)
+        self.send_header("Cache-Control", "no-cache" if etag else "no-store")
         self.end_headers()
         self.wfile.write(body)
 
@@ -619,10 +739,7 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/restart":
             if cfg("OFFICE_DEMO"):
                 return self._json({"restore": [], "update": [], "skip": [], "job": dict(_JOB)})
-            try:
-                importlib.reload(team)
-            except Exception:
-                pass
+            _fresh(team)
             return self._json(restart_plan())
         if self.path.split("?")[0] == "/api/history":
             # past sessions that are not running now, newest first: what "+ New" offers to bring back
@@ -631,81 +748,12 @@ class Handler(SimpleHTTPRequestHandler):
             gone.sort(key=lambda r: -r.get("seen", 0))
             return self._json({"history": gone})
         if self.path.split("?")[0] == "/api/floor":
-            try:
-                importlib.reload(team)   # pick up team.py edits without a restart
-            except Exception:
-                pass
-            snap = team.snapshot()
-            groups = load_groups()
-            pins = load_pins()
-            mutes = load_mutes()
-            tasks = load_tasks()
-            for m in snap:
-                # state files win; otherwise fall back to any value the snapshot
-                # already carries (lets demo.json fixtures set group/task/pinned).
-                m["group"] = groups.get(m["session"], m.get("group", "personal"))
-                m["pinned"] = (m["session"] in pins) or bool(m.get("pinned"))
-                m["muted"] = m["session"] in mutes
-                m["task"] = tasks.get(m["session"], m.get("task", ""))
-            if not cfg("OFFICE_DEMO"):
-                try: record_history(snap)
-                except Exception: pass
-                try: record_live(snap)
-                except Exception: pass
-                try: notify_changes(snap)
-                except Exception: pass
-            now = int(time.time())
-            if _SEC_OVERLAY and cfg("OFFICE_DEMO"):   # show/advance what the Secretary dispatched
-                for m in snap:
-                    ov = _SEC_OVERLAY.get(m["session"])
-                    if not ov:
-                        continue
-                    m["ask"], m["options"], m["typed"] = "", [], None
-                    if now - ov.get("ts", now) > 25:            # simulate the task completing
-                        m["state"], m["verb"], m["you"] = "review", "", ov["you"]
-                        m["full"] = "✓ Done — " + ov["you"]
-                        m["ts"] = ov.get("ts", now) + 25
-                    else:
-                        m["state"], m["verb"], m["you"] = "working", ov.get("verb", "On it…"), ov["you"]
-                        m["ts"] = ov["ts"]
-            events = []                                          # follow-up watches that just fired
-            with _WATCHES_LOCK:                                   # two concurrent polls must not double-fire/remove
-                if _WATCHES:
-                    by = {m["session"]: m for m in snap}
-                    for w in _WATCHES[:]:
-                        tm = by.get(w["session"])
-                        cur = tm["state"] if tm else "gone"
-                        if cur == "review" and w.get("prev") != "review":
-                            act = w["act"]
-                            if "dispatch" in act:
-                                dm = act["dispatch"]
-                                if cfg("OFFICE_DEMO"):
-                                    _SEC_OVERLAY[w["session"]] = {"you": dm, "state": "working", "verb": "On it…", "ts": now}
-                                    if tm:
-                                        tm.update({"you": dm, "state": "working", "verb": "On it…",
-                                                   "ask": "", "options": [], "typed": None, "full": ""})
-                                elif w["session"] in live_sessions():
-                                    try:
-                                        subprocess.run(["tmux", "send-keys", "-t", w["session"], "-l", "--", dm], check=True)
-                                        subprocess.run(["tmux", "send-keys", "-t", w["session"], "Enter"], check=True)
-                                    except Exception:
-                                        pass
-                                events.append({"person": w["person"], "session": w["session"],
-                                               "reply": f'{w["person"]} finished — I sent: "{dm}"'})
-                                notify_event(w["person"], w["session"], f'finished — I sent: "{dm}"')
-                            else:
-                                events.append({"person": w["person"], "session": w["session"],
-                                               "reply": f'{w["person"]} just finished — your move.'})
-                                notify_event(w["person"], w["session"], "just finished — your move")
-                            try:
-                                _WATCHES.remove(w)
-                            except ValueError:
-                                pass
-                        elif tm:
-                            w["prev"] = cur
-            return self._json({"team": snap, "groups": VALID_GROUPS, "ts": now,
-                                "watch_events": events, "version": __version__,
-                                "build": _build_id()})
+            with _FLOOR_LOCK:
+                if time.time() - _FLOOR["at"] > FLOOR_TTL or not _FLOOR["body"]:
+                    _FLOOR["body"] = self._floor()
+                    _FLOOR["at"] = time.time()
+                body = _FLOOR["body"]
+            return self._send(body, "application/json")
         if self.path.split("?")[0] == "/favicon.ico":
             # Site-root favicon. The office and status pages carry their own inline
             # icons, so this only reaches tabs whose page has none: files opened
@@ -736,6 +784,7 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         if not self._origin_ok():   # CSRF gate: reject cross-site POST
             return self._json({"error": "forbidden origin"}, 403)
+        _FLOOR["at"] = 0.0          # whatever this changes shows on the very next floor
         path = self.path.split("?")[0]
         if path == "/api/drop":      # raw file body, not JSON
             return self._drop()
@@ -1394,7 +1443,7 @@ class Handler(SimpleHTTPRequestHandler):
             if sp not in sys.path:
                 sys.path.insert(0, sp)
             import demo_status as _ds
-            importlib.reload(_ds)
+            _fresh(_ds)
             body = json.dumps(_ds.build()).encode("utf-8")
         except Exception as e:
             body = json.dumps({"error": str(e)}).encode("utf-8")
@@ -1453,11 +1502,38 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b)
 
+    def _ttyd_page(self):
+        """ttyd's page with the #arg= line in front, fetched from ttyd at most every 10 minutes."""
+        if time.time() - _TTYD_INDEX["at"] > 600 or not _TTYD_INDEX["body"]:
+            up = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            try:
+                up.settimeout(10)
+                up.connect(TTYD_SOCK)
+                up.sendall(b"GET /terminal/ HTTP/1.1\r\nHost: localhost\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n")
+                raw = b""
+                while True:
+                    b = up.recv(65536)
+                    if not b:
+                        break
+                    raw += b
+            finally:
+                up.close()
+            head, _, page = raw.partition(b"\r\n\r\n")
+            if not head.startswith(b"HTTP/1.1 200") or b"<head>" not in page:
+                raise OSError("ttyd page unavailable")
+            _TTYD_INDEX.update(at=time.time(), body=page.replace(b"<head>", b"<head>" + _TTYD_ARG_SHIM, 1))
+        return _TTYD_INDEX["body"]
+
     def _proxy_terminal(self):
         # Reverse-proxy /terminal/* to the localhost-only ttyd (base-path /terminal).
         # Works for the xterm page/assets AND the websocket upgrade: after forwarding
         # the request we just pipe raw bytes both ways until close.
         is_ws = self.headers.get("Upgrade", "").lower() == "websocket"
+        if not is_ws and self.command == "GET" and self.path in ("/terminal/", "/terminal/index.html"):
+            try:
+                return self._send(self._ttyd_page(), "text/html")
+            except Exception:
+                pass                          # fall through: ttyd answers (or the 502 below) as before
         up = None
         try:
             up = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

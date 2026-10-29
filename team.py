@@ -12,6 +12,7 @@ Person + project come from the tmux session name (`lena-payments` -> Lena / paym
 tmux is the single source of truth for identity; no roster file.
 """
 import subprocess, re, os, json, glob, time, socket
+from concurrent.futures import ThreadPoolExecutor
 
 HOME = os.path.expanduser("~")
 PROJ = os.path.join(HOME, ".claude", "projects")
@@ -469,9 +470,13 @@ def snapshot():
     team = []
     now = int(time.time())
     kids = _children()
-    for name, (attached, path, activity, created, pid) in sessions().items():
+    live = sessions()
+    # one tmux capture per agent: run them side by side — one after another they were most of a floor
+    with ThreadPoolExecutor(max_workers=12) as ex:
+        panes = dict(zip(live, ex.map(_pane, live)))
+    for name, (attached, path, activity, created, pid) in live.items():
         person, project = split_name(name)
-        working, typed, verb, update, menu, mode, draft = _pane(name)
+        working, typed, verb, update, menu, mode, draft = panes[name]
         rec = _by_pid(pid, kids) or _by_dir(path) or _join(path, idx, project)
 
         # ghost = no transcript AND not freshly created (a new session just hasn't
