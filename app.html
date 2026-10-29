@@ -998,19 +998,19 @@ function mdHtml(raw){
       closeList();
       const cells=l=>l.trim().replace(/^\||\|$/g,"").split("|").map(c=>mdInline(c.trim()));
       const right=(lines[i+1].trim().replace(/^\||\|$/g,"").split("|")).map(c=>/-:\s*$/.test(c));
-      const td=(t,cs)=>cs.map((c,k)=>`<${t}${right[k]?' class="r"':""}>${c}</${t}>`).join("");
+      const td=(t,cs)=>cs.map((c,k)=>`<${t} dir="auto"${right[k]?' class="r"':""}>${c}</${t}>`).join("");
       out+='<div class="mdtable"><table><thead><tr>'+td("th",cells(line))+"</tr></thead><tbody>"; i+=2;
       while(i<lines.length && /^\s*\|.*\|\s*$/.test(lines[i])){ out+="<tr>"+td("td",cells(lines[i]))+"</tr>"; i++; }
       out+="</tbody></table></div>"; continue;
     }
     const h=line.match(/^(#{1,6})\s+(.*)$/);
-    if(h){ closeList(); out+='<div class="mdh">'+mdInline(h[2])+"</div>"; i++; continue; }
+    if(h){ closeList(); out+='<div class="mdh" dir="auto">'+mdInline(h[2])+"</div>"; i++; continue; }
     const b=line.match(/^\s*[-*]\s+(.*)$/);
-    if(b){ if(list!=="ul"){ closeList(); out+="<ul>"; list="ul"; } out+="<li>"+mdInline(b[1])+"</li>"; i++; continue; }
+    if(b){ if(list!=="ul"){ closeList(); out+="<ul>"; list="ul"; } out+='<li dir="auto">'+mdInline(b[1])+"</li>"; i++; continue; }
     const n=line.match(/^\s*\d+\.\s+(.*)$/);
-    if(n){ if(list!=="ol"){ closeList(); out+="<ol>"; list="ol"; } out+="<li>"+mdInline(n[1])+"</li>"; i++; continue; }
+    if(n){ if(list!=="ol"){ closeList(); out+="<ol>"; list="ol"; } out+='<li dir="auto">'+mdInline(n[1])+"</li>"; i++; continue; }
     if(line.trim()===""){ closeList(); i++; continue; }
-    closeList(); out+='<div class="mdrow">'+mdInline(line)+"</div>"; i++;
+    closeList(); out+='<div class="mdrow" dir="auto">'+mdInline(line)+"</div>"; i++;
   }
   closeList(); return out;
 }
@@ -1960,7 +1960,7 @@ function deskHtml(m){
     +`<span class="ago"></span>`
     // a focus note takes the reply line's place (the reply is in the panel), so every desk keeps one height
     +(task && !note ? `<div class="dtask" title="focus note">${esc(task)}</div>`
-                    : `<div class="line${note?" q":""}">${esc(deskLine(m))}</div>`);
+                    : `<div class="line${note?" q":""}" dir="auto">${esc(deskLine(m))}</div>`);
 }
 function paintDesk(el,m){
   el.className="desk "+deskState(m)+(m.ghost?" ghost":"")+(m.pinned?" pinned":"")+(m.session===DESK?" sel":"");
@@ -2012,7 +2012,7 @@ function refreshDesk(force){
   const atEnd=force || body.scrollHeight-body.scrollTop-body.clientHeight<40;
   let h=taskBlock(m)+`<div class="taskedit" hidden><textarea rows="3" placeholder="Main task&#10;sub-task&#10;sub-task"></textarea>
       <div class="taskbtns"><button class="tsave">Save</button><button class="tcancel">Cancel</button></div></div>`;
-  if(m.you) h+=`<div class="dp-you">${mdInline(esc(m.you))}</div>`;
+  if(m.you) h+=`<div class="dp-you" dir="auto">${mdInline(esc(m.you))}</div>`;
   if(m._sent) h+=`<div class="sent-note"><span class="dots"></span> Sent, ${esc(who)} is replying…</div>`;
   else{
     const inner=mdHtml(m.full||"");
