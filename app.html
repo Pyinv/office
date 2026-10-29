@@ -533,7 +533,7 @@
   .desk .ago{font-size:.7rem;font-weight:500;align-self:start;padding-top:.15rem}
   .desk .line{grid-column:1/-1;font-size:.8rem;line-height:1.35;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.08em}
   .desk .line.q{color:var(--ink)}
-  .desk .dtask{grid-column:1/-1;font-size:.74rem;color:var(--ink);background:var(--panel2);border-radius:6px;padding:.1rem .45rem;
+  .desk .dtask{grid-column:1/-1;font-size:.74rem;color:var(--ink);background:var(--panel2);border-radius:6px;padding:0 .45rem;line-height:1.08rem;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .desk.recent:not(.waiting):not(.typed):not(.sel){border-color:color-mix(in srgb,var(--ink) 22%,var(--line))}
   .desk.waiting{border-color:color-mix(in srgb,var(--wait) 60%,var(--line))}
@@ -1958,8 +1958,9 @@ function deskHtml(m){
     +(m.muted?`<span class="mtag">muted</span>`:"")
     +`</div><div class="proj">${esc(m.project)}</div></div>`
     +`<span class="ago"></span>`
-    +`<div class="line${note?" q":""}">${esc(deskLine(m))}</div>`
-    +(task?`<div class="dtask">${esc(task)}</div>`:"");
+    // a focus note takes the reply line's place (the reply is in the panel), so every desk keeps one height
+    +(task && !note ? `<div class="dtask" title="focus note">${esc(task)}</div>`
+                    : `<div class="line${note?" q":""}">${esc(deskLine(m))}</div>`);
 }
 function paintDesk(el,m){
   el.className="desk "+deskState(m)+(m.ghost?" ghost":"")+(m.pinned?" pinned":"")+(m.session===DESK?" sel":"");
