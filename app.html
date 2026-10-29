@@ -13,7 +13,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#5b5bd6">
+<meta name="theme-color" content="#F7F6F3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121211" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap">
 <script>
 // theme before first paint: "system" follows the OS (and keeps following it), dark/light are fixed.
 // The stylesheet below keys every colour off html[data-theme]; the choice lives in office.prefs.
@@ -27,36 +31,45 @@
 </script>
 <style>
   :root{
-    --bg:#0c0f14; --bg2:#0f141b; --panel:#151b24; --panel2:#1b2531; --line:#242f3d;
-    --ink:#e8eef6; --dim:#9fb0c3; --faint:#63748a;
-    --wait:#ff8a5b; --wait2:#3a1d10; --pend:#ecc94b; --pend2:#332a0e;
-    --rev:#57d9a3; --rev2:#0e2c21; --work:#63b3ff; --work2:#0d2439; --idle:#6b7a8d;
-    --accent:#8b7bff; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.28);
+    --bg:#121211; --bg2:#171716; --panel:#1c1c1b; --panel2:#242422; --line:#2c2b29;
+    --ink:#edebe6; --dim:#a9a59d; --faint:#75716a;
+    --wait:#f0a020; --wait2:#3a2a0e; --pend:#c9a65a; --pend2:#2e2614;
+    --rev:#5cc488; --rev2:#16291d; --work:#7c9cff; --work2:#1a2238; --idle:#75716a;
+    --accent:var(--ink); --on-accent:var(--bg);
+    --shadow:0 1px 2px rgba(0,0,0,.35),0 8px 24px -12px rgba(0,0,0,.55);
+    --disp:"Bricolage Grotesque","General Sans",sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --face-s:22%; --face-l:24%;
   }
-  html[data-theme=light]{ --bg:#eef1f6; --bg2:#e7ecf3; --panel:#fff; --panel2:#f1f5fa; --line:#dde3ec;
-      --ink:#1a2230; --dim:#54627a; --faint:#8695ab;
-      --wait2:#ffede3; --pend2:#fff6d6; --rev2:#e2f6ee; --work2:#e6f0ff;
-      --wait:#d1600f; --pend:#a67c00; --rev:#0e8a5f; --work:#1f6fd6;
-      --shadow:0 1px 2px rgba(20,30,50,.06),0 6px 18px rgba(20,30,50,.08); }
+  html[data-theme=light]{ --bg:#f7f6f3; --bg2:#f1efeb; --panel:#fff; --panel2:#f1efeb; --line:#e7e4df;
+      --ink:#1b1b1a; --dim:#6e6b66; --faint:#8e8a83;
+      --wait2:#fcefd9; --pend2:#f6eedc; --rev2:#e3f3e9; --work2:#e8eefc;
+      --wait:#b86e00; --pend:#8a6a1f; --rev:#2f8a52; --work:#3d6fe0; --idle:#8e8a83;
+      --accent:var(--ink); --on-accent:var(--bg); --face-s:42%; --face-l:93%;
+      --shadow:0 1px 2px rgba(27,27,26,.05),0 8px 24px -12px rgba(27,27,26,.18); }
   /* the terminal surface stays dark in every theme: the agent paints its own colours for a dark
      terminal, so its title bar, key bar and message box keep the dark tokens around it */
-  .modal,.phonebar,body.termkeys{--bg:#0c0f14;--bg2:#0f141b;--panel:#151b24;--panel2:#1b2531;--line:#242f3d;--ink:#e8eef6;--dim:#9fb0c3;--faint:#63748a}
+  .modal,.phonebar,body.termkeys{--bg:#111312;--bg2:#151716;--panel:#1c1e1d;--panel2:#242725;--line:#2e312f;--ink:#e6e8e4;--dim:#a9aea8;--faint:#6f756f;--accent:#e6e8e4;--on-accent:#111312}
   *{box-sizing:border-box}
   html,body{margin:0}
   body{background:var(--bg);color:var(--ink);
-    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    font:15px/1.5 "General Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
     -webkit-font-smoothing:antialiased}
 
   header{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--bg) 88%,transparent);
     backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
   .hin{max-width:1180px;margin:0 auto;padding:.85rem 1.1rem .7rem}
   .titlerow{display:flex;align-items:baseline;gap:.7rem;flex-wrap:wrap}
-  h1{margin:0;font-size:1.35rem;font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:.5rem}
-  h1 .logo{cursor:pointer;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:.9rem;
-    background:linear-gradient(135deg,var(--accent),var(--work));color:#fff;box-shadow:var(--shadow)}
-  .navlink{color:var(--work);text-decoration:none;font-size:.8rem;font-weight:600;
+  h1{margin:0;font:650 1.3rem/1.2 var(--disp);letter-spacing:-.01em;display:flex;align-items:center;gap:.55rem}
+  h1 .logo{cursor:pointer;width:26px;height:26px;border-radius:7px;background:var(--ink);
+    display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:5px}
+  h1 .logo i{background:var(--bg);border-radius:1.5px}
+  h1 .logo i:nth-child(2){background:var(--wait)}
+  .needn{font:700 1.55rem/1 var(--disp);color:var(--ink)}
+  .needdot{width:8px;height:8px;border-radius:50%;background:var(--wait);display:inline-block}
+  .navlink{color:var(--dim);text-decoration:none;font-size:.8rem;font-weight:500;
     border:1px solid var(--line);border-radius:999px;padding:.2rem .6rem;white-space:nowrap}
-  .navlink:hover{border-color:var(--work);background:var(--work2)}
+  .navlink:hover{border-color:var(--faint);color:var(--ink)}
   .sub{color:var(--faint);font-size:.8rem;margin-left:auto;display:inline-flex;align-items:center;gap:.4rem}
   .bell{background:var(--panel);border:1px solid var(--line);border-radius:999px;font-size:.95rem;cursor:pointer;color:var(--ink);
     padding:.18rem .5rem;line-height:1.2;opacity:.55;transition:opacity .15s,border-color .15s,background .15s}
@@ -69,7 +82,7 @@
   /* ⟳ banner: the one state that interrupts — only while agents from before a reboot are missing */
   .netbar.restorebar{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 12%,var(--panel))}
   .netbar.restorebar b{color:var(--accent)} .netbar.restorebar .ni{color:var(--accent)}
-  .netbar.restorebar button{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+  .netbar.restorebar button{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
   /* Settings: rows of label + control, the dialog chrome is the shared .newdlg.linkdlg */
   .settingsdlg h2{outline:none}
   .newdlg.settingsdlg .preview{font-family:inherit;font-size:.8rem}
@@ -97,10 +110,10 @@
   .settingsdlg .radios input{position:absolute;opacity:0;width:0;height:0;margin:0}
   .settingsdlg .stepper{display:flex;align-items:center;gap:.4rem}
   .settingsdlg .stepper button{width:2.75rem;height:2.75rem;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
-  .settingsdlg .stepper button:active{background:var(--accent);color:#fff}
+  .settingsdlg .stepper button:active{background:var(--accent);color:var(--on-accent)}
   .settingsdlg .stepper button:disabled{opacity:.45;cursor:default}
   .settingsdlg .stepper .v{font-variant-numeric:tabular-nums;min-width:2.2ch;text-align:center;font-weight:700}
-  .settingsdlg .fsample{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.4;background:#0c0f14;color:#e8eef6;border-radius:8px;padding:.5rem .7rem;margin-top:.5rem;white-space:pre}
+  .settingsdlg .fsample{font-family:var(--mono);line-height:1.4;background:#111312;color:#e6e8e4;border-radius:8px;padding:.5rem .7rem;margin-top:.5rem;white-space:pre}
   .settingsdlg input[type=checkbox]{width:1.25rem;height:1.25rem;accent-color:var(--accent);flex:0 0 auto;margin:0}
   .settingsdlg :is(button,input[type=checkbox],a,.srow.action):focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
   .restartdlg .rlist{display:flex;flex-direction:column;gap:.2rem;max-height:40vh;overflow:auto;margin:.3rem 0 .6rem;font-size:.9rem}
@@ -149,7 +162,7 @@
   .sugg .row:hover,.sugg .row.sel{background:var(--work2)}
   .sugg .av{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:.85rem;flex:0 0 auto}
   .sugg .nm{font-weight:700;color:var(--ink)} .sugg .nm b{color:var(--accent)}
-  .sugg .pj{color:var(--faint);font-family:ui-monospace,SFMono-Regular,monospace;font-size:.74rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+  .sugg .pj{color:var(--faint);font-family:var(--mono);font-size:.74rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
   .sugg .pj b{color:var(--dim)}
   .sugg .st{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;border-radius:999px;padding:.1rem .45rem;flex:0 0 auto}
   .sugg .st.waiting{background:var(--wait2);color:var(--wait)} .sugg .st.working{background:var(--work2);color:var(--work)} .sugg .st.review{background:var(--rev2);color:var(--rev)}
@@ -157,11 +170,11 @@
   .sugg .hint{color:var(--faint);font-size:.7rem;padding:.3rem .6rem .2rem;display:flex;gap:.8rem}
   .sugg .hint kbd{font:inherit;border:1px solid var(--line);border-radius:4px;padding:0 .3rem}
   .fsep{width:1px;align-self:stretch;background:var(--line);margin:.1rem .15rem}
-  .chip.cat.on{background:var(--accent);border-color:var(--accent);color:#fff}
-  .chip.cat.on .c{background:rgba(255,255,255,.25);color:#fff}
+  .chip.cat.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+  .chip.cat.on .c{background:color-mix(in srgb,var(--bg) 25%,transparent);color:var(--on-accent)}
 
   .wrap{max-width:1180px;margin:0 auto;padding:.4rem 1.1rem 5rem}
-  .glabel{margin:1.4rem 0 .55rem;font-size:.72rem;font-weight:700;letter-spacing:.05em;
+  .glabel{margin:1.4rem 0 .55rem;font:600 1rem var(--disp);letter-spacing:0;
     text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:.5rem}
   .glabel .n{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
     padding:0 .5rem;font-size:.68rem;color:var(--faint)}
@@ -172,36 +185,23 @@
   .card{cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:14px;
     padding:.75rem .85rem;display:flex;flex-direction:column;gap:.55rem;
     box-shadow:var(--shadow);position:relative;overflow:hidden;transition:transform .12s,border-color .12s}
-  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--idle)}
   .card:hover{transform:translateY(-1px)}
   /* "live" = touched within RECENT_SEC (see refreshAgo): the few you're actually working with
      right now. A soft accent wash + lit top edge + glow lifts them out of a crowded wall. */
-  .card.recent{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 11%,var(--panel)),var(--panel) 60%);
-    box-shadow:0 2px 4px rgba(0,0,0,.34),0 8px 26px color-mix(in srgb,var(--accent) 16%,transparent)}
-  .card.recent:not(.working){border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
-  .card.recent::after{content:"";position:absolute;left:0;right:0;top:0;height:4px;z-index:2;
-    background:var(--accent);box-shadow:0 0 10px color-mix(in srgb,var(--accent) 55%,transparent)}
+  .card.recent:not(.working):not(.waiting){border-color:color-mix(in srgb,var(--ink) 28%,var(--line))}
   .rdot{display:none}
-  .card.recent .rdot{display:block;position:absolute;top:5px;left:5px;width:9px;height:9px;border-radius:50%;
-    background:var(--accent);z-index:4;box-shadow:0 0 0 2px var(--panel),0 0 12px 2px color-mix(in srgb,var(--accent) 70%,transparent);
-    animation:rblink 1.2s ease-in-out infinite}
-  @keyframes rblink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.25;transform:scale(.7)}}
   .card.stale{opacity:.55;transition:opacity .15s}
   .card.stale:hover{opacity:1}
-  .card.waiting::before{background:var(--wait)} .card.waiting{border-color:color-mix(in srgb,var(--wait) 40%,var(--line))}
-  .card.typed::before{background:var(--pend)}   .card.typed{border-color:color-mix(in srgb,var(--pend) 40%,var(--line))}
-  .card.review::before{background:var(--rev)}
-  .card.working::before{background:var(--work)}
-  .card.working{border-color:var(--work);animation:workframe 1.5s ease-in-out infinite}
-  @keyframes workframe{
-    0%,100%{box-shadow:var(--shadow),0 0 0 0 color-mix(in srgb,var(--work) 55%,transparent)}
-    50%{box-shadow:var(--shadow),0 0 0 4px color-mix(in srgb,var(--work) 30%,transparent)}}
+  .card.waiting{border-color:color-mix(in srgb,var(--wait) 60%,var(--line))}
+  .card.typed{border-color:color-mix(in srgb,var(--pend) 50%,var(--line))}
+  .card.working{border-color:color-mix(in srgb,var(--work) 45%,var(--line))}
   .top{display:flex;align-items:center;gap:.55rem}
   .av{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:1.15rem;
-    flex:0 0 38px;background:var(--panel2);box-shadow:inset 0 0 0 2px var(--ring,var(--line))}
+    flex:0 0 38px;background:var(--panel2)}
+  .av[style*="--h"]{background:hsl(var(--h) var(--face-s) var(--face-l))}
   .nm{flex:1;min-width:0}
-  .who{font-weight:700;font-size:.95rem;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .proj{color:var(--faint);font-size:.72rem;font-family:ui-monospace,SFMono-Regular,monospace;
+  .who{font:650 1rem var(--disp);line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .proj{color:var(--faint);font-size:.72rem;font-family:var(--mono);
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .att{width:7px;height:7px;border-radius:50%;background:var(--rev);flex:0 0 7px;
     box-shadow:0 0 0 3px color-mix(in srgb,var(--rev) 25%,transparent)}
@@ -221,17 +221,17 @@
   .working-note{text-transform:lowercase}
   .sent-note .dots,.working-note .dots{width:9px;height:9px;border-radius:50%;background:var(--work);flex:0 0 9px;
     box-shadow:0 0 0 0 var(--work);animation:pulse 1.2s infinite}
-  .typedline{font-size:.82rem;color:var(--pend);font-family:ui-monospace,monospace;line-height:1.4;
+  .typedline{font-size:.82rem;color:var(--pend);font-family:var(--mono);line-height:1.4;
     background:var(--pend2);border:1px solid color-mix(in srgb,var(--pend) 45%,transparent);
     border-radius:9px;padding:.4rem .55rem;word-break:break-word}
-  .youbox{background:color-mix(in srgb,var(--accent) 14%,var(--panel));border-left:3px solid var(--accent);
+  .youbox{background:var(--panel2);
     border-radius:8px;padding:.35rem .55rem;color:var(--ink);font-size:.79rem;line-height:1.42;
     cursor:pointer;word-break:break-word}
   .youbox b{color:var(--accent);font-weight:700;text-transform:uppercase;font-size:.66rem;letter-spacing:.05em;margin-right:.2rem}
   .youbox .yt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   .youbox.full .yt{-webkit-line-clamp:unset;overflow:visible}
   /* focus note — the user's pinned reminder of a session's main task + sub-tasks */
-  .taskbox{background:color-mix(in srgb,var(--accent) 12%,var(--panel));border-left:3px solid var(--accent);
+  .taskbox{background:var(--panel2);
     border-radius:8px;padding:.38rem .55rem;color:var(--ink);font-size:.78rem;line-height:1.38;word-break:break-word}
   .taskbox .tmain{font-weight:700;display:flex;gap:.35rem;align-items:baseline}
   .taskbox .tmain span{flex:1;min-width:0}
@@ -246,7 +246,7 @@
     box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
   .taskbtns{display:flex;gap:.35rem}
   .taskbtns button{border:0;border-radius:9px;font-weight:700;font-size:.8rem;cursor:pointer;padding:.36rem .7rem}
-  .taskbtns .tsave{background:var(--accent);color:#fff}
+  .taskbtns .tsave{background:var(--accent);color:var(--on-accent)}
   .taskbtns .tsave:hover{filter:brightness(1.08)}
   .taskbtns .tcancel{background:var(--panel2);border:1px solid var(--line);color:var(--ink)}
   .taskbtns .tcancel:hover{border-color:var(--accent)}
@@ -259,8 +259,7 @@
     border-radius:10px;padding:.55rem .65rem}
   .ctx.empty{color:var(--faint);font-style:italic}
   .ctx::-webkit-scrollbar{width:7px} .ctx::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
-  .ctx .you-q{background:color-mix(in srgb,var(--accent) 16%,var(--bg2));
-    border-left:3px solid var(--accent);border-radius:7px;padding:.35rem .55rem;
+  .ctx .you-q{background:var(--panel2);border-radius:7px;padding:.35rem .55rem;
     margin-bottom:.55rem;color:var(--ink);line-height:1.4}
   .ctx .you-q b{color:var(--accent);font-weight:700;margin-right:.3rem;
     text-transform:uppercase;font-size:.68rem;letter-spacing:.05em}
@@ -299,7 +298,7 @@
   .modal{position:fixed;inset:0;background:rgba(4,7,12,.72);backdrop-filter:blur(4px);
     z-index:100;display:none;align-items:center;justify-content:center;padding:2.5vh 2vw}
   .modal.open{display:flex}
-  .mbox{width:96vw;max-width:1300px;height:95vh;background:#0c0f14;border:1px solid var(--line);
+  .mbox{width:96vw;max-width:1300px;height:95vh;background:#111312;border:1px solid var(--line);
     border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5)}
   .mbar{display:flex;align-items:center;gap:.6rem;padding:.5rem .8rem;background:var(--panel);
     border-bottom:1px solid var(--line);flex:0 0 auto}
@@ -309,7 +308,7 @@
   .mbar .mx{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;
     width:30px;height:30px;font-size:1rem;cursor:pointer}
   .mbar .mx:hover{border-color:var(--wait);color:var(--wait)}
-  .modal iframe{flex:1;width:100%;border:0;background:#0c0f14}
+  .modal iframe{flex:1;width:100%;border:0;background:#111312}
   /* "+ New" session dialog: a real form, nothing is created until you hit Create */
   .newdlg{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);
     padding:0;width:min(92vw,420px);box-shadow:0 20px 60px rgba(0,0,0,.45)}
@@ -332,7 +331,7 @@
     padding:.3rem .7rem;cursor:pointer;color:var(--ink);font-weight:600}
   .newdlg .radios label:has(:checked){border-color:var(--accent);background:var(--work2);color:var(--accent)}
   .newdlg .radios input{margin:0;width:1rem;height:1rem;accent-color:var(--accent)}
-  .newdlg .preview{font-size:.8rem;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;min-height:1.2em}
+  .newdlg .preview{font-size:.8rem;color:var(--faint);font-family:var(--mono);min-height:1.2em}
   .newdlg .preview b{color:var(--ink);font-weight:600}
   .newdlg .btns{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.3rem}
   .erasedlg{max-width:620px}
@@ -360,18 +359,18 @@
   .lk-btns{display:flex;flex-direction:column;gap:.45rem;margin-top:.8rem}
   .lk-btns a{display:block;text-align:center;text-decoration:none}
   .lk-btns button,.lk-btns a{font:inherit;font-size:1rem;padding:.7rem;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer}
-  .lk-btns button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
-  .newdlg .btns button.danger{background:var(--wait);border-color:var(--wait);color:#fff}
+  .lk-btns button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700}
+  .newdlg .btns button.danger{background:var(--wait);border-color:var(--wait);color:#1e1300}
   .newdlg .btns button.danger:disabled{opacity:.45;cursor:not-allowed}
   .newdlg .btns button{border-radius:999px;padding:.5rem 1rem;font:inherit;font-weight:700;cursor:pointer;
     border:1px solid var(--line);background:var(--panel2);color:var(--ink)}
-  .newdlg .btns button[value=create]{background:var(--accent);border-color:var(--accent);color:#fff}
+  .newdlg .btns button[value=create]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
   /* touch key-bar for the phone terminal — mobile only, laptop unchanged */
   .keybar{display:none;gap:.3rem;padding:.4rem .5rem;background:var(--panel);border-top:1px solid var(--line);
     overflow-x:auto;flex:0 0 auto;-webkit-overflow-scrolling:touch;align-items:center}
   .keybar button{flex:0 0 auto;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
     border-radius:8px;padding:.55rem .7rem;font-size:.95rem;font-family:inherit;cursor:pointer;white-space:nowrap;line-height:1}
-  .keybar button:active{background:var(--accent);color:#fff}
+  .keybar button:active{background:var(--accent);color:var(--on-accent)}
   .keybar button.hidekb{color:var(--dim);padding:.55rem .55rem}
   .keybar .ksep{flex:0 0 auto;width:1px;align-self:stretch;background:var(--line);margin:.15rem .2rem}
   .keybar::-webkit-scrollbar{display:none}
@@ -384,7 +383,7 @@
   .composer textarea{flex:1;min-width:0;max-height:7.5rem;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
     border-radius:18px;padding:.5rem .8rem;font-size:16px;line-height:1.3;font-family:inherit;resize:none;-webkit-appearance:none;appearance:none}
   .composer textarea:focus{outline:none;border-color:var(--accent)}
-  .composer button{flex:0 0 auto;width:2.3rem;height:2.3rem;border-radius:999px;border:0;background:var(--accent);color:#fff;font-size:1.1rem;cursor:pointer}
+  .composer button{flex:0 0 auto;width:2.3rem;height:2.3rem;border-radius:999px;border:0;background:var(--accent);color:var(--on-accent);font-size:1.1rem;cursor:pointer}
   .composer button:disabled{opacity:.4}
   .composer button.hist{background:var(--panel2);color:var(--faint);border:1px solid var(--line);font-size:1rem}
   .composer button.hist:not(.has){display:none}
@@ -406,7 +405,7 @@
     body.termkeys>header,body.termkeys>.wrap{visibility:hidden}
     body.termkeys .keybar{display:flex;flex-wrap:nowrap;scrollbar-width:none;border-top:0}
     /* the terminal fills exactly the visual viewport minus the bottom block */
-    body.termkeys .modal{padding:0;display:block;background:#0c0f14}   /* overlay keeps covering the whole screen, floor never shows through */
+    body.termkeys .modal{padding:0;display:block;background:#111312}   /* overlay keeps covering the whole screen, floor never shows through */
     body.termkeys .mbox{position:absolute;left:0;right:0;top:var(--vvtop,0px);height:calc(var(--vvh,100vh) - var(--barh,0px));
       width:auto;max-width:none;border-radius:0;border:0}
   }
@@ -426,7 +425,7 @@
   .iconbtn.pin.on{background:color-mix(in srgb,var(--accent) 25%,var(--panel2));border-color:var(--accent)}
   .iconbtn.mute.on{background:color-mix(in srgb,var(--wait) 22%,var(--panel2));border-color:var(--wait)}
   .card.pinned{outline:1.5px solid color-mix(in srgb,var(--accent) 70%,transparent);outline-offset:-1px}
-  .newbtn{background:var(--accent);color:#fff;border:0;border-radius:999px;font-weight:700;
+  .newbtn{background:var(--accent);color:var(--on-accent);border:0;border-radius:999px;font-weight:700;
     font-size:.8rem;padding:.3rem .8rem;cursor:pointer;white-space:nowrap}
   .newbtn:hover{filter:brightness(1.08)}
   .empty{color:var(--faint);text-align:center;padding:3rem 1rem;font-size:.9rem}
@@ -443,7 +442,7 @@
   .rchip.waiting .d{background:var(--wait);box-shadow:0 0 6px var(--wait)}
   .rchip.typed .d{background:var(--pend)} .rchip.review .d{background:var(--rev)}
   .rchip.working .d{background:var(--work);animation:pulse 2.4s infinite}
-  .rchip .p{color:var(--faint);font-weight:500;font-family:ui-monospace,SFMono-Regular,monospace;font-size:.7rem}
+  .rchip .p{color:var(--faint);font-weight:500;font-family:var(--mono);font-size:.7rem}
   .rchip .t{color:var(--faint);font-weight:500;font-size:.68rem}
   /* connectivity: a spinner while the first floor loads, a banner when the poll fails */
   .spin{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);
@@ -475,7 +474,7 @@
     border-radius:11px;opacity:0;transition:all .22s;pointer-events:none;box-shadow:var(--shadow)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .toast.err{background:var(--wait);color:#160800}
-  .toast.tap{pointer-events:auto;cursor:pointer;background:var(--accent);color:#fff}
+  .toast.tap{pointer-events:auto;cursor:pointer;background:var(--accent);color:var(--on-accent)}
   .toast.tap::after{content:" ›";opacity:.75;font-weight:700}
 
   /* --- phone: keep the sticky header slim so it doesn't eat the screen --- */
@@ -515,9 +514,9 @@
     .filtertoggle{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:2.75rem;height:2.75rem;position:relative;
       border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--dim);font:inherit;cursor:pointer}
     .filtertoggle .c{position:absolute;top:-.3rem;right:-.3rem;min-width:1.1rem;height:1.1rem;line-height:1.1rem;text-align:center;font-size:.66rem;font-weight:700;
-      background:var(--accent);color:#fff;border-radius:999px;padding:0 .25rem}
+      background:var(--accent);color:var(--on-accent);border-radius:999px;padding:0 .25rem}
     .filtertoggle.active{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--panel))}
-    body.filters-open .filtertoggle{background:var(--accent);color:#fff;border-color:var(--accent)}
+    body.filters-open .filtertoggle{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
     body.filters-open .filtertoggle .c{background:var(--ink);color:var(--bg)}
     .filtercol{display:none} body.filters-open .filtercol{display:flex}
     .search,.search:focus{min-height:2.75rem}
@@ -536,17 +535,16 @@
   }
   /* --- Secretary: the chief-of-staff dispatcher (prominent, above the floor) --- */
   .secretary{display:flex;gap:.9rem;align-items:flex-start;margin:.1rem 0 1.1rem;position:relative;overflow:hidden;
-    background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 13%,var(--panel)),var(--panel));
-    border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));border-radius:16px;padding:.95rem 1.1rem;box-shadow:var(--shadow)}
-  .secretary::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(var(--accent),var(--work))}
+    background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:.95rem 1.1rem;box-shadow:var(--shadow)}
   .sec-ava{width:46px;height:46px;flex:0 0 46px;border-radius:13px;display:grid;place-items:center;font-size:1.55rem;
-    background:linear-gradient(135deg,var(--accent),var(--work));box-shadow:var(--shadow)}
+    background:hsl(30 42% 93%)}
+  html[data-theme=dark] .sec-ava{background:hsl(30 22% 24%)}
   .sec-main{flex:1;min-width:0}
   .sec-head{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;margin-bottom:.55rem}
-  .kbd{margin-left:auto;align-self:center;font:600 .64rem ui-monospace,SFMono-Regular,monospace;
+  .kbd{margin-left:auto;align-self:center;font:600 .64rem var(--mono);
     color:var(--faint);background:var(--panel);border:1px solid var(--line);border-bottom-width:2px;
     border-radius:6px;padding:2px 6px;white-space:nowrap}
-  .sec-head b{font-size:1.06rem;letter-spacing:-.01em}
+  .sec-head b{font:650 1.1rem var(--disp)}
   .sec-sub{color:var(--faint);font-size:.82rem}
   .foot{margin:28px 6px 16px;padding-top:14px;border-top:1px solid var(--line);
     display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:.5rem;
@@ -559,13 +557,13 @@
     padding:.62rem .8rem;font-size:.93rem;font-family:inherit;height:2.65rem}
   .sec-in:focus{outline:none;border-color:var(--accent)}
   .sec-btn{border:1px solid transparent;border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer;padding:.62rem 1.05rem;
-    background:var(--accent);color:#fff;white-space:nowrap;height:2.65rem}
+    background:var(--accent);color:var(--on-accent);white-space:nowrap;height:2.65rem}
   .sec-btn:hover{filter:brightness(1.08)}
   .sec-reply{margin-top:.55rem;font-size:.9rem;min-height:1.1em}
   .sec-reply.ok{color:var(--rev)} .sec-reply.err{color:var(--wait)} .sec-reply.think{color:var(--faint)}
   .card.dispatched{animation:dispatch 2s ease-out}
   @keyframes dispatch{0%,30%,72%,100%{box-shadow:0 0 0 0 transparent}
-    12%,50%{box-shadow:0 0 0 3px var(--accent),0 0 26px 7px color-mix(in srgb,var(--accent) 60%,transparent)}}
+    12%,50%{box-shadow:0 0 0 3px var(--accent)}}
   @media(max-width:600px){.secretary{display:block;padding:.8rem .95rem .85rem 1rem}
     .sec-ava{position:absolute;top:.8rem;left:1rem;width:32px;height:32px;flex:0 0 32px;font-size:1.05rem;border-radius:9px}
     .sec-head{padding-left:42px;min-height:32px;gap:.2rem .5rem;margin-bottom:.5rem}
@@ -576,7 +574,7 @@
 <body>
 <header><div class="hin">
   <div class="titlerow">
-    <h1><span class="logo" id="logo" title="back to the top" role="button" tabindex="0">🏢</span> {{OFFICE_TITLE}}</h1>
+    <h1><span class="logo" id="logo" title="back to the top" role="button" tabindex="0" aria-label="back to the top"><i></i><i></i><i></i><i></i></span> {{OFFICE_TITLE}}</h1>
     <a class="navlink" href="{{OFFICE_STATUS_URL}}">📊 <span class="lng">Usage &amp; limits</span><span class="shr">Usage</span> →</a>
     <a class="navlink" href="{{OFFICE_FILES_URL}}">📁 Files →</a>
     <div class="sub" id="sub">loading…</div>
@@ -1015,7 +1013,7 @@ function card(m){
   const el=document.createElement("div"); el.className="card "+L.cls+(m.pinned?" pinned":""); el._sess=m.session; el.dataset.session=m.session;
   el.style.setProperty("--ring",`hsl(${hue} 55% 55% / .8)`);
   let h=`<span class="rdot"></span><div class="top">
-      <div class="av" style="background:hsl(${hue} 45% 22% / .5)">${esc(m.emoji||emojiFor(m.project))}</div>
+      <div class="av" style="--h:${hue}">${esc(m.emoji||emojiFor(m.project))}</div>
       <div class="nm"><div class="who">${esc(who)}</div><div class="proj">${esc(m.project)}${m.ghost?" · 👻":""}</div></div>
       ${m.attached?'<span class="att" title="you are attached"></span>':""}
       <span class="ago" title="last activity in this session"></span>
@@ -2150,7 +2148,7 @@ async function load(){
   (data.watch_events||[]).forEach(ev=>{ const o=document.getElementById("sec-reply"); if(o){ o.className="sec-reply ok"; o.textContent="🔔 "+ev.reply; } notifyUser("✅ "+ev.person+" finished", ev.reply, ev.session); });
   const w=LAST.filter(t=>t.state==="waiting").length, p=LAST.filter(t=>t.state==="typed").length;
   document.getElementById("sub").innerHTML=
-    `<span class="live"></span>${LAST.length} desks · ${w} question${w===1?"":"s"} · ${p} pending`;
+    `<span class="needdot"></span><b class="needn">${w}</b> need you · ${LAST.length} desks`+(p?` · ${p} unsent`:"");
   render();
 }
 // ── search: multi-word, any order, forgiving ─────────────────────────────
@@ -2184,7 +2182,7 @@ function renderSugg(){
   SUGSEL=Math.min(SUGSEL, Math.max(0,SUGG.length-1));
   if(!SUGG.length){ box.innerHTML=`<div class="hint">no one matches “${esc(q)}”</div>`; box.classList.add("show"); return; }
   box.innerHTML=SUGG.map((m,i)=>`<div class="row${i===SUGSEL?" sel":""}" data-i="${i}" role="option">
-      <span class="av" style="background:hsl(${hueOf(m)} 45% 22% / .5)">${esc(m.emoji||emojiFor(m.project))}</span>
+      <span class="av" style="--h:${hueOf(m)}">${esc(m.emoji||emojiFor(m.project))}</span>
       <span class="nm">${hl(m.person||m.project,q)}</span><span class="pj">${hl(m.project,q)}</span>
       <span class="st ${esc(m.state||"")}">${esc(pillOf(m))}</span><span class="ago">${esc(agoText(m.ts))}</span></div>`).join("")
     +`<div class="hint"><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>⏎</kbd> open terminal</span><span><kbd>esc</kbd> clear</span></div>`;
