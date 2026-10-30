@@ -442,11 +442,14 @@ def snapshot():
         _w, _t, _v, update, menu, mode, draft = panes[name]
         meta, rec = _claude(pid, kids)
         running = meta is not None
-        rec = rec or _by_dir(path) or _join(path, idx, project)
+        # a running Claude names its own conversation; no transcript for it yet = a new one with no
+        # history (Claude Code writes it with the first message), not some older chat in the same dir
+        if not running:
+            rec = rec or _by_dir(path) or _join(path, idx, project)
 
         # ghost = no transcript AND not freshly created (a new session just hasn't
         # written a transcript yet — it's not a retention-deleted ghost).
-        ghost = (rec is None) and (now - created > GHOST_AFTER)
+        ghost = (rec is None) and not running and (now - created > GHOST_AFTER)
         full = (rec or {}).get("asst") or ""
         you = (rec or {}).get("you") or ""
 
