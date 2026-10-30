@@ -76,6 +76,42 @@ class Yours(unittest.TestCase):
         self.assertFalse(team._is_yours(json.loads(_line("assistant", "", "hi"))))
 
 
+class AskOf(unittest.TestCase):
+    """What a waiting agent asks: from Claude Code's status file and the hook's file, never its words."""
+    def setUp(self):
+        self.d = tempfile.TemporaryDirectory()
+        self._old, team.ASK_DIR = team.ASK_DIR, self.d.name
+        self.now = int(time.time() * 1000)
+
+    def tearDown(self):
+        team.ASK_DIR = self._old
+        self.d.cleanup()
+
+    def _hook(self, sid, event, name, inp):
+        with open(os.path.join(self.d.name, sid + ".json"), "w") as f:
+            json.dump({"event": event, "tool_name": name, "tool_input": inp}, f)
+
+    def _meta(self, sid, why, at=None):
+        return {"sessionId": sid, "status": "waiting", "waitingFor": why, "statusUpdatedAt": at or self.now}
+
+    def test_a_question_with_its_choices(self):
+        self._hook("s1", "PreToolUse", "AskUserQuestion", {"questions": [
+            {"question": "Which room?", "options": [{"label": "Ventures"}, {"label": "Clients"}]}, {"question": "And?"}]})
+        self.assertEqual(team._ask_of(self._meta("s1", "input needed")),
+                         {"kind": "question", "ask": "Which room?", "options": ["Ventures", "Clients"], "more": 1, "detail": ""})
+
+    def test_a_permission_with_what_it_would_run(self):
+        self._hook("s2", "PermissionRequest", "Bash", {"command": "rm -rf build", "description": "clean"})
+        a = team._ask_of(self._meta("s2", "permission prompt"))
+        self.assertEqual((a["kind"], a["ask"], a["detail"]), ("permission", "Permission to use Bash", "rm -rf build"))
+
+    def test_an_old_file_or_none_is_only_the_wait_itself(self):
+        self._hook("s3", "PreToolUse", "AskUserQuestion", {"questions": [{"question": "old?"}]})
+        later = self.now + 10 * 60 * 1000
+        self.assertEqual(team._ask_of(self._meta("s3", "input needed", at=later))["kind"], "dialog")
+        self.assertEqual(team._ask_of(self._meta("nofile", "dialog open"))["ask"], "Dialog open")
+
+
 class Turns(unittest.TestCase):
     def test_every_text_of_a_turn_in_order_and_the_last_n_turns(self):
         with tempfile.TemporaryDirectory() as d:
@@ -143,39 +179,6 @@ class ParseLatest(unittest.TestCase):
             rec = team._parse_latest(d)
             self.assertEqual(rec["ts"], "2026-07-01T12:30:00Z")     # last message (the prompt)
             self.assertEqual(rec["asst_ts"], "2026-07-01T10:00:00Z")  # last reply, unchanged
-
-    def _blocks(self, kind, ts, blocks):
-        return json.dumps({"type": kind, "cwd": "/home/user/project", "timestamp": ts, "message": {"content": blocks}})
-
-    def test_a_question_in_the_reply_text_is_not_an_ask(self):
-        # Regression: a drafted message ending in "passt das so?" put an Answer note on the desk
-        with tempfile.TemporaryDirectory() as d:
-            _write(os.path.join(d, "a.jsonl"), [
-                _line("user", "2026-07-01T10:00:00Z", "draft a whatsapp to the carpenter"),
-                _line("assistant", "2026-07-01T10:00:05Z", "Hallo! Wären das 1.764 €, passt das so?"),
-            ])
-            self.assertIsNone(team._parse_latest(d)["open"])
-
-    def test_an_open_askuserquestion_is_the_ask(self):
-        ask = {"type": "tool_use", "id": "t1", "name": "AskUserQuestion", "input": {"questions": [
-            {"question": "Which room?", "header": "Room", "options": [{"label": "Ventures"}, {"label": "Clients"}]}]}}
-        with tempfile.TemporaryDirectory() as d:
-            _write(os.path.join(d, "a.jsonl"), [self._blocks("assistant", "2026-07-01T10:00:05Z", [ask])])
-            self.assertEqual(team._parse_latest(d)["open"],
-                             {"kind": "question", "ask": "Which room?", "options": ["Ventures", "Clients"], "more": 0})
-            # once answered it is closed; an old API-request copy of the call does not reopen it
-            _write(os.path.join(d, "a.jsonl"), [
-                self._blocks("assistant", "2026-07-01T10:00:05Z", [ask]),
-                self._blocks("user", "2026-07-01T10:01:00Z", [{"type": "tool_result", "tool_use_id": "t1", "content": "Ventures"}]),
-                json.dumps({"type": "api-request-blob", "message": {"content": [dict(ask, id="t9")]}}),
-            ], mtime=time.time() + 5)
-            self.assertIsNone(team._parse_latest(d)["open"])
-
-    def test_a_tool_call_without_its_result_is_a_permission(self):
-        with tempfile.TemporaryDirectory() as d:
-            _write(os.path.join(d, "a.jsonl"), [self._blocks("assistant", "2026-07-01T10:00:05Z",
-                                                             [{"type": "tool_use", "id": "t2", "name": "Bash", "input": {}}])])
-            self.assertEqual(team._parse_latest(d)["open"]["kind"], "permission")
 
     def test_empty_dir_is_none(self):
         with tempfile.TemporaryDirectory() as d:

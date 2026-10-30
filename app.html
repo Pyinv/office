@@ -596,6 +596,7 @@
   .dp-empty{color:var(--faint);font-size:.9rem}
   .dp-q{display:flex;flex-direction:column;gap:.5rem;border-top:1px solid var(--line);padding-top:.85rem}
   .dp-q .qh{font-weight:600;font-size:.95rem;line-height:1.45}
+  .dp-q .qd{font:400 .8rem/1.45 var(--mono);background:var(--panel2);border-radius:6px;padding:.45rem .6rem;white-space:pre-wrap;word-break:break-word}
   .dp-q .qmore{font-size:.8rem;color:var(--dim)}
   .dp-q .qgo{align-self:flex-start;border:0;border-radius:10px;background:var(--accent);color:var(--on-accent);font:inherit;font-weight:600;font-size:.9rem;
     padding:.6rem 1rem;cursor:pointer}
@@ -1956,7 +1957,7 @@ function deskLine(m){
 const NOTES={question:"Answer", permission:"Allow", dialog:"Waiting"};
 const noteOf=m=>m._sent || m.state!=="waiting" ? "" : NOTES[m.asks]||"";
 const deskState=m=>m._sent ? "working" : m.typed ? "typed" : (m.state||"review");
-const deskSig=m=>[sigOf(m),m.ghost?1:0,m.group,m.emoji||"",m.person||"",m.asks||"",m.more||0,(m.options||[]).join("\u0001")].join("\u0002");
+const deskSig=m=>[sigOf(m),m.ghost?1:0,m.group,m.emoji||"",m.person||"",m.asks||"",m.more||0,m.detail||"",(m.options||[]).join("\u0001")].join("\u0002");
 function deskHtml(m){
   const who=m.person||m.project, note=noteOf(m), task=taskLines(m.task)[0];
   return (note?`<span class="note${m.typed?" draft":""}">${note}</span>`:"")
@@ -2051,7 +2052,7 @@ function refreshDesk(force){
   if(!m._sent && m.asks){
     const keys=m.asks==="permission" ? [["1","Allow"],["esc","Deny"]]
              : m.asks==="question" && !m.more ? (m.options||[]).map((o,i)=>[String(i+1),o]) : [];
-    h+=`<div class="dp-q"><div class="qh" dir="auto">${esc(m.ask)}</div>`
+    h+=`<div class="dp-q"><div class="qh" dir="auto">${esc(m.ask)}</div>`+(m.detail?`<code class="qd">${esc(m.detail)}</code>`:"")
       +keys.map(([k,o],i)=>`<button class="opt" data-k="${k}"><b>${i+1}</b><span dir="auto">${esc(o)}</span></button>`).join("")
       +(m.asks==="question" && m.more ? (m.options||[]).map((o,i)=>`<div class="opt"><b>${i+1}</b><span dir="auto">${esc(o)}</span></div>`).join("")
           +`<div class="qmore">and ${m.more} more question${m.more>1?"s":""}</div>` : "")

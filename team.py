@@ -200,7 +200,6 @@ def _parse_one(f):
         return None
     cwd = last_asst = last_role = last_ts = asst_ts = None
     pending_user = you = None            # you = the prompt the last answer responds to
-    open_tools = {}                      # tool_use id -> (name, input) still without a tool_result
     for line in tail:
         try:
             o = json.loads(line)
@@ -209,14 +208,6 @@ def _parse_one(f):
         if o.get("cwd"):
             cwd = o["cwd"]
         t = o.get("type")
-        content = (o.get("message") or {}).get("content") if t in ("assistant", "user") else None
-        for b in content if isinstance(content, list) else ():
-            if not isinstance(b, dict):
-                continue
-            if b.get("type") == "tool_use":
-                open_tools[b.get("id")] = (b.get("name") or "", b.get("input") or {})
-            elif b.get("type") == "tool_result":
-                open_tools.pop(b.get("tool_use_id"), None)
         if t == "assistant":
             txt = _text_of(o.get("message", {}))
             last_role = "assistant"
@@ -231,7 +222,7 @@ def _parse_one(f):
                 pending_user = _text_of(o.get("message", {})).strip()
             last_ts = o.get("timestamp") or last_ts
     res = {"cwd": cwd, "asst": last_asst, "role": last_role, "ts": last_ts,
-           "asst_ts": asst_ts, "you": you, "file": f, "open": _open_ask(open_tools)}
+           "asst_ts": asst_ts, "you": you, "file": f}
     _TCACHE[f] = (mt, res)
     return res
 
@@ -309,22 +300,39 @@ def _join(path, idx, project=None):
             return idx[named[0]]
     return None                                  # can't tell which child -> fall back to the pane
 
-def _open_ask(open_tools):
-    """What Claude is waiting on you for, read from the transcript itself, never from the wording:
-    an AskUserQuestion still without its answer (question + its choices), or any other tool call
-    still without its result (a permission prompt, once the pane shows no spinner)."""
-    for name, inp in reversed(list(open_tools.values())):
-        if name == "AskUserQuestion":
-            qs = [q for q in (inp.get("questions") or []) if isinstance(q, dict)]
-            if qs:
-                q = qs[0]
-                opts = [o.get("label", "") if isinstance(o, dict) else str(o) for o in (q.get("options") or [])]
-                return {"kind": "question", "ask": str(q.get("question") or "").strip(),
-                        "options": [o for o in opts if o], "more": len(qs) - 1}
-    if open_tools:
-        name, _ = list(open_tools.values())[-1]
-        return {"kind": "permission", "ask": "Permission to use " + name, "options": [], "more": 0}
-    return None
+# What an agent asks you, as Claude Code handed it to hooks/ask.py (PreToolUse of AskUserQuestion,
+# PermissionRequest): ~/.claude/office-asks/<session id>.json. Used only while the status file says
+# "waiting", and only if written around when that wait began (an older one belongs to an old wait).
+ASK_DIR = os.path.join(HOME, ".claude", "office-asks")
+
+def _asked(meta):
+    try:
+        path = os.path.join(ASK_DIR, str(meta.get("sessionId") or "") + ".json")
+        if os.path.getmtime(path) < (meta.get("statusUpdatedAt") or 0) / 1000 - 60:
+            return None
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError, AttributeError):
+        return None
+
+# the one field of a tool's input that says what it would do, shown verbatim under "Allow"
+_DETAIL_KEYS = ("command", "file_path", "notebook_path", "url", "path", "pattern", "query")
+
+def _ask_of(meta):
+    why = str(meta.get("waitingFor") or "")
+    got = _asked(meta) or {}
+    name, inp = got.get("tool_name") or "", got.get("tool_input") or {}
+    if name == "AskUserQuestion" and why != "permission prompt":
+        qs = [q for q in (inp.get("questions") or []) if isinstance(q, dict)]
+        if qs:
+            opts = [o.get("label", "") if isinstance(o, dict) else str(o) for o in (qs[0].get("options") or [])]
+            return {"kind": "question", "ask": str(qs[0].get("question") or "").strip(),
+                    "options": [o for o in opts if o], "more": len(qs) - 1, "detail": ""}
+    if why == "permission prompt":
+        detail = next((str(inp[k]) for k in _DETAIL_KEYS if isinstance(inp.get(k), (str, int))), "")
+        return {"kind": "permission", "ask": ("Permission to use " + name) if name else "Permission prompt",
+                "options": [], "more": 0, "detail": detail if got.get("event") == "PermissionRequest" else ""}
+    return {"kind": "dialog", "ask": (why or "waiting").capitalize(), "options": [], "more": 0, "detail": ""}
 
 # ── pane side (prompt state only) ─────────────────────────────────────────
 # "Actively working RIGHT NOW". The reliable signal across Claude Code versions is
@@ -446,21 +454,13 @@ def snapshot():
         # a permission prompt, a question, a dialog) or idle. Not running = no status file.
         status = (meta or {}).get("status")
         state = {"busy": "working", "waiting": "waiting"}.get(status, "review")
-        ask = None
-        if state == "waiting":
-            ask = (rec or {}).get("open")            # the open AskUserQuestion / tool call, from the transcript
-            why = str((meta or {}).get("waitingFor") or "")
-            if why == "permission prompt":
-                tool = ask["ask"] if ask and ask["kind"] == "permission" else "Permission to use a tool"
-                ask = {"kind": "permission", "ask": tool, "options": [], "more": 0}
-            elif not (ask and ask["kind"] == "question"):
-                ask = {"kind": "dialog", "ask": (why or "waiting").capitalize(), "options": [], "more": 0}
+        ask = _ask_of(meta) if state == "waiting" else None
 
         team.append({
             "session": name, "person": person, "project": project,
             "dir": path, "attached": attached, "state": state,
             "ask": ask["ask"] if ask else "", "asks": ask["kind"] if ask else "",
-            "more": ask["more"] if ask else 0, "full": full[-2000:] if full else "",
+            "more": ask["more"] if ask else 0, "detail": ask["detail"] if ask else "", "full": full[-2000:] if full else "",
             "you": you[:400] if you else "",
             "options": ask["options"] if ask else [],
             "typed": None, "ghost": ghost, "running": running, "verb": "",
