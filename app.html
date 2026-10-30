@@ -596,6 +596,7 @@
   .dp-empty{color:var(--faint);font-size:.9rem}
   .dp-q{display:flex;flex-direction:column;gap:.5rem;border-top:1px solid var(--line);padding-top:.85rem}
   .dp-q .qh{font-weight:600;font-size:.95rem;line-height:1.45}
+  .iconin{font-size:1.6rem !important;text-align:center}
   .dp-q .qd{font:400 .8rem/1.45 var(--mono);background:var(--panel2);border-radius:6px;padding:.45rem .6rem;white-space:pre-wrap;word-break:break-word}
   .dp-q .qmore{font-size:.8rem;color:var(--dim)}
   .dp-q .qgo{align-self:flex-start;border:0;border-radius:10px;background:var(--accent);color:var(--on-accent);font:inherit;font-weight:600;font-size:.9rem;
@@ -798,6 +799,14 @@
     <label>New name <input name="sess" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required pattern="[A-Za-z0-9_]+-[A-Za-z0-9_-]+" title="person-project, e.g. juno-manasek"></label>
     <div class="preview">person-project · the part before the first dash is the person</div>
     <div class="btns"><button type="button" onclick="this.closest('dialog').close()">Cancel</button><button value="rename">Rename</button></div>
+  </form>
+</dialog>
+<dialog class="newdlg" id="icondlg">
+  <form method="dialog" autocomplete="off">
+    <h2>Icon</h2>
+    <label>Any emoji <input name="emoji" class="iconin" maxlength="16" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></label>
+    <div class="preview">only this desk · Reset goes back to the icon from the project name</div>
+    <div class="btns"><button type="button" class="iconreset">Reset</button><button type="button" onclick="this.closest('dialog').close()">Cancel</button><button value="save">Save</button></div>
   </form>
 </dialog>
 <dialog class="newdlg erasedlg" id="erasedlg">
@@ -1160,6 +1169,21 @@ async function muteCard(session, muted){
   catch(e){ toast("⚠ "+e.message,true); }
 }
 // rename: a one-field dialog; tmux + the Office's state files move together on the server
+// your own icon for one desk (icons.json on the server); without one the project-name guess stays
+function iconCard(session){
+  const m=LAST.find(x=>x.session===session); if(!m) return;
+  const dlg=document.getElementById("icondlg"), inp=dlg.querySelector("input"), form=dlg.querySelector("form");
+  const save=async emoji=>{
+    try{
+      const r=await fetch("/api/icon",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session,emoji})});
+      const j=await r.json(); if(!j.ok){ toast("⚠ "+(j.error||"failed"),true); return; }
+      dlg.close(); m.emoji=j.emoji||""; LAYOUT=""; render(); refreshDesk(true); load();
+    }catch(err){ toast("⚠ "+err.message,true); }
+  };
+  inp.value=m.emoji||emojiFor(m.project); dlg.showModal(); inp.focus(); inp.select();
+  form.onsubmit=e=>{ e.preventDefault(); save(inp.value.trim()); };
+  dlg.querySelector(".iconreset").onclick=()=>save("");
+}
 async function renameCard(session){
   const dlg=document.getElementById("rendlg"), inp=dlg.querySelector("input"), form=dlg.querySelector("form");
   inp.value=session; dlg.showModal(); inp.focus(); inp.select();
@@ -2078,7 +2102,7 @@ function deskMenu(m){
     +it(m.muted?"Unmute phone pushes":"Mute phone pushes","mute")
     +it(taskLines(m.task).length?"Edit focus note":"Focus note","task")
     +ROOMS.filter(r=>r.id!==m.group).map(r=>it("Move to "+esc(r.name),"mv:"+r.id)).join("")
-    +it("Rename","rename")+`<hr>`
+    +it("Change icon…","icon")+it("Rename","rename")+`<hr>`
     +it("Close desk…","kill","danger")+it("Erase everything…","erase","danger");
 }
 {
@@ -2104,6 +2128,7 @@ function deskMenu(m){
       ta.value=m.task||""; ed.hidden=false; DP("dp-body").scrollTop=0; ta.focus(); ta.setSelectionRange(ta.value.length,ta.value.length); }
     else if(act.startsWith("mv:")) setGroup(m.session,act.slice(3));
     else if(act==="rename") renameCard(m.session);
+    else if(act==="icon") iconCard(m.session);
     else if(act==="kill") killCard(m.session,who);
     else if(act==="erase") eraseCard(m.session,who);
   });

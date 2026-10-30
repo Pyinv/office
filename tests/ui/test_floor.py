@@ -29,7 +29,7 @@ class Floor(BrowserCase):
         self.page.add_init_script(f"Date.now=()=>{NOW * 1000}")
         self.page.route("**/api/floor", lambda r: r.fulfill(status=200, content_type="application/json",
                                                           body=json.dumps({"team": TEAM, "version": "test"})))
-        for api in ("say", "pin", "mute", "group", "task", "kill", "rename", "key"):
+        for api in ("say", "pin", "mute", "group", "task", "kill", "rename", "key", "icon"):
             self.page.route(f"**/api/{api}", self._catch)
 
     def _catch(self, route):
@@ -102,6 +102,23 @@ class Floor(BrowserCase):
         replies = self.js("[...document.querySelectorAll('#dp-body .dp-reply')].map(b=>b.textContent.trim())")
         self.assertEqual(replies[:2], ["one", "looking into it"])
         self.assertTrue(replies[2].endswith(" end") and len(replies[2]) > 5000)     # nothing cut
+
+    def test_an_icon_you_pick_for_one_desk(self):
+        self.open_floor()
+        self.page.click("[data-session=zed-alpha]")
+        self.page.click("#dp-more")
+        self.page.click("#dp-menu button[data-act='icon']")
+        self.assertEqual(self.page.input_value("#icondlg input"), "🧾")      # starts from the icon it has now
+        self.page.fill("#icondlg input", "🦊")
+        self.page.click("#icondlg button[value=save]")
+        self.page.wait_for_timeout(200)
+        self.assertEqual((self.writes[0][0], json.loads(self.writes[0][1])), ("icon", {"session": "zed-alpha", "emoji": "🦊"}))
+        # Reset sends a blank: back to the guess from the project name
+        self.page.click("#dp-more")
+        self.page.click("#dp-menu button[data-act='icon']")
+        self.page.click("#icondlg .iconreset")
+        self.page.wait_for_timeout(200)
+        self.assertEqual(json.loads(self.writes[1][1]), {"session": "zed-alpha", "emoji": ""})
 
     def test_the_menu_pins_and_moves(self):
         self.open_floor()

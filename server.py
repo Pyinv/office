@@ -313,6 +313,22 @@ def save_pins(p):
         json.dump(sorted(p), f, indent=2)
     os.replace(tmp, PINS_FILE)
 
+# ── an icon you picked for a desk (overrides the project-keyword guess) ──────
+ICONS_FILE = os.path.join(ROOT, "icons.json")
+
+def load_icons():
+    try:
+        with open(ICONS_FILE, encoding="utf-8") as f:
+            return dict(json.load(f))
+    except Exception:
+        return {}
+
+def save_icons(d):
+    tmp = ICONS_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=2, sort_keys=True, ensure_ascii=False)
+    os.replace(tmp, ICONS_FILE)
+
 # ── per-session phone-push mute (🔕 on the card) ─────────────────────────
 MUTES_FILE = os.path.join(ROOT, "mutes.json")
 
@@ -598,6 +614,7 @@ class Handler(SimpleHTTPRequestHandler):
         pins = load_pins()
         mutes = load_mutes()
         tasks = load_tasks()
+        icons = load_icons()
         for m in snap:
             # state files win; otherwise fall back to any value the snapshot
             # already carries (lets demo.json fixtures set group/task/pinned).
@@ -605,6 +622,8 @@ class Handler(SimpleHTTPRequestHandler):
             m["pinned"] = (m["session"] in pins) or bool(m.get("pinned"))
             m["muted"] = m["session"] in mutes
             m["task"] = tasks.get(m["session"], m.get("task", ""))
+            if m["session"] in icons:
+                m["emoji"] = icons[m["session"]]
         if not cfg("OFFICE_DEMO"):
             try: record_history(snap)
             except Exception: pass
@@ -810,6 +829,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/group": return self._group(data)
         if path == "/api/pin":   return self._pin(data)
         if path == "/api/mute":  return self._mute(data)
+        if path == "/api/icon":  return self._icon(data)
         if path == "/api/task":  return self._task(data)
         if path == "/api/secretary": return self._secretary(data)
         if path == "/api/key":   return self._key(data)
@@ -885,12 +905,13 @@ class Handler(SimpleHTTPRequestHandler):
             # the app's share sheet: name, project and the card's emoji, most recent first (a list keeps the order)
             emoji = {"web": "🌐", "app": "📱", "api": "🔌", "bot": "🤖", "site": "🌐", "docs": "📄", "data": "📊", "db": "🗄️"}
             emoji.update(json.loads(emoji_json()))
+            icons = load_icons()
             out = []
             for label, sess in rows:
                 person, _, proj = sess.partition("-")
                 low = proj.lower()
                 out.append({"label": label, "session": sess, "person": person.capitalize(), "project": proj,
-                            "emoji": next((e for k, e in emoji.items() if k in low), "👤")})
+                            "emoji": icons.get(sess) or next((e for k, e in emoji.items() if k in low), "👤")})
             return self._json({"agents": out})
         if "lines=1" in self.path:
             # one label per line — a Shortcuts "Choose from List" keeps this order, whereas it
@@ -1080,6 +1101,20 @@ class Handler(SimpleHTTPRequestHandler):
             pins.discard(sess)
         save_pins(pins)
         return self._json({"ok": True, "session": sess, "pinned": sess in pins})
+
+    def _icon(self, data):
+        # the icon you picked for a desk; blank goes back to the project-keyword guess
+        sess = str(data.get("session", ""))
+        if not sess or sess not in live_sessions():
+            return self._json({"error": f"no live session '{sess}'"}, 409)
+        emoji = str(data.get("emoji", "")).strip()[:16]
+        icons = load_icons()
+        if emoji:
+            icons[sess] = emoji
+        else:
+            icons.pop(sess, None)
+        save_icons(icons)
+        return self._json({"ok": True, "session": sess, "emoji": emoji})
 
     def _mute(self, data):
         # 🔕 on a card: no phone pushes for this session until unmuted
@@ -1654,6 +1689,9 @@ class Handler(SimpleHTTPRequestHandler):
         t = load_tasks()
         if old in t:
             t[new] = t.pop(old); save_tasks(t)
+        ic = load_icons()
+        if old in ic:
+            ic[new] = ic.pop(old); save_icons(ic)
         with _hist_lock:
             h = load_history()
             if old in h:
@@ -1721,7 +1759,7 @@ class Handler(SimpleHTTPRequestHandler):
         except OSError:
             pass
         state = [n for n, ld in (("groups", load_groups), ("pins", load_pins), ("mutes", load_mutes),
-                                 ("tasks", load_tasks), ("history", load_history)) if sess in ld()]
+                                 ("tasks", load_tasks), ("icons", load_icons), ("history", load_history)) if sess in ld()]
         try:
             dsize = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(d) for f in fs)
         except OSError:
@@ -1811,7 +1849,8 @@ class Handler(SimpleHTTPRequestHandler):
                 failed.append(f"tmux: {e}")
         # 2. Office state
         for n, ld, sv in (("groups", load_groups, save_groups), ("pins", load_pins, save_pins),
-                          ("mutes", load_mutes, save_mutes), ("tasks", load_tasks, save_tasks)):
+                          ("mutes", load_mutes, save_mutes), ("tasks", load_tasks, save_tasks),
+                          ("icons", load_icons, save_icons)):
             x = ld()                      # pins/mutes are sets, the others dicts
             if sess in x:
                 x.discard(sess) if isinstance(x, set) else x.pop(sess)
