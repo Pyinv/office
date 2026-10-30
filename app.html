@@ -944,10 +944,14 @@ document.querySelectorAll(".navlink").forEach(a=>{const h=a.getAttribute("href")
     }catch(err){ out.className="sec-reply err"; out.textContent="⚠ "+err.message; }
   });
   // 🔊 What's new: who waits on you and the replies you haven't read, put into words and spoken
-  const bb=document.getElementById("sec-brief"); let AUD=null;
+  const bb=document.getElementById("sec-brief"); let AUD=null, BTAP=0;
   if(bb) bb.addEventListener("click", async ()=>{
-    // iOS lets a page play sound only from a tap: start an (empty) player now, give it the voice later
-    try{ AUD=AUD||new Audio(); AUD.src="data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NwwAAAAAAAAAAAAEluZm8AAAAPAAAABAAAAlgAenp6enp6enp6enp6enp6enp6enp6enp6pqampqampqampqampqampqampqampqamptPT09PT09PT09PT09PT09PT09PT09PT09P/////////////////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCcQAAAAAAAAJY+/rsqgAAAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"; AUD.play().catch(()=>{}); }catch(_){}
+    // iOS lets a page play sound only from a tap, so the player starts here with her greeting
+    // ("let me see what the team's up to") and is handed the briefing once it is ready
+    const tap=++BTAP; let greeted=false, next=null;
+    const after=()=>{ if(tap!==BTAP||greeted) return; greeted=true; if(next) next(); };
+    try{ AUD=AUD||new Audio(); AUD.onplay=AUD.onpause=null; AUD.onended=AUD.onerror=after;
+         AUD.src="/api/brief.mp3?h=hello"; AUD.play().catch(after); }catch(_){ after(); }
     out.className="sec-reply think"; out.textContent="…catching up";
     try{
       const j=await (await fetch("/api/brief",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})).json();
@@ -962,8 +966,9 @@ document.querySelectorAll(".navlink").forEach(a=>{const h=a.getAttribute("href")
         const src="/api/brief.mp3?h="+encodeURIComponent(j.audio), btn=out.querySelector(".bplay");
         const play=()=>{ try{ AUD.pause(); AUD.src=src; AUD.currentTime=0; AUD.play().catch(()=>{}); }catch(_){} };
         btn.onclick=()=>{ if(!AUD.paused && AUD.src.endsWith(src)){ AUD.pause(); } else play(); };
-        AUD.onplay=()=>{ btn.textContent="❚❚ Pause"; }; AUD.onpause=AUD.onended=()=>{ btn.textContent="▶ Play"; };
-        play();
+        next=()=>{ AUD.onerror=null; AUD.onplay=()=>{ btn.textContent="❚❚ Pause"; };
+                   AUD.onpause=AUD.onended=()=>{ btn.textContent="▶ Play"; }; play(); };
+        if(greeted && tap===BTAP) next();     // the greeting is over: straight on to the news
       }
     }catch(err){ out.className="sec-reply err"; out.textContent="⚠ "+err.message; }
   });
