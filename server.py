@@ -407,23 +407,27 @@ def _as_written(text, name):
     return text.replace(bare, name) if name and bare != name else text
 
 _SPEAKING = {}                                  # hash -> Event, set once its mp3 is on disk (or failed)
+_PENDING = {}                                   # hash -> the text it reads
 _speaking_lock = threading.Lock()
 
-def _speak(text):
-    """Start reading the text in the secretary's voice and return its hash at once ("" without a
-    key); the mp3 lands in briefs/<hash>.mp3, and GET /api/brief.mp3 waits for it."""
+def _speak(text, now=False):
+    """Hash of the text in the secretary's voice ("" without a key). The voice is made when
+    GET /api/brief.mp3 first asks for it and streamed out as it comes; now=True makes it at once."""
     if not (TTS_KEY and TTS_VOICE and text):
         return ""
     h = hashlib.sha256((TTS_VOICE + TTS_MODEL + json.dumps(TTS_SETTINGS) + text).encode()).hexdigest()[:24]
+    _PENDING[h] = text
+    if now and _claim(h):
+        threading.Thread(target=_synth, args=(h,), daemon=True).start()
+    return h
+
+def _claim(h):
+    """True for the one caller that gets to make this mp3; everyone else waits on _spoken."""
     with _speaking_lock:
         if h in _SPEAKING or os.path.exists(os.path.join(BRIEF_DIR, h + ".mp3")):
-            return h
+            return False
         _SPEAKING[h] = threading.Event()
-    def run():
-        try: _synth(text, h)
-        finally: _SPEAKING[h].set()
-    threading.Thread(target=run, daemon=True).start()
-    return h
+        return True
 
 def _spoken(h, wait=60):
     """Path of a briefing's mp3 once it is ready, or None."""
@@ -432,31 +436,36 @@ def _spoken(h, wait=60):
     f = os.path.join(BRIEF_DIR, h + ".mp3")
     return f if os.path.exists(f) else None
 
-def _synth(text, h):
+def _synth(h, out=None):
+    """Make briefs/<h>.mp3 from ElevenLabs' stream, handing each piece to out() as it arrives so
+    the first words play while the rest is still being made. A listener who leaves early doesn't
+    stop it: the file is finished for the next time."""
+    import urllib.request
     f = os.path.join(BRIEF_DIR, h + ".mp3")
-    if not os.path.exists(f):
-        import urllib.request
-        req = urllib.request.Request(
-            f"https://api.elevenlabs.io/v1/text-to-speech/{TTS_VOICE}?output_format=mp3_44100_64",
-            data=json.dumps({"text": text, "model_id": TTS_MODEL, "voice_settings": TTS_SETTINGS}).encode(),
-            headers={"xi-api-key": TTS_KEY, "Content-Type": "application/json", "Accept": "audio/mpeg"})
-        try:
-            with urllib.request.urlopen(req, timeout=60) as r:
-                audio = r.read()
-        except Exception as e:
-            print(f"brief: speech failed: {e}", file=sys.stderr, flush=True)
-            return
+    req = urllib.request.Request(
+        f"https://api.elevenlabs.io/v1/text-to-speech/{TTS_VOICE}/stream?output_format=mp3_44100_64",
+        data=json.dumps({"text": _PENDING.get(h, ""), "model_id": TTS_MODEL, "voice_settings": TTS_SETTINGS}).encode(),
+        headers={"xi-api-key": TTS_KEY, "Content-Type": "application/json", "Accept": "audio/mpeg"})
+    try:
         os.makedirs(BRIEF_DIR, exist_ok=True)
-        with open(f + ".tmp", "wb") as o:
-            o.write(audio)
+        with urllib.request.urlopen(req, timeout=60) as r, open(f + ".tmp", "wb") as o:
+            while chunk := r.read1(8192):
+                o.write(chunk)
+                if out:
+                    try: out(chunk)
+                    except OSError: out = None
         os.replace(f + ".tmp", f)
         for old in sorted(glob.glob(os.path.join(BRIEF_DIR, "*.mp3")), key=os.path.getmtime)[:-20]:
             try: os.remove(old)
             except OSError: pass
+    except Exception as e:
+        print(f"brief: speech failed: {e}", file=sys.stderr, flush=True)
+    finally:
+        _SPEAKING[h].set()
 
 def _opener():
     """Hash of the line she says as you tap, so there is a voice before the floor is read."""
-    return _speak(_as_written(BRIEF_OPENER.replace("{name}", OPERATOR).strip("، ,"), OPERATOR)) if BRIEF_OPENER else ""
+    return _speak(_as_written(BRIEF_OPENER.replace("{name}", OPERATOR).strip("، ,"), OPERATOR), now=True) if BRIEF_OPENER else ""
 
 def brief_items(snap):
     """The briefing's items in order: whoever waits on you, then finished replies you haven't
@@ -926,7 +935,18 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/brief.mp3":
             h = (parse_qs(urlparse(self.path).query).get("h") or [""])[0]
             if h == "hello": h = _opener()       # the greeting, a fixed address the page can play on the tap
-            f = _spoken(h) if re.fullmatch(r"[0-9a-f]{24}", h) else None
+            if not re.fullmatch(r"[0-9a-f]{24}", h):
+                return self._json({"error": "not found"}, 404)
+            if h in _PENDING and _claim(h):       # first to ask: play it as ElevenLabs makes it
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/mpeg")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Accel-Buffering", "no")   # nginx: pass each piece straight on
+                self.end_headers()
+                def out(chunk):
+                    self.wfile.write(chunk); self.wfile.flush()
+                return _synth(h, out)
+            f = _spoken(h)
             if not f:
                 return self._json({"error": "not found"}, 404)
             os.utime(f)                         # in use: not one of the old ones briefs/ lets go of
