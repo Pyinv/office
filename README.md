@@ -94,7 +94,7 @@ source of truth for identity — there is no roster file.
 | `OFFICE_SECRETARY_VOICE` | *(off)* | ElevenLabs voice id she speaks with |
 | `OFFICE_TTS_MODEL` | `eleven_multilingual_v2` | ElevenLabs model |
 | `OFFICE_BRIEF_LANGUAGE` | Egyptian Arabic | Language of the spoken briefing (the rows on screen stay English) |
-| `OFFICE_OPERATOR_NAME` | *(none)* | What she calls you when she speaks |
+| `OFFICE_OPERATOR_NAME` | *(none)* | What she calls you when she speaks, title included; vowel marks (e.g. Arabic tashkeel) steer how the voice says it and are kept |
 | `OFFICE_DEMO` | *(off)* | `1` (or a path) → serve `demo.json` fixtures instead of live tmux |
 
 ## Demo mode
