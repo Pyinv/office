@@ -128,3 +128,24 @@ class PhoneFloor(BrowserCase):
         self.assertEqual(self.js("getComputedStyle(document.querySelector('.desk .line')).display"), "none")
         self.js("openDesk('amy-beta')")
         self.assertEqual(self.js("Math.round(document.getElementById('desk').getBoundingClientRect().width)"), 390)
+
+    def test_a_pull_inside_the_panel_scrolls_it_and_a_reload_comes_back_to_it(self):
+        long = dict(TEAM[0], full="\n\n".join(f"line {i}" for i in range(80)))
+        self.page.route("**/api/floor", lambda r: r.fulfill(status=200, content_type="application/json",
+                                                          body=json.dumps({"team": [long] + TEAM[1:], "version": "test"})))
+        self.open_floor()
+        self.js("openDesk('zed-alpha')")
+        self.js("const b=document.getElementById('dp-body'); b.scrollTop=b.scrollHeight")
+        # a finger dragged down inside the panel: the pull-to-refresh must not take it
+        self.js("""(()=>{const b=document.getElementById('dp-body'), t=(y)=>new Touch({identifier:1,target:b,clientX:200,clientY:y});
+            b.dispatchEvent(new TouchEvent('touchstart',{touches:[t(200)],bubbles:true}));
+            const mv=new TouchEvent('touchmove',{touches:[t(400)],bubbles:true,cancelable:true});
+            b.dispatchEvent(mv); window._prevented=mv.defaultPrevented;
+            b.dispatchEvent(new TouchEvent('touchend',{touches:[],bubbles:true}));})()""")
+        self.assertFalse(self.js("window._prevented"))
+        self.assertFalse(self.js("document.getElementById('ptr').classList.contains('show')"))
+        self.page.reload()
+        self.page.wait_for_selector(".desk")
+        self.page.wait_for_timeout(300)
+        self.assertEqual(self.js("DESK"), "zed-alpha")
+        self.assertFalse(self.js("document.getElementById('desk').hidden"))

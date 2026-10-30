@@ -1986,7 +1986,8 @@ function desk(m){
 // ── a person's panel: their whole last reply, the answers to a question as big buttons, a box to
 //    reply, and one ⋯ menu for pin / mute / focus note / move / rename / close. Side panel on a
 //    laptop, a full-screen sheet on the phone. It follows the floor's poll while it is open.
-let DESK="", DESK_SIG="", YOU_OPEN="";   // YOU_OPEN: the message you tapped open, kept open across redraws
+let DESK="", DESK_SIG="", YOU_OPEN="", REOPEN="";
+try{ REOPEN=sessionStorage.getItem("office.desk")||""; }catch(_){}   // YOU_OPEN: the message you tapped open, kept open across redraws
 const DP=id=>document.getElementById(id);
 function markSel(){
   document.querySelectorAll("#floor .desk.sel").forEach(e=>e.classList.remove("sel"));
@@ -1995,14 +1996,15 @@ function markSel(){
 function openDesk(session){
   const m=LAST.find(x=>x.session===session); if(!m) return;
   if(DESK!==session){ DP("dp-in").value=""; DP("dp-menu").hidden=true; }
-  DESK=session; DESK_SIG="";
+  DESK=session; DESK_SIG=""; try{ sessionStorage.setItem("office.desk", session); }catch(_){}
   DP("desk").hidden=false; document.body.classList.add("deskopen");
   refreshDesk(true); markSel();
   if(!PHONE) DP("dp-in").focus({preventScroll:true});
 }
 function closeDesk(){
   if(!DESK) return;
-  DESK=""; DP("desk").hidden=true; DP("dp-menu").hidden=true; document.body.classList.remove("deskopen"); markSel();
+  DESK=""; try{ sessionStorage.removeItem("office.desk"); }catch(_){}
+  DP("desk").hidden=true; DP("dp-menu").hidden=true; document.body.classList.remove("deskopen"); markSel();
 }
 const STATE_TEXT={waiting:"Asking you", typed:"Unsent draft in the box", working:"Working", review:"Finished"};
 function refreshDesk(force){
@@ -2281,7 +2283,8 @@ document.getElementById("net-retry").addEventListener("click", ()=>{ NET.diag=nu
     el.classList.add("show"); el.style.transform=`translate(-50%, ${Math.min(d,THRESH)*0.6}px)`; };
   const hide=()=>{ el.classList.remove("show","ready"); el.style.transform=""; y0=null; dy=0; armed=false; };
   document.addEventListener("touchstart", e=>{
-    if(MODAL_OPEN || e.touches.length!==1 || window.scrollY>0 || document.querySelector("dialog[open]")) { y0=null; return; }
+    // never inside a person's panel: a pull there scrolls the panel, it doesn't reload the office
+    if(MODAL_OPEN || DESK || e.touches.length!==1 || window.scrollY>0 || document.querySelector("dialog[open]")) { y0=null; return; }
     y0=e.touches[0].clientY; dy=0; armed=false;
   }, {passive:true});
   document.addEventListener("touchmove", e=>{
@@ -2347,6 +2350,7 @@ async function load(){
   document.getElementById("sub").innerHTML=
     `<span class="needdot"></span><b class="needn">${w}</b> need you · ${LAST.length} desks`+(p?` · ${p} unsent`:"");
   render();
+  if(REOPEN){ const s=REOPEN; REOPEN=""; if(!DESK) openDesk(s); }      // a reload comes back to the panel you had open
 }
 // ── search: multi-word, any order, forgiving ─────────────────────────────
 // Every word must hit something: name, project, session, category ("clients"), state
