@@ -90,6 +90,11 @@ source of truth for identity — there is no roster file.
 | `OFFICE_STATUS_URL` | `/status/` | Header "Usage &amp; limits" link; empty hides it |
 | `OFFICE_FILES_URL` | *(off)* | Header "Files" link, e.g. a `/dufs/` mount; empty hides it |
 | `OFFICE_SECRETARY_NAME` | `Secretary` | Display name for the dispatcher panel |
+| `OFFICE_ELEVENLABS_KEY` | *(off)* | ElevenLabs API key: the secretary reads *What's new* aloud |
+| `OFFICE_SECRETARY_VOICE` | *(off)* | ElevenLabs voice id she speaks with |
+| `OFFICE_TTS_MODEL` | `eleven_multilingual_v2` | ElevenLabs model |
+| `OFFICE_BRIEF_LANGUAGE` | Egyptian Arabic | Language of the spoken briefing (the rows on screen stay English) |
+| `OFFICE_OPERATOR_NAME` | *(none)* | What she calls you when she speaks |
 | `OFFICE_DEMO` | *(off)* | `1` (or a path) → serve `demo.json` fixtures instead of live tmux |
 
 ## Demo mode
@@ -118,6 +123,16 @@ It matches the names against the live team, relays a polite instruction (`Please
 file`) into that session via `tmux send-keys`, and confirms who it went to. In **demo mode** there's
 no real tmux, so it simulates the dispatch and the target desk visibly reacts on the floor. Rename
 the assistant with `OFFICE_SECRETARY_NAME`.
+
+**🔊 What's new** next to *Ask* catches you up: first whoever waits on you (a question, a permission,
+a dialog), then every finished reply you haven't read, newest first, then who is still working. Each
+row opens that desk. Who is in it, in what order and why comes from the floor alone; the model only
+writes one line per row and the spoken text, and ElevenLabs reads it out (`OFFICE_ELEVENLABS_KEY`,
+`OFFICE_SECRETARY_VOICE`). The same floor gets the same briefing back without a second model call.
+
+A reply counts as *not read* (a green dot on the desk) when Claude finished it after the last time you
+looked: opened its panel, sat in its terminal (tmux says attached), or sent it something. Those times
+live in `seen.json`.
 
 ## Security model
 

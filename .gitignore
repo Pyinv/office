@@ -4,6 +4,8 @@ pins.json
 mutes.json
 tasks.json
 icons.json
+seen.json
+briefs/
 history.json
 live.json
 ttyd.sock

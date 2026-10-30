@@ -106,6 +106,7 @@ Radii: 6px for small controls and code, 10px for desks, inputs and buttons, 14px
 ## Components
 
 - **Desk:** a 1px line border; it turns amber-tinted when the agent needs you, blue-tinted while working, and it is dashed and dimmed when away for more than a week. Hover darkens the border; the selected desk gets an ink ring.
+- **Unread dot:** a small green dot after the name: Claude finished a reply after you last looked at that desk (panel, terminal or a message). Opening the panel clears it.
 - **Needs-you note:** an amber tab breaking the top edge of the desk with a verb: "Answer" (an open question), "Allow" (a permission prompt) or "Waiting" (another dialog), all read from Claude Code's status file and transcript. This is the one authored moment.
 - **Buttons:** the primary is ink on paper; secondary buttons are line-bordered; destructive actions are in red text inside menus.
 - **Focus:** a 3px ring in ink at 18% opacity.

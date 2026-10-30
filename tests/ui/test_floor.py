@@ -7,7 +7,7 @@ from ._base import BrowserCase, DESKTOP, IPHONE, skip_unless_browser
 NOW = 1_900_000_000
 TEAM = [
     {"session": "zed-alpha", "person": "Zed", "project": "alpha", "group": "clients", "state": "review",
-     "ts": NOW - 60, "full": "Passt das so?\n\nDone.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nAll green now.", "emoji": "🧾"},
+     "ts": NOW - 60, "full": "Passt das so?\n\nDone.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nAll green now.", "emoji": "🧾", "unread": True},
     {"session": "amy-beta", "person": "Amy", "project": "beta", "group": "clients", "state": "waiting",
      "ts": NOW - 120, "full": "Ship it?", "ask": "Ship 2.8.1 now?", "asks": "question", "options": ["yes", "no"], "emoji": "🫀"},
     {"session": "bo-gamma", "person": "Bo", "project": "gamma", "group": "ventures", "state": "working",
@@ -29,7 +29,7 @@ class Floor(BrowserCase):
         self.page.add_init_script(f"Date.now=()=>{NOW * 1000}")
         self.page.route("**/api/floor", lambda r: r.fulfill(status=200, content_type="application/json",
                                                           body=json.dumps({"team": TEAM, "version": "test"})))
-        for api in ("say", "pin", "mute", "group", "task", "kill", "rename", "key", "icon"):
+        for api in ("say", "pin", "mute", "group", "task", "kill", "rename", "key", "icon", "brief"):
             self.page.route(f"**/api/{api}", self._catch)
 
     def _catch(self, route):
@@ -140,6 +140,28 @@ class Floor(BrowserCase):
         self.page.click("#newform button[value=create]")
         self.page.wait_for_function("DESK==='ed-zeta'")
         self.assertFalse(self.js("document.getElementById('desk').hidden"))
+
+    def test_a_reply_you_havent_seen_has_a_dot_until_you_open_it(self):
+        self.open_floor()
+        self.assertTrue(self.js("!!document.querySelector('[data-session=zed-alpha] .att')"))
+        self.assertFalse(self.js("!!document.querySelector('[data-session=amy-beta] .att')"))
+        self.page.click("[data-session=zed-alpha]")
+        self.assertFalse(self.js("!!document.querySelector('[data-session=zed-alpha] .att')"))
+
+    def test_whats_new_lists_who_needs_you_and_opens_them(self):
+        brief = {"ok": True, "text": "x", "audio": "", "working": ["Bo"],
+                 "items": [{"session": "amy-beta", "name": "Amy", "kind": "question", "line": "asks whether to ship"},
+                           {"session": "zed-alpha", "name": "Zed", "kind": "finished", "line": "done, test steps 1-3"}]}
+        self.page.unroute("**/api/brief")
+        self.page.route("**/api/brief", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(brief)))
+        self.open_floor()
+        self.page.click("#sec-brief")
+        self.page.wait_for_selector("#sec-reply .brow")
+        self.assertEqual(self.js("[...document.querySelectorAll('#sec-reply .brow b')].map(b=>b.textContent)"), ["Amy", "Zed"])
+        self.assertTrue(self.js("document.querySelector('#sec-reply .brow').classList.contains('waits')"))
+        self.assertIn("Bo", self.js("document.querySelector('#sec-reply .bfoot').textContent"))
+        self.page.click("#sec-reply .brow >> nth=1")
+        self.assertEqual(self.js("DESK"), "zed-alpha")
 
     def test_the_menu_pins_and_moves(self):
         self.open_floor()

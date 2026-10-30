@@ -131,6 +131,16 @@ class Turns(unittest.TestCase):
             self.assertEqual(t[1]["said"], ["looking\n\nstill the same message", "done"])
             self.assertEqual([x["you"] for x in team.turns(f, n=1)], ["second"])
 
+    def test_long_replies_dont_cut_the_history_short(self):
+        with tempfile.TemporaryDirectory() as d:
+            f = os.path.join(d, "a.jsonl")
+            rows = []
+            for i in range(12):
+                rows += [_line("user", f"2026-07-01T10:{i:02d}:00Z", f"ask {i}"),
+                         _line("assistant", f"2026-07-01T10:{i:02d}:05Z", "x" * 3000)]
+            _write(f, rows)
+            self.assertEqual([x["you"] for x in team.turns(f, n=10, kb=4)], [f"ask {i}" for i in range(2, 12)])
+
 
 class ParseLatest(unittest.TestCase):
     def test_single_transcript(self):

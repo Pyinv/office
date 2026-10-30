@@ -504,6 +504,17 @@
   .sec-btn{border:1px solid transparent;border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer;padding:.62rem 1.05rem;
     background:var(--accent);color:var(--on-accent);white-space:nowrap;height:2.65rem}
   .sec-btn:hover{filter:brightness(1.08)}
+  .sec-btn.sec-brief{background:var(--panel);color:var(--ink);border-color:var(--line)}
+  .brief{display:flex;flex-direction:column;color:var(--ink)}
+  .brow{display:flex;gap:.55rem;align-items:baseline;padding:.4rem 0;border-bottom:1px solid var(--line);cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;
+    font:inherit;color:inherit;text-align:left;width:100%}
+  .brow:hover b{text-decoration:underline}
+  .brow .bd{width:7px;height:7px;border-radius:50%;flex:0 0 7px;background:var(--rev);transform:translateY(-1px)}
+  .brow.waits .bd{background:var(--wait)}
+  .brow b{font-weight:650;white-space:nowrap}
+  .brow span{color:var(--dim)}
+  .bfoot{display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding-top:.45rem;color:var(--faint);font-size:.82rem}
+  .bfoot button{background:none;border:1px solid var(--line);border-radius:8px;color:var(--ink);font:inherit;font-weight:600;padding:.25rem .65rem;cursor:pointer}
   .sec-reply{margin-top:.55rem;font-size:.9rem;min-height:1.1em}
   .sec-reply.ok{color:var(--rev)} .sec-reply.err{color:var(--wait)} .sec-reply.think{color:var(--faint)}
   @keyframes dispatch{0%,30%,72%,100%{box-shadow:0 0 0 0 transparent}
@@ -704,6 +715,7 @@
       <form class="sec-form" id="sec-form" autocomplete="off">
         <input type="search" class="sec-in" id="sec-in" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" placeholder="ask anything  ·  why is Lena stuck?  ·  who needs me most?  ·  ask Mara to draft the release notes">
         <button class="sec-btn" type="submit">Ask ▶</button>
+        <button class="sec-btn sec-brief" type="button" id="sec-brief" title="what needs you, and what you haven't read yet — spoken">🔊 What's new</button>
       </form>
       <div class="sec-reply" id="sec-reply"></div>
     </div>
@@ -931,6 +943,30 @@ document.querySelectorAll(".navlink").forEach(a=>{const h=a.getAttribute("href")
       } else { out.className="sec-reply err"; out.textContent="⚠ "+(j.error||"couldn't"); }
     }catch(err){ out.className="sec-reply err"; out.textContent="⚠ "+err.message; }
   });
+  // 🔊 What's new: who waits on you and the replies you haven't read, put into words and spoken
+  const bb=document.getElementById("sec-brief"); let AUD=null;
+  if(bb) bb.addEventListener("click", async ()=>{
+    // iOS lets a page play sound only from a tap: start an (empty) player now, give it the voice later
+    try{ AUD=AUD||new Audio(); AUD.src="data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NwwAAAAAAAAAAAAEluZm8AAAAPAAAABAAAAlgAenp6enp6enp6enp6enp6enp6enp6enp6pqampqampqampqampqampqampqampqamptPT09PT09PT09PT09PT09PT09PT09PT09P/////////////////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCcQAAAAAAAAJY+/rsqgAAAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"; AUD.play().catch(()=>{}); }catch(_){}
+    out.className="sec-reply think"; out.textContent="…catching up";
+    try{
+      const j=await (await fetch("/api/brief",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})).json();
+      if(!j.ok){ out.className="sec-reply err"; out.textContent="⚠ "+(j.error||"couldn't"); return; }
+      const rows=(j.items||[]).map(i=>`<button class="brow${i.kind==="finished"?"":" waits"}" data-session="${esc(i.session)}"><i class="bd"></i><b>${esc(i.name)}</b><span>${esc(i.line)}</span></button>`).join("");
+      const w=j.working||[], work=w.length?("Still working: "+(w.length>4?w.length+" agents":w.join(", "))):"Nobody is working right now";
+      out.className="sec-reply";
+      out.innerHTML=`<div class="brief">${rows||'<div class="brow" style="cursor:default"><span>Nothing new for you.</span></div>'}`
+        +`<div class="bfoot"><span>${esc(work)}</span>${j.audio?'<button type="button" class="bplay">▶ Play</button>':""}</div></div>`;
+      out.querySelectorAll(".brow[data-session]").forEach(r=>r.onclick=()=>openDesk(r.dataset.session));
+      if(j.audio){
+        const src="/api/brief.mp3?h="+encodeURIComponent(j.audio), btn=out.querySelector(".bplay");
+        const play=()=>{ try{ AUD.pause(); AUD.src=src; AUD.currentTime=0; AUD.play().catch(()=>{}); }catch(_){} };
+        btn.onclick=()=>{ if(!AUD.paused && AUD.src.endsWith(src)){ AUD.pause(); } else play(); };
+        AUD.onplay=()=>{ btn.textContent="❚❚ Pause"; }; AUD.onpause=AUD.onended=()=>{ btn.textContent="▶ Play"; };
+        play();
+      }
+    }catch(err){ out.className="sec-reply err"; out.textContent="⚠ "+err.message; }
+  });
 })();
 // --- Notifications: ping me (chime + browser notification) when a session needs me ---
 let NOTIFY = pref("notify")!==false;   // default ON; the mute lives in office.prefs
@@ -1084,7 +1120,7 @@ function taskBlock(m){ return taskLines(m.task).length?`<div class="taskbox">${t
 // has-task ("T") is part of catOf so GAINING/LOSING the note is a structural rebuild.
 const catOf=m=>(m.pinned?"P":"")+(taskLines(m.task).length?"T":"")+(m._sent?"sent":m.typed?"typed":m.state==="waiting"?("waiting"+((m.options&&m.options.length)?"q":"")):"plain");
 // m.task in the content signature so editing the note repaints the desk and its panel.
-const sigOf=m=>[m.state,m.attached,m.ask,m.typed,m.full,m.you,m.ts,m._sent?1:0,m.pinned?1:0,m.muted?1:0,m.task||""].join("");
+const sigOf=m=>[m.state,m.attached,m.unread?1:0,m.ask,m.typed,m.full,m.you,m.ts,m._sent?1:0,m.pinned?1:0,m.muted?1:0,m.task||""].join("");
 // apply optimistic "just sent" overrides + expire them once Claude actually replies
 function applySent(team){
   const nowMs=Date.now();
@@ -1995,7 +2031,7 @@ function deskHtml(m){
     +`<div class="av" style="--h:${hueFor(who)}">${esc(m.emoji||emojiFor(m.project))}</div>`
     +`<div class="nm"><div class="who"><span class="wn">${esc(who)}</span>`
     +(deskState(m)==="working"?`<span class="wdot" title="working"></span>`:"")
-    +(m.attached?`<span class="att" title="you're in its terminal"></span>`:"")
+    +(m.unread?`<span class="att" title="a reply you haven't seen"></span>`:"")
     +(m.muted?`<span class="mtag">muted</span>`:"")
     +`</div><div class="proj">${esc(m.project)}</div></div>`
     +`<span class="ago"></span>`
@@ -2039,6 +2075,7 @@ function openDesk(session){
   const m=LAST.find(x=>x.session===session); if(!m) return;
   if(DESK!==session){ DP("dp-in").value=""; DP("dp-menu").hidden=true; }
   DESK=session; DESK_SIG=""; try{ sessionStorage.setItem("office.desk", session); }catch(_){}
+  if(m.unread){ m.unread=false; if(typeof render==="function") try{ render(); }catch(_){} }
   DP("desk").hidden=false; document.body.classList.add("deskopen");
   refreshDesk(true); markSel();
   if(!PHONE) DP("dp-in").focus({preventScroll:true});

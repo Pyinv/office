@@ -161,9 +161,17 @@ def _is_yours(o):
 
 def turns(path, n=10, kb=4096):
     """The last n exchanges of a transcript, oldest first: what you sent and, in order, every
-    text Claude wrote after it (one entry per assistant message; tool calls are not text)."""
+    text Claude wrote after it (one entry per assistant message; tool calls are not text).
+    Reads further back (up to 64 MB) until it has n of your messages or the whole file."""
+    while True:
+        out = _turns(_tail(path, kb))
+        if sum(1 for t in out if t["you"]) > n or kb * 1024 >= os.path.getsize(path) or kb >= 65536:
+            return out[-n:]
+        kb *= 4
+
+def _turns(lines):
     out, cur, msg_ids = [], None, {}
-    for line in _tail(path, kb):
+    for line in lines:
         try:
             o = json.loads(line)
         except Exception:
@@ -183,7 +191,7 @@ def turns(path, n=10, kb=4096):
             else:
                 msg_ids[mid] = len(cur["said"]); cur["said"].append(txt)
             cur["at"] = _epoch(o.get("timestamp"))
-    return out[-n:]
+    return out
 
 def _parse_one(f):
     """Parse one transcript's tail into a record (cached by mtime)."""
@@ -199,7 +207,7 @@ def _parse_one(f):
     except OSError:
         return None
     cwd = last_asst = last_role = last_ts = asst_ts = None
-    pending_user = you = None            # you = the prompt the last answer responds to
+    pending_user = you = you_ts = None            # you = the prompt the last answer responds to
     for line in tail:
         try:
             o = json.loads(line)
@@ -220,9 +228,10 @@ def _parse_one(f):
             if _is_yours(o):
                 last_role = "user"
                 pending_user = _text_of(o.get("message", {})).strip()
+                you_ts = o.get("timestamp") or you_ts
             last_ts = o.get("timestamp") or last_ts
     res = {"cwd": cwd, "asst": last_asst, "role": last_role, "ts": last_ts,
-           "asst_ts": asst_ts, "you": you, "file": f}
+           "asst_ts": asst_ts, "you": you, "you_ts": you_ts, "file": f}
     _TCACHE[f] = (mt, res)
     return res
 
@@ -251,17 +260,6 @@ def _parse_latest(dirpath):
             best, best_ts = r, rt
     return best
 
-def _transcript_index():
-    idx = {}
-    for d in (os.listdir(PROJ) if os.path.isdir(PROJ) else []):
-        dp = os.path.join(PROJ, d)
-        if not os.path.isdir(dp) or d == HOME_KEY:
-            continue
-        r = _parse_latest(dp)
-        if r and r["cwd"] and r["cwd"] != HOME:
-            idx[r["cwd"]] = r
-    return idx
-
 def _by_dir(path):
     # Claude stores a session's transcript under ~/.claude/projects/<cwd with "/" -> "-">,
     # keyed by where it STARTED. The tmux pane cwd is usually that start dir, so match it
@@ -274,31 +272,6 @@ def _by_dir(path):
     if key != HOME_KEY and os.path.isdir(dp):
         return _parse_latest(dp)
     return None
-
-def _join(path, idx, project=None):
-    """Match a session's cwd to its transcript. Exact wins. Else the closest ANCESTOR
-    transcript (the session sits inside a dir Claude was launched in). Else a DESCENDANT
-    transcript (Claude cd'd into a subdir) — but a shallow session (a monorepo root) can
-    sit above several subprojects' transcripts, so if more than one descendant matches,
-    disambiguate by the session's project name; if still ambiguous return None and read
-    the live pane instead of showing another session's work.
-    $HOME excluded (it prefixes everything and would cross-attribute)."""
-    if not path or path == HOME:
-        return None
-    if path in idx:
-        return idx[path]
-    ancestors = [c for c in idx if c != HOME and path.startswith(c + "/")]
-    if ancestors:
-        return idx[max(ancestors, key=len)]     # closest dir Claude was launched in
-    descendants = [c for c in idx if c != HOME and c.startswith(path + "/")]
-    if len(descendants) == 1:
-        return idx[descendants[0]]
-    if len(descendants) > 1 and project:         # ambiguous root: pick the child matching the project
-        p = "/" + project.lower() + "/"
-        named = [c for c in descendants if p in (c + "/").lower()]
-        if len(named) == 1:
-            return idx[named[0]]
-    return None                                  # can't tell which child -> fall back to the pane
 
 # What an agent asks you, as Claude Code handed it to hooks/ask.py (PreToolUse of AskUserQuestion,
 # PermissionRequest): ~/.claude/office-asks/<session id>.json. Used only while the status file says
@@ -428,7 +401,6 @@ def snapshot():
             if "ago_s" in m:
                 m["ts"] = now - int(m.pop("ago_s"))
         return data
-    idx = _transcript_index()
     team = []
     now = int(time.time())
     kids = _children()
@@ -445,7 +417,7 @@ def snapshot():
         # a running Claude names its own conversation; no transcript for it yet = a new one with no
         # history (Claude Code writes it with the first message), not some older chat in the same dir
         if not running:
-            rec = rec or _by_dir(path) or _join(path, idx, project)
+            rec = rec or _by_dir(path)          # the last chat started in exactly this folder
 
         # ghost = no transcript AND not freshly created (a new session just hasn't
         # written a transcript yet — it's not a retention-deleted ghost).
@@ -472,6 +444,8 @@ def snapshot():
             # exchange, never on merely opening/attaching the tmux session. Falls back to the
             # session's own activity only when no transcript is matched yet.
             "ts": _epoch(rec.get("ts") if rec else None) or activity,
+            # when Claude last wrote and when you last did: the server marks a reply you haven't seen
+            "replied": _epoch((rec or {}).get("asst_ts")), "you_at": _epoch((rec or {}).get("you_ts")),
             # the Claude conversation id (transcript file name): lets a dead session be
             # brought back with `claude --resume` instead of a blank start
             "sid": os.path.basename(rec["file"])[:-6] if rec and rec.get("file") else "",
