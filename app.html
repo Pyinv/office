@@ -1555,7 +1555,9 @@ function injectLinks(frame){
       const map=[]; let joined="";                                  // joined char index -> {row,col}
       for(let r=s; r<buf().length && r-s<10; r++){
         let t=text(r), off=0;
-        if(r>s){ const m=t.match(/^\s*/)[0].length; off=m; t=t.slice(m); }  // continuation indent
+        if(r>s){ const m=t.match(/^\s*/)[0].length; off=m; t=t.slice(m);   // continuation indent
+          // "…/report.html." at the edge, "You picked…" below: the end of a sentence, not one long word
+          if(/[.,;:!?)]$/.test(joined) && /^[A-Z]/.test(t)){ const p=map[map.length-1]; map.push({row:p.row,col:p.col+1}); joined+=" "; } }
         for(let c=0;c<t.length;c++) map.push({row:r,col:off+c});
         joined+=t; if(!full(r)) break;
       }
