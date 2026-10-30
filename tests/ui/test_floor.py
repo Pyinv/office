@@ -90,6 +90,19 @@ class Floor(BrowserCase):
         self.page.wait_for_timeout(200)
         self.assertEqual(json.loads(self.writes[0][1]), {"session": "cy-delta", "key": "esc"})
 
+    def test_the_panel_shows_the_last_exchanges_whole(self):
+        turns = [{"you": "first ask", "ts": NOW - 3600, "said": ["one"]},
+                 {"you": "second ask", "ts": NOW - 60, "said": ["looking into it", "x" * 5000 + " end"]}]
+        self.page.route("**/api/turns?session=zed-alpha", lambda r: r.fulfill(
+            status=200, content_type="application/json", body=json.dumps({"turns": turns})))
+        self.open_floor()
+        self.page.click("[data-session=zed-alpha]")
+        self.page.wait_for_function("document.querySelectorAll('#dp-body .dp-you').length===2")
+        self.assertEqual(self.js("[...document.querySelectorAll('#dp-body .dp-you')].map(b=>b.textContent)"), ["first ask", "second ask"])
+        replies = self.js("[...document.querySelectorAll('#dp-body .dp-reply')].map(b=>b.textContent.trim())")
+        self.assertEqual(replies[:2], ["one", "looking into it"])
+        self.assertTrue(replies[2].endswith(" end") and len(replies[2]) > 5000)     # nothing cut
+
     def test_the_menu_pins_and_moves(self):
         self.open_floor()
         self.page.click("[data-session=zed-alpha]")

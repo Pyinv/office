@@ -139,7 +139,7 @@ def _text_of(msg):
         return ""
     c = msg.get("content", [])
     if isinstance(c, str):
-        return "📷 image" if _IMG_NOTE.match(c) else c
+        return c
     if not isinstance(c, list):
         return ""
     out = []
@@ -149,23 +149,41 @@ def _text_of(msg):
         if b.get("type") == "image":
             out.append("📷 image")                  # a pasted/shared picture: say so, don't go blank
         elif b.get("type") == "text":
-            t = b.get("text", "")
-            if _IMG_NOTE.match(t):                 # the harness's "[Image: original 2160x480, displayed at …]" line
-                continue
-            out.append(t)
+            out.append(b.get("text", ""))
     return " ".join(out)
 
-_IMG_NOTE = re.compile(r"^\s*\[Image: original \d+x\d+")
+def _is_yours(o):
+    """A message you sent, as the transcript itself marks it (origin.kind "human"). Skill text,
+    command output, task notifications, other sessions and compaction summaries carry another
+    origin or none."""
+    org = o.get("origin")
+    return o.get("type") == "user" and isinstance(org, dict) and org.get("kind") == "human"
 
-# user "messages" in a transcript include skill/command/tool injections, not just
-# what you typed. Keep only text that reads like a real prompt.
-_INJECT = ("Base directory for this skill", "Caveat:", "[Request interrupted",
-           "<command", "<system-reminder", "<local-command", "<user-memory",
-           "This session is being continued", "<!-- AUTO-GENERATED", "Please continue")
-def _is_real_prompt(t):
-    if not t or t.startswith("<"):
-        return False
-    return not any(b in t[:220] for b in _INJECT)
+def turns(path, n=10, kb=4096):
+    """The last n exchanges of a transcript, oldest first: what you sent and, in order, every
+    text Claude wrote after it (one entry per assistant message; tool calls are not text)."""
+    out, cur, msg_ids = [], None, {}
+    for line in _tail(path, kb):
+        try:
+            o = json.loads(line)
+        except Exception:
+            continue
+        if _is_yours(o):
+            cur = {"you": _text_of(o.get("message", {})).strip(), "ts": _epoch(o.get("timestamp")), "said": []}
+            out.append(cur); msg_ids = {}
+        elif o.get("type") == "assistant" and not o.get("isSidechain"):
+            txt = _text_of(o.get("message", {})).strip()
+            if not txt:
+                continue
+            if cur is None:
+                cur = {"you": "", "ts": 0, "said": []}; out.append(cur)
+            mid = (o.get("message") or {}).get("id")
+            if mid and mid in msg_ids:                  # one message streamed as several entries
+                cur["said"][msg_ids[mid]] += "\n\n" + txt
+            else:
+                msg_ids[mid] = len(cur["said"]); cur["said"].append(txt)
+            cur["at"] = _epoch(o.get("timestamp"))
+    return out[-n:]
 
 def _parse_one(f):
     """Parse one transcript's tail into a record (cached by mtime)."""
@@ -208,12 +226,9 @@ def _parse_one(f):
                 last_asst = txt.strip()
                 you = pending_user        # pair this answer with the prompt before it
         elif t == "user":
-            txt = _text_of(o.get("message", {})).strip()
-            if _is_real_prompt(txt):
+            if _is_yours(o):
                 last_role = "user"
-                pending_user = txt
-            elif not txt:
-                last_role = "tool_result"
+                pending_user = _text_of(o.get("message", {})).strip()
             last_ts = o.get("timestamp") or last_ts
     res = {"cwd": cwd, "asst": last_asst, "role": last_role, "ts": last_ts,
            "asst_ts": asst_ts, "you": you, "file": f, "open": _open_ask(open_tools)}

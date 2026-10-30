@@ -17,14 +17,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import team  # noqa: E402
 
 
-def _line(kind, ts, text, cwd="/home/user/project"):
-    """One transcript JSONL record in the shape team.py parses."""
-    return json.dumps({
-        "type": kind,
-        "cwd": cwd,
-        "timestamp": ts,
-        "message": {"content": [{"type": "text", "text": text}]},
-    })
+def _line(kind, ts, text, cwd="/home/user/project", origin="human", mid=None):
+    """One transcript JSONL record in the shape team.py parses (a user line is one you typed)."""
+    rec = {"type": kind, "cwd": cwd, "timestamp": ts,
+           "message": {"content": [{"type": "text", "text": text}]}}
+    if kind == "user" and origin:
+        rec["origin"] = {"kind": origin}
+    if mid:
+        rec["message"]["id"] = mid
+    return json.dumps(rec)
 
 
 def _write(path, records, mtime=None):
@@ -65,14 +66,34 @@ class Epoch(unittest.TestCase):
         self.assertEqual(team._epoch(""), 0)
 
 
-class RealPrompt(unittest.TestCase):
-    def test_plain_text_is_real(self):
-        self.assertTrue(team._is_real_prompt("please refactor the parser"))
+class Yours(unittest.TestCase):
+    def test_the_transcript_marks_what_you_typed(self):
+        self.assertTrue(team._is_yours(json.loads(_line("user", "", "please refactor the parser"))))
 
-    def test_injected_blocks_are_not(self):
-        self.assertFalse(team._is_real_prompt("<command-name>/review</command-name>"))
-        self.assertFalse(team._is_real_prompt("Caveat: this session is odd"))
-        self.assertFalse(team._is_real_prompt(""))
+    def test_everything_else_is_not(self):
+        for origin in ("task-notification", "peer", None):
+            self.assertFalse(team._is_yours(json.loads(_line("user", "", "<command-name>/review", origin=origin))))
+        self.assertFalse(team._is_yours(json.loads(_line("assistant", "", "hi"))))
+
+
+class Turns(unittest.TestCase):
+    def test_every_text_of_a_turn_in_order_and_the_last_n_turns(self):
+        with tempfile.TemporaryDirectory() as d:
+            f = os.path.join(d, "a.jsonl")
+            _write(f, [
+                _line("user", "2026-07-01T10:00:00Z", "first"),
+                _line("assistant", "2026-07-01T10:00:01Z", "ok one"),
+                _line("user", "2026-07-01T10:01:00Z", "skill text", origin=None),     # not yours: same turn
+                _line("user", "2026-07-01T10:02:00Z", "second"),
+                _line("assistant", "2026-07-01T10:02:01Z", "looking", mid="m1"),
+                _line("assistant", "2026-07-01T10:02:02Z", "still the same message", mid="m1"),
+                _line("assistant", "2026-07-01T10:02:09Z", "done", mid="m2"),
+            ])
+            t = team.turns(f)
+            self.assertEqual([x["you"] for x in t], ["first", "second"])
+            self.assertEqual(t[0]["said"], ["ok one"])
+            self.assertEqual(t[1]["said"], ["looking\n\nstill the same message", "done"])
+            self.assertEqual([x["you"] for x in team.turns(f, n=1)], ["second"])
 
 
 class ParseLatest(unittest.TestCase):

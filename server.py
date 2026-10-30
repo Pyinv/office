@@ -111,6 +111,7 @@ def _fresh(mod):
 # cost one snapshot, not two). Any POST empties it, so what you just did shows on the next poll.
 FLOOR_TTL = 1.5
 _FLOOR = {"at": 0.0, "body": b""}
+_SIDS = {}          # session -> its conversation id, from the last floor: where /api/turns reads
 _FLOOR_LOCK = threading.Lock()
 # what the snapshot carries for the server's own bookkeeping (restore, restart) — the page never reads it
 _FLOOR_PRIVATE = {"dir", "sid", "mode", "draft", "menu", "update", "verb"}
@@ -592,6 +593,7 @@ class Handler(SimpleHTTPRequestHandler):
         """The floor as JSON bytes: the snapshot plus the Office's own state, watches fired, version."""
         _fresh(team)                     # pick up team.py edits without a restart
         snap = team.snapshot()
+        _SIDS.update({m["session"]: m.get("sid", "") for m in snap})
         groups = load_groups()
         pins = load_pins()
         mutes = load_mutes()
@@ -747,6 +749,13 @@ class Handler(SimpleHTTPRequestHandler):
             gone = [{"session": k, **v} for k, v in load_history().items() if k not in live]
             gone.sort(key=lambda r: -r.get("seen", 0))
             return self._json({"history": gone})
+        if self.path.split("?")[0] == "/api/turns":
+            # one agent's last exchanges for its panel, read from its transcript only when asked
+            sess = (parse_qs(urlparse(self.path).query).get("session") or [""])[0]
+            sid = _SIDS.get(sess, "")
+            paths = team._transcripts(sid) if sid else []
+            return self._send(json.dumps({"turns": team.turns(paths[0]) if paths else []}).encode(),
+                              "application/json")
         if self.path.split("?")[0] == "/api/floor":
             with _FLOOR_LOCK:
                 if time.time() - _FLOOR["at"] > FLOOR_TTL or not _FLOOR["body"]:

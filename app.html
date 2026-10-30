@@ -589,9 +589,9 @@
   .dp-menu hr{border:0;border-top:1px solid var(--line);margin:.3rem 0}
   .dp-body{flex:1;min-height:0;overflow-y:auto;padding:1rem 1.1rem;display:flex;flex-direction:column;gap:.85rem;overscroll-behavior:contain}
   .dp-you{align-self:flex-end;max-width:88%;background:var(--panel2);border-radius:12px 12px 4px 12px;padding:.5rem .75rem;font-size:.9rem;line-height:1.45;
-    cursor:pointer;word-break:break-word}
-  .dp-you>div{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
-  .dp-you.full>div{-webkit-line-clamp:unset;overflow:visible}
+    word-break:break-word;white-space:pre-wrap}
+  .dp-when{align-self:center;font-size:.72rem;color:var(--faint);margin-top:.6rem}
+  .dp-when:first-child{margin-top:0}
   .ctx.dp-reply{max-height:none;overflow:visible;background:none;border:0;padding:0;font-size:.92rem;line-height:1.55;color:var(--ink)}
   .dp-empty{color:var(--faint);font-size:.9rem}
   .dp-q{display:flex;flex-direction:column;gap:.5rem;border-top:1px solid var(--line);padding-top:.85rem}
@@ -1986,8 +1986,19 @@ function desk(m){
 // ── a person's panel: their whole last reply, the answers to a question as big buttons, a box to
 //    reply, and one ⋯ menu for pin / mute / focus note / move / rename / close. Side panel on a
 //    laptop, a full-screen sheet on the phone. It follows the floor's poll while it is open.
-let DESK="", DESK_SIG="", YOU_OPEN="", REOPEN="";
-try{ REOPEN=sessionStorage.getItem("office.desk")||""; }catch(_){}   // YOU_OPEN: the message you tapped open, kept open across redraws
+let DESK="", DESK_SIG="", REOPEN="", TURNS={session:"", sig:"", list:[]};
+// fetch the open panel's conversation once per change of that desk; redraw when it lands
+async function loadTurns(session, sig){
+  TURNS.sig=sig;
+  try{
+    const r=await fetchT("/api/turns?session="+encodeURIComponent(session), FLOOR_TIMEOUT, {cache:"no-store"});
+    const j=await r.json();
+    if(DESK!==session || TURNS.sig!==sig) return;
+    const first=TURNS.session!==session;
+    TURNS={session, sig, list:j.turns||[]}; DESK_SIG=""; refreshDesk(first);
+  }catch(_){ if(TURNS.sig===sig) TURNS.sig=""; }
+}
+try{ REOPEN=sessionStorage.getItem("office.desk")||""; }catch(_){}
 const DP=id=>document.getElementById(id);
 function markSel(){
   document.querySelectorAll("#floor .desk.sel").forEach(e=>e.classList.remove("sel"));
@@ -2024,12 +2035,17 @@ function refreshDesk(force){
   const atEnd=force || body.scrollHeight-body.scrollTop-body.clientHeight<40;
   let h=taskBlock(m)+`<div class="taskedit" hidden><textarea rows="3" placeholder="Main task&#10;sub-task&#10;sub-task"></textarea>
       <div class="taskbtns"><button class="tsave">Save</button><button class="tcancel">Cancel</button></div></div>`;
-  if(m.you) h+=`<div class="dp-you${YOU_OPEN===m.session+m.you?" full":""}" dir="auto"><div>${mdInline(esc(m.you))}</div></div>`;
+  // the conversation: the last exchanges from the transcript (/api/turns), every text Claude wrote
+  // after each of your messages, in order. Until they arrive, the floor's last message and reply.
+  if(TURNS.sig!==sig) loadTurns(m.session, sig);
+  const list=TURNS.session===m.session && TURNS.list.length ? TURNS.list : [{you:m.you, said:m.full?[m.full]:[]}];
+  list.forEach((t,i)=>{
+    if(t.you) h+=(t.ts?`<div class="dp-when">${esc(agoText(t.ts))}</div>`:"")+`<div class="dp-you" dir="auto">${mdInline(esc(t.you))}</div>`;
+    t.said.forEach(x=>{ h+=`<div class="ctx dp-reply">${mdHtml(x)}</div>`; });
+  });
   if(m._sent) h+=`<div class="sent-note"><span class="dots"></span> Sent, ${esc(who)} is replying…</div>`;
-  else{
-    const inner=mdHtml(m.full||"");
-    h+=inner.trim() ? `<div class="ctx dp-reply">${inner}</div>` : `<div class="dp-empty">${esc(m.attached?"You're in its terminal right now.":m.ghost?"Not running. Open the terminal to start it again.":"Nothing to read yet.")}</div>`;
-  }
+  else if(!list.some(t=>t.said.length))
+    h+=`<div class="dp-empty">${esc(m.attached?"You're in its terminal right now.":m.ghost?"Not running. Open the terminal to start it again.":"Nothing to read yet.")}</div>`;
   // An open question or permission prompt is a menu in the terminal. A button presses that menu's
   // key there (a digit picks the choice, Esc denies); anything else is answered in the terminal.
   if(!m._sent && m.asks){
@@ -2044,7 +2060,6 @@ function refreshDesk(force){
   body.innerHTML=h;
   const qg=body.querySelector(".dp-q .qgo"); if(qg) qg.onclick=()=>DP("dp-term").click();
   body.querySelectorAll(".dp-q button.opt").forEach(b=>b.onclick=()=>pressKey(m.session,b.dataset.k));
-  const yb=body.querySelector(".dp-you"); if(yb) yb.onclick=()=>{ YOU_OPEN=yb.classList.toggle("full") ? m.session+m.you : ""; };
   const ed=body.querySelector(".taskedit"), ta=ed.querySelector("textarea");
   const closeEd=()=>{ ed.hidden=true; DESK_SIG=""; };
   ed.querySelector(".tsave").onclick=()=>{ const v=ta.value; ed.hidden=true; saveTask(m.session,v,null); };
