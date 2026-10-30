@@ -120,6 +120,27 @@ class Floor(BrowserCase):
         self.page.wait_for_timeout(200)
         self.assertEqual(json.loads(self.writes[1][1]), {"session": "zed-alpha", "emoji": ""})
 
+    def test_a_new_desk_opens_its_panel(self):
+        team = list(TEAM)
+        self.page.unroute("**/api/floor")
+        self.page.route("**/api/floor", lambda r: r.fulfill(status=200, content_type="application/json",
+                                                          body=json.dumps({"team": team, "version": "test"})))
+        for api in ("dirs", "history"):
+            self.page.route(f"**/api/{api}", lambda r: r.fulfill(status=200, content_type="application/json", body="{}"))
+
+        def new(route):
+            team.append({"session": "ed-zeta", "person": "Ed", "project": "zeta", "group": "clients",
+                         "state": "review", "ts": NOW, "full": ""})
+            route.fulfill(status=200, content_type="application/json", body='{"ok":true,"created":"ed-zeta"}')
+        self.page.route("**/api/new", new)
+        self.open_floor()
+        self.page.click("#newbtn")
+        self.page.fill("#newform input[name=who]", "ed")
+        self.page.fill("#newform input[name=project]", "zeta")
+        self.page.click("#newform button[value=create]")
+        self.page.wait_for_function("DESK==='ed-zeta'")
+        self.assertFalse(self.js("document.getElementById('desk').hidden"))
+
     def test_the_menu_pins_and_moves(self):
         self.open_floor()
         self.page.click("[data-session=zed-alpha]")

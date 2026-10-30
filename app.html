@@ -1315,7 +1315,11 @@ const DEV_ROOT="{{OFFICE_DEV_ROOT}}";
     try{
       const r=await fetch("/api/new",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,dir,group,resume})});
       const j=await r.json();
-      if(j.ok){ dlg.close("create"); toast("Created "+j.created); setTimeout(load,800); }
+      if(j.ok){                              // then straight to the new desk's panel, once the floor has it
+        dlg.close("create"); toast("Created "+j.created);
+        for(let i=0;i<5&&!LAST.some(m=>m.session===j.created);i++){ await new Promise(r=>setTimeout(r,600)); await load(); }
+        openDesk(j.created);
+      }
       else toast("⚠ "+(j.error||"failed"),true);
     }catch(err){ toast("⚠ "+err.message,true); }
   });
