@@ -11,7 +11,7 @@ Pane scraping is used only for two things the transcript can't tell us:
 Person + project come from the tmux session name (`lena-payments` -> Lena / payments).
 tmux is the single source of truth for identity; no roster file.
 """
-import subprocess, re, os, json, glob, time, socket
+import subprocess, re, os, json, glob, time
 from concurrent.futures import ThreadPoolExecutor
 
 HOME = os.path.expanduser("~")
@@ -19,7 +19,6 @@ PROJ = os.path.join(HOME, ".claude", "projects")
 # ~/.claude/projects encodes each cwd by replacing "/" with "-"; this is the
 # key for the bare home dir, which holds no real session and is skipped.
 HOME_KEY = HOME.replace("/", "-")
-HOST = re.escape(socket.gethostname().split(".")[0])   # for the "hostname:" statusline/prompt prefix
 GHOST_AFTER = 3600   # a no-transcript session older than this is a ghost; newer = just-created
 
 def _tmux(*a):
@@ -88,8 +87,14 @@ def _transcripts(sid):
     return [p for p in _JIDX["idx"].get(sid[:8], []) if os.path.basename(p).startswith(sid)]
 
 def _by_pid(pane_pid, kids):
+    return _claude(pane_pid, kids)[1]
+
+def _claude(pane_pid, kids):
+    """The Claude Code running in this pane: its own status file (~/.claude/sessions/<pid>.json,
+    which says busy / idle / waiting and what it waits for) and its transcript. (None, None) when
+    no Claude runs there."""
     if not pane_pid:
-        return None
+        return None, None
     frontier, depth = [pane_pid], 0
     while frontier and depth < 4:               # shell -> claude (maybe via a wrapper or two)
         nxt = []
@@ -107,12 +112,12 @@ def _by_pid(pane_pid, kids):
                     hits = [h for sid in sids for h in _transcripts(sid)]
                     if hits:
                         hits.sort(key=lambda h: -os.path.getmtime(h))
-                        return _parse_one(hits[0])
+                    return meta, (_parse_one(hits[0]) if hits else None)
                 except (OSError, ValueError):
                     pass
             nxt.extend(kids.get(pid, []))
         frontier, depth = nxt, depth + 1
-    return None
+    return None, None
 
 def split_name(s):
     if "-" in s:
@@ -177,6 +182,7 @@ def _parse_one(f):
         return None
     cwd = last_asst = last_role = last_ts = asst_ts = None
     pending_user = you = None            # you = the prompt the last answer responds to
+    open_tools = {}                      # tool_use id -> (name, input) still without a tool_result
     for line in tail:
         try:
             o = json.loads(line)
@@ -185,6 +191,14 @@ def _parse_one(f):
         if o.get("cwd"):
             cwd = o["cwd"]
         t = o.get("type")
+        content = (o.get("message") or {}).get("content") if t in ("assistant", "user") else None
+        for b in content if isinstance(content, list) else ():
+            if not isinstance(b, dict):
+                continue
+            if b.get("type") == "tool_use":
+                open_tools[b.get("id")] = (b.get("name") or "", b.get("input") or {})
+            elif b.get("type") == "tool_result":
+                open_tools.pop(b.get("tool_use_id"), None)
         if t == "assistant":
             txt = _text_of(o.get("message", {}))
             last_role = "assistant"
@@ -202,7 +216,7 @@ def _parse_one(f):
                 last_role = "tool_result"
             last_ts = o.get("timestamp") or last_ts
     res = {"cwd": cwd, "asst": last_asst, "role": last_role, "ts": last_ts,
-           "asst_ts": asst_ts, "you": you, "file": f}
+           "asst_ts": asst_ts, "you": you, "file": f, "open": _open_ask(open_tools)}
     _TCACHE[f] = (mt, res)
     return res
 
@@ -280,35 +294,22 @@ def _join(path, idx, project=None):
             return idx[named[0]]
     return None                                  # can't tell which child -> fall back to the pane
 
-# TUI noise that is not part of what Claude actually said: spinner timers, token
-# hints, the feedback survey, interrupt hints. Filtered from asks and ghost blocks.
-_NOISE = re.compile(
-    r'^\s*[✻✳✽⠂⠈⠐⠠⢀⡀⣾⣽⣻⢿⡿⣟⣯⣷…]'
-    r'|(Cogitat|Churn|Crunch|Cerebrat|Cook|Work|Befuddl|Ponder|Think|Brew|Simmer|Concoct|Percolat|Quantumiz|Discombobulat)\w*\s+for\s+\d'
-    r'|esc to interrupt|new task\?|/clear to save|↓\s*\d.*tokens'
-    r'|How is Claude doing this session|^\s*\d:\s*(Bad|Fine|Good)\b|Dismiss')
-
-# Only offer a canned button when the question is genuinely polar. Numbered "1./2."
-# buttons are deliberately NOT derived — step lists ("1. Open Telegram") look identical
-# to choices and would mislead. Everything non-polar just gets the free-text reply box.
-_POLAR = re.compile(r'\b(want me to|shall i|should i|do you want|want to|would you like|'
-                    r'ok to|shall we|can i|may i|do you|are you|is it|does that)\b', re.I)
-def _options(ask, is_q):
-    if is_q and _POLAR.search(ask or ""):
-        return ["yes", "no"]
-    return []
-
-def _extract_ask(text):
-    """The actual question line: prefer the last line whose '?' is real punctuation
-    (not a URL query string), skipping TUI noise."""
-    lines = [re.sub(r'\s+', ' ', l.strip()) for l in text.splitlines() if l.strip()]
-    lines = [l for l in lines if not _NOISE.search(l)]
-    if not lines:
-        return "", False
-    for l in reversed(lines):
-        if "?" in re.sub(r'https?://\S+', '', l):   # ignore '?' inside URLs (e.g. ...?a=b)
-            return l[:240], True
-    return lines[-1][:240], False
+def _open_ask(open_tools):
+    """What Claude is waiting on you for, read from the transcript itself, never from the wording:
+    an AskUserQuestion still without its answer (question + its choices), or any other tool call
+    still without its result (a permission prompt, once the pane shows no spinner)."""
+    for name, inp in reversed(list(open_tools.values())):
+        if name == "AskUserQuestion":
+            qs = [q for q in (inp.get("questions") or []) if isinstance(q, dict)]
+            if qs:
+                q = qs[0]
+                opts = [o.get("label", "") if isinstance(o, dict) else str(o) for o in (q.get("options") or [])]
+                return {"kind": "question", "ask": str(q.get("question") or "").strip(),
+                        "options": [o for o in opts if o], "more": len(qs) - 1}
+    if open_tools:
+        name, _ = list(open_tools.values())[-1]
+        return {"kind": "permission", "ask": "Permission to use " + name, "options": [], "more": 0}
+    return None
 
 # ── pane side (prompt state only) ─────────────────────────────────────────
 # "Actively working RIGHT NOW". The reliable signal across Claude Code versions is
@@ -322,12 +323,6 @@ def _extract_ask(text):
 _ACTIVE = re.compile(r'esc to interrupt|\(\d+[ms]\b|[A-Z][a-zA-Z-]{3,}…')
 _PLACEHOLDER = re.compile(r'^(Try |Ask |Write |/ for |>_|Update )', re.I)
 _PROMPT = re.compile(r'^[❯›](.*)$')
-# statusline junk for the ghost fallback: "branch | +12 -3 | 8h ago", "| $4.20 |", "| 41% |"
-# plus Claude Code's own feedback survey, which is not a question FROM your session.
-_STATUSLINE = re.compile(r'\|\s*[+\-]?\d|\bago\b|\$\d|\d+%|agents:|' + HOST + r':|Opus|Sonnet|Haiku'
-                         r'|1M context|auto mode|bypass permissions'
-                         r'|How is Claude doing this session|\d:\s*(Bad|Fine|Good)\b|Dismiss')
-
 _VERB = re.compile(r'([A-Z][a-zA-Z-]+…)')   # spinner verb, e.g. "Caramelizing…", "Razzle-dazzling…"
 
 _SGR = re.compile(r'\x1b\[[0-9;]*m')
@@ -380,62 +375,6 @@ _MENU = re.compile(r"Enter to select|❯\s*\d+\.\s|Esc to cancel")
 _MODES = (("auto mode on", "auto"), ("bypass permissions on", "bypassPermissions"),
           ("accept edits on", "acceptEdits"), ("plan mode on", "plan"))
 
-# Claude Code renders each assistant message starting with ● (or ⏺). A tool call
-# is "● Bash(...)" / "● Read(...)"; a spoken message is "● <prose>". For a ghost
-# (no transcript) the last spoken ● block, down to the input box, IS the last
-# message — the same thing you see when you attach.
-_MARKER = re.compile(r'^\s*[●⏺]\s+(.*)$')
-_TOOLCALL = re.compile(r'^\s*[●⏺]\s+[A-Z]\w*\(')      # ● Bash( / ● Read( / ● Update(
-_BOXEND = re.compile(r'^[❯›]|^─{5,}|^╭|^╰|' + HOST + r':')
-
-def _ghost_full(name):
-    raw = re.sub(r'\x1b\[[0-9;]*m', '', _tmux("capture-pane", "-p", "-t", name, "-S", "-600"))
-    lines = raw.split("\n")
-    # index of the last SPOKEN assistant marker (skip tool-call markers)
-    start = None
-    for i, l in enumerate(lines):
-        if _MARKER.match(l) and not _TOOLCALL.match(l):
-            start = i
-    if start is None:
-        # no marker in view: fall back to the last few non-chrome lines
-        body = [re.sub(r'\s+', ' ', l.strip()) for l in lines
-                if l.strip() and not _STATUSLINE.search(l) and not _PROMPT.match(l.strip())]
-        if not body:
-            return "", "", False, ""
-        ask, is_q = _extract_ask("\n".join(body[-4:]))
-        return "\n".join(body[-8:]), ask, is_q, ""   # 4-tuple: (full, ask, is_q, you)
-    # end = the input box / separator / statusline after the message
-    end = len(lines)
-    for i in range(start + 1, len(lines)):
-        s = lines[i].strip()
-        if _BOXEND.match(s) or _STATUSLINE.search(lines[i]):
-            end = i
-            break
-    block = lines[start:end]
-    block[0] = _MARKER.match(block[0]).group(1)        # drop the ● marker itself
-    # dedent + drop blank/box-only lines
-    clean = [re.sub(r'\s+$', '', l) for l in block]
-    common = min((len(l) - len(l.lstrip()) for l in clean if l.strip()), default=0)
-    clean = [l[common:] if len(l) >= common else l for l in clean]
-    clean = [l for l in clean if l.strip() and not re.match(r'^[─╭╰│]+$', l.strip())
-             and not _NOISE.search(l)]
-    full = "\n".join(clean)
-    if not full.strip():          # e.g. the block was only the feedback survey
-        return "", "", False, ""
-    ask, is_q = _extract_ask(full)
-    # the prompt before this answer: nearest "❯ text" above the block
-    you = ""
-    for i in range(start - 1, -1, -1):
-        if _MARKER.match(lines[i]):
-            break                 # hit the previous assistant message; stop
-        m = re.match(r'^\s*[❯›]\s+(.+)$', lines[i])
-        if m and m.group(1).strip() and not _NOISE.search(m.group(1)):
-            you = re.sub(r'\s+', ' ', m.group(1).strip())
-            if _IMG_NOTE.match(you):
-                you = "📷 image"        # on screen a pasted picture is only the renderer's size note
-            break
-    return full, ask, is_q, you
-
 # ── assemble ──────────────────────────────────────────────────────────────
 def _epoch(iso):
     if not iso:
@@ -471,47 +410,45 @@ def snapshot():
     now = int(time.time())
     kids = _children()
     live = sessions()
-    # one tmux capture per agent: run them side by side — one after another they were most of a floor
+    # one tmux capture per agent, side by side. Only the restart button reads it (a new Claude
+    # Code waiting, the permission mode, a draft to retype); nothing on the floor is read off the screen.
     with ThreadPoolExecutor(max_workers=12) as ex:
         panes = dict(zip(live, ex.map(_pane, live)))
     for name, (attached, path, activity, created, pid) in live.items():
         person, project = split_name(name)
-        working, typed, verb, update, menu, mode, draft = panes[name]
-        rec = _by_pid(pid, kids) or _by_dir(path) or _join(path, idx, project)
+        _w, _t, _v, update, menu, mode, draft = panes[name]
+        meta, rec = _claude(pid, kids)
+        running = meta is not None
+        rec = rec or _by_dir(path) or _join(path, idx, project)
 
         # ghost = no transcript AND not freshly created (a new session just hasn't
         # written a transcript yet — it's not a retention-deleted ghost).
         ghost = (rec is None) and (now - created > GHOST_AFTER)
-        ask = ""; is_q = False; full = ""; you = ""
-        if rec and rec["asst"]:
-            full = rec["asst"]
-            ask, is_q = _extract_ask(full)
-            you = rec.get("you") or ""
-            role = rec["role"]
-        else:
-            # no transcript, OR transcript exists but has no readable assistant text
-            # (e.g. the session was just interrupted) -> read the pane instead.
-            full, ask, is_q, gyou = _ghost_full(name)
-            you = (rec.get("you") if rec else "") or gyou
-            role = (rec["role"] if rec else None) or ("assistant" if ask else None)
+        full = (rec or {}).get("asst") or ""
+        you = (rec or {}).get("you") or ""
 
-        # classify (priority order). "working" means ONLY: a spinner is running on
-        # screen right now (Claude is actively churning). Nothing else counts as working.
-        # three states, in priority order:
-        if working:
-            state = "working"        # 🔵 esc-to-interrupt on screen — actively churning NOW
-        elif typed or is_q:
-            state = "waiting"        # 🖐 your turn — a question to answer OR a draft to send
-        else:
-            state = "review"         # 🟢 finished — your move, nothing specific queued
+        # the state is what Claude Code itself writes to its status file: busy, waiting (for you:
+        # a permission prompt, a question, a dialog) or idle. Not running = no status file.
+        status = (meta or {}).get("status")
+        state = {"busy": "working", "waiting": "waiting"}.get(status, "review")
+        ask = None
+        if state == "waiting":
+            ask = (rec or {}).get("open")            # the open AskUserQuestion / tool call, from the transcript
+            why = str((meta or {}).get("waitingFor") or "")
+            if why == "permission prompt":
+                tool = ask["ask"] if ask and ask["kind"] == "permission" else "Permission to use a tool"
+                ask = {"kind": "permission", "ask": tool, "options": [], "more": 0}
+            elif not (ask and ask["kind"] == "question"):
+                ask = {"kind": "dialog", "ask": (why or "waiting").capitalize(), "options": [], "more": 0}
 
         team.append({
             "session": name, "person": person, "project": project,
             "dir": path, "attached": attached, "state": state,
-            "ask": ask, "full": full[-2000:] if full else "",
+            "ask": ask["ask"] if ask else "", "asks": ask["kind"] if ask else "",
+            "more": ask["more"] if ask else 0, "full": full[-2000:] if full else "",
             "you": you[:400] if you else "",
-            "options": _options(ask, is_q) if (is_q and not typed) else [],
-            "typed": typed, "ghost": ghost, "verb": verb if state == "working" else "",
+            "options": ask["options"] if ask else [],
+            "typed": None, "ghost": ghost, "running": running, "verb": "",
             # recency for sort + the "ago" label: the time of the last real message in the
             # matched transcript — your prompt OR Claude's reply. It advances only on an actual
             # exchange, never on merely opening/attaching the tmux session. Falls back to the

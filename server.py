@@ -826,6 +826,8 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             if key in NAMED:
                 subprocess.run(["tmux", "send-keys", "-t", sess, NAMED[key]], check=True)
+            elif re.fullmatch(r"[1-9]", key):              # a digit picks that choice in an open menu
+                subprocess.run(["tmux", "send-keys", "-t", sess, "-l", key], check=True)
             elif re.fullmatch(r"c-[a-z]", key):
                 subprocess.run(["tmux", "send-keys", "-t", sess, "C-" + key[2]], check=True)
             else:

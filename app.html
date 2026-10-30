@@ -595,11 +595,14 @@
   .ctx.dp-reply{max-height:none;overflow:visible;background:none;border:0;padding:0;font-size:.92rem;line-height:1.55;color:var(--ink)}
   .dp-empty{color:var(--faint);font-size:.9rem}
   .dp-q{display:flex;flex-direction:column;gap:.5rem;border-top:1px solid var(--line);padding-top:.85rem}
+  .dp-q .qh{font-weight:600;font-size:.95rem;line-height:1.45}
+  .dp-q .qmore{font-size:.8rem;color:var(--dim)}
+  .dp-q .qgo{align-self:flex-start;border:0;border-radius:10px;background:var(--accent);color:var(--on-accent);font:inherit;font-weight:600;font-size:.9rem;
+    padding:.6rem 1rem;cursor:pointer}
   .dp-q .opt{display:flex;gap:.65rem;align-items:baseline;width:100%;text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:10px;
     padding:.65rem .8rem;font:inherit;font-size:.92rem;color:var(--ink);cursor:pointer}
   .dp-q .opt b{font:500 .78rem var(--mono);color:var(--dim)}
   .dp-q .opt:hover{border-color:var(--ink)}
-  .dp-draft{display:flex;flex-direction:column;gap:.5rem}
   .dp-senddraft{align-self:flex-start;border:0;background:var(--pend);color:#1e1300;border-radius:10px;padding:.5rem .9rem;font:inherit;font-weight:600;cursor:pointer}
   .dp-compose{display:flex;gap:.5rem;align-items:flex-end;padding:.75rem .9rem calc(.75rem + env(safe-area-inset-bottom));border-top:1px solid var(--line);margin:0}
   .dp-compose textarea{flex:1;min-width:0;resize:none;background:var(--panel2);border:1px solid transparent;border-radius:12px;padding:.6rem .75rem;
@@ -1113,8 +1116,12 @@ async function post(body, okmsg, inputEl){
     else toast("⚠ "+(j.error||"failed"),true);
   }catch(e){ toast("⚠ "+e.message,true); }
 }
+// press one key in an agent's terminal (an answer to its open menu), then refresh the floor
+async function pressKey(session,key){
+  try{ await fetch("/api/key",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session,key})}); }catch(_){}
+  setTimeout(load,400);
+}
 function say(session,text,inputEl){ if(text.trim()) post({session,text}, "Sent → "+session.split("-")[0], inputEl); }
-function submitDraft(session){ post({session,submit:true}, "Sent draft → "+session.split("-")[0]); }
 
 async function saveTask(session, text, el){
   const t=(text||"").trim();
@@ -1937,21 +1944,19 @@ const ROOM_ORDER=["ventures","clients","personal"];                          // 
 const ROOMS=CATS.map(c=>({id:c.id, name:c.label.replace(/^\S+\s+/,"")}))     // "💼 Clients" -> "Clients"
   .sort((a,b)=>ROOM_ORDER.indexOf(a.id)-ROOM_ORDER.indexOf(b.id));
 const roomName=g=>(ROOMS.find(r=>r.id===g)||{name:g||"Elsewhere"}).name;
-// the last readable line of a markdown reply: no table rules, fences or list/heading marks
-function lastLine(md){
-  const ls=(md||"").split("\n").map(l=>l.trim()).filter(l=>l && !/^\|?[\s:|-]+\|?$/.test(l) && !/^```/.test(l));
-  return (ls.pop()||"").replace(/^[#>*+\-\d.\s|]+/,"").replace(/[*`|]+/g," ").replace(/\s+/g," ").trim();
-}
+// the desk's line holds only facts from Claude Code's own files: what it is waiting for, or that it
+// isn't running. The reply itself is read in the panel, whole.
 function deskLine(m){
   if(m._sent) return "Sent, replying…";
-  if(m.typed) return "❯ "+m.typed;
   if(m.ghost) return "Not running";
   if(m.state==="waiting" && m.ask) return m.ask;
-  return lastLine(m.full) || (m.state==="working" ? "Working…" : "");
+  return "";
 }
-const noteOf=m=>m._sent ? "" : m.typed ? "Draft" : m.state==="waiting" ? "Answer" : "";
+// the note comes from what Claude's transcript says is open (team.py), never from the reply's wording
+const NOTES={question:"Answer", permission:"Allow", dialog:"Waiting"};
+const noteOf=m=>m._sent || m.state!=="waiting" ? "" : NOTES[m.asks]||"";
 const deskState=m=>m._sent ? "working" : m.typed ? "typed" : (m.state||"review");
-const deskSig=m=>[sigOf(m),m.ghost?1:0,m.group,m.emoji||"",m.person||"",(m.options||[]).join("\u0001")].join("\u0002");
+const deskSig=m=>[sigOf(m),m.ghost?1:0,m.group,m.emoji||"",m.person||"",m.asks||"",m.more||0,(m.options||[]).join("\u0001")].join("\u0002");
 function deskHtml(m){
   const who=m.person||m.project, note=noteOf(m), task=taskLines(m.task)[0];
   return (note?`<span class="note${m.typed?" draft":""}">${note}</span>`:"")
@@ -2023,13 +2028,20 @@ function refreshDesk(force){
     const inner=mdHtml(m.full||"");
     h+=inner.trim() ? `<div class="ctx dp-reply">${inner}</div>` : `<div class="dp-empty">${esc(m.attached?"You're in its terminal right now.":m.ghost?"Not running. Open the terminal to start it again.":"Nothing to read yet.")}</div>`;
   }
-  if(!m._sent && m.state==="waiting" && m.options && m.options.length)
-    h+=`<div class="dp-q">`+m.options.map((o,i)=>`<button class="opt" data-i="${i}"><b>${i+1}</b><span>${esc(o)}</span></button>`).join("")+`</div>`;
-  if(!m._sent && m.typed)
-    h+=`<div class="dp-draft"><div class="typedline">❯ ${esc(m.typed)}</div><button class="dp-senddraft">Send this</button></div>`;
+  // An open question or permission prompt is a menu in the terminal. A button presses that menu's
+  // key there (a digit picks the choice, Esc denies); anything else is answered in the terminal.
+  if(!m._sent && m.asks){
+    const keys=m.asks==="permission" ? [["1","Allow"],["esc","Deny"]]
+             : m.asks==="question" && !m.more ? (m.options||[]).map((o,i)=>[String(i+1),o]) : [];
+    h+=`<div class="dp-q"><div class="qh" dir="auto">${esc(m.ask)}</div>`
+      +keys.map(([k,o],i)=>`<button class="opt" data-k="${k}"><b>${i+1}</b><span dir="auto">${esc(o)}</span></button>`).join("")
+      +(m.asks==="question" && m.more ? (m.options||[]).map((o,i)=>`<div class="opt"><b>${i+1}</b><span dir="auto">${esc(o)}</span></div>`).join("")
+          +`<div class="qmore">and ${m.more} more question${m.more>1?"s":""}</div>` : "")
+      +(keys.length?"":`<button class="qgo">Answer in the terminal</button>`)+`</div>`;
+  }
   body.innerHTML=h;
-  body.querySelectorAll(".dp-q .opt").forEach(b=>b.onclick=()=>say(m.session,m.options[+b.dataset.i],null));
-  const sd=body.querySelector(".dp-senddraft"); if(sd) sd.onclick=()=>submitDraft(m.session);
+  const qg=body.querySelector(".dp-q .qgo"); if(qg) qg.onclick=()=>DP("dp-term").click();
+  body.querySelectorAll(".dp-q button.opt").forEach(b=>b.onclick=()=>pressKey(m.session,b.dataset.k));
   const yb=body.querySelector(".dp-you"); if(yb) yb.onclick=()=>{ YOU_OPEN=yb.classList.toggle("full") ? m.session+m.you : ""; };
   const ed=body.querySelector(".taskedit"), ta=ed.querySelector("textarea");
   const closeEd=()=>{ ed.hidden=true; DESK_SIG=""; };
@@ -2150,7 +2162,7 @@ function renderRecent(team){
     label("Your move");
     wait.forEach(m=>{
       const b=document.createElement("button"); b.className="mchip"; b.title=tabTitle(m)+" — open";
-      b.innerHTML=`${face(m)}${esc(m.person||m.project)} <em>answer</em>`;
+      b.innerHTML=`${face(m)}${esc(m.person||m.project)} <em>${(noteOf(m)||"answer").toLowerCase()}</em>`;
       b.onclick=()=>openDesk(m.session); box.appendChild(b);
     });
   }
@@ -2324,6 +2336,7 @@ async function load(){
   if(!data) return;
   const _prev={}; (LAST||[]).forEach(m=>_prev[m.session]=m.state);
   LAST=data.team||[];
+  LAST.forEach(m=>{ if(m.running===false) m.ghost=true; });       // no Claude Code running in that tmux session
   { const _v=document.getElementById("ver"); if(_v&&data.version) _v.textContent=data.version; checkVersion(data.build); }
   applySent(LAST);   // keep just-sent cards showing "replying…" until Claude's reply lands
   // feature: ping me when a session newly flips to "your turn"

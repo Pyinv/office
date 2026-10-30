@@ -83,7 +83,7 @@ components:
 
 ## Colors
 
-**Strategy:** Restrained. Neutrals carry the page; the accent is ink itself (buttons, focus, selection). Amber is reserved for "needs you" and nothing else. Working is a small blue mark, finished is a quiet green, an unsent draft is brass.
+**Strategy:** Restrained. Neutrals carry the page; the accent is ink itself (buttons, focus, selection). Amber is reserved for "needs you" and nothing else. Working is a small blue mark, finished is a quiet green.
 **Light or dark:** both, following the system by default. Desks sit one step above the floor in each theme; dark mode keeps the same hierarchy rather than inverting it.
 Each person's face sits on a soft tint of a hue derived from their name (`--h`), light in light mode and deep in dark mode, so faces stay recognisable without coloured rings.
 
@@ -93,7 +93,7 @@ Bricolage Grotesque gives names, rooms and the "need you" count a slightly hand-
 
 ## Layout
 
-The floor is grouped into rooms (Ventures, Clients, Personal), most recently active first in each. The target is a compact desk (about 74px) showing face, name, project and one line; the full reply lives in the person's panel (side panel on a laptop, sheet on a phone). A "Your move" row is a shortcut to whoever needs you; it never moves the desks themselves. The page max width is 1180px with a 16px phone gutter.
+The floor is grouped into rooms (Ventures, Clients, Personal), most recently active first in each. The target is a compact desk (about 74px) showing face, name, project and one line (only what Claude Code's own files say it waits for, or that it isn't running: never a guess from the reply's wording); the full reply lives in the person's panel (side panel on a laptop, sheet on a phone). A "Your move" row is a shortcut to whoever needs you; it never moves the desks themselves. The page max width is 1180px with a 16px phone gutter.
 
 ## Elevation & Depth
 
@@ -105,8 +105,8 @@ Radii: 6px for small controls and code, 10px for desks, inputs and buttons, 14px
 
 ## Components
 
-- **Desk:** a 1px line border; it turns amber-tinted when the agent needs you, blue-tinted while working and brass-tinted with an unsent draft, and it is dashed and dimmed when away for more than a week. Hover darkens the border; the selected desk gets an ink ring.
-- **Needs-you note:** an amber tab breaking the top edge of the desk with a verb ("Answer", "Ready"). This is the one authored moment.
+- **Desk:** a 1px line border; it turns amber-tinted when the agent needs you, blue-tinted while working, and it is dashed and dimmed when away for more than a week. Hover darkens the border; the selected desk gets an ink ring.
+- **Needs-you note:** an amber tab breaking the top edge of the desk with a verb: "Answer" (an open question), "Allow" (a permission prompt) or "Waiting" (another dialog), all read from Claude Code's status file and transcript. This is the one authored moment.
 - **Buttons:** the primary is ink on paper; secondary buttons are line-bordered; destructive actions are in red text inside menus.
 - **Focus:** a 3px ring in ink at 18% opacity.
 
@@ -132,4 +132,5 @@ Radii: 6px for small controls and code, 10px for desks, inputs and buttons, 14px
 | 2026-10-29 | Initial design system created | Created by /design-consultation from the product context, with independent proposals from Codex and a Claude subagent |
 | 2026-10-29 | Stage 1 shipped: palette, fonts, header count | Purple, gradients, glows and card stripes removed |
 | 2026-10-30 | Desks sorted by activity, Ventures first | The user's call: activity order over fixed seats |
+| 2026-10-30 | State only from Claude Code's files | The user's call: no guessing from text. Busy / idle / waiting comes from ~/.claude/sessions, the question and its choices from the transcript's open AskUserQuestion; the reply preview line and the Draft note are gone |
 | 2026-10-29 | Floor of desks, the person's panel, face rail, front desk | Rooms with fixed seats; a desk opens a panel (side panel / phone sheet) with the reply, answer buttons and one ⋯ menu; Nadia sits at the bottom on a laptop but stays at the top on the phone, where a bottom bar fights the keyboard |
