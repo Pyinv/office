@@ -589,8 +589,9 @@
   .dp-menu hr{border:0;border-top:1px solid var(--line);margin:.3rem 0}
   .dp-body{flex:1;min-height:0;overflow-y:auto;padding:1rem 1.1rem;display:flex;flex-direction:column;gap:.85rem;overscroll-behavior:contain}
   .dp-you{align-self:flex-end;max-width:88%;background:var(--panel2);border-radius:12px 12px 4px 12px;padding:.5rem .75rem;font-size:.9rem;line-height:1.45;
-    cursor:pointer;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
-  .dp-you.full{-webkit-line-clamp:unset;overflow:visible}
+    cursor:pointer;word-break:break-word}
+  .dp-you>div{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+  .dp-you.full>div{-webkit-line-clamp:unset;overflow:visible}
   .ctx.dp-reply{max-height:none;overflow:visible;background:none;border:0;padding:0;font-size:.92rem;line-height:1.55;color:var(--ink)}
   .dp-empty{color:var(--faint);font-size:.9rem}
   .dp-q{display:flex;flex-direction:column;gap:.5rem;border-top:1px solid var(--line);padding-top:.85rem}
@@ -1980,7 +1981,7 @@ function desk(m){
 // ── a person's panel: their whole last reply, the answers to a question as big buttons, a box to
 //    reply, and one ⋯ menu for pin / mute / focus note / move / rename / close. Side panel on a
 //    laptop, a full-screen sheet on the phone. It follows the floor's poll while it is open.
-let DESK="", DESK_SIG="";
+let DESK="", DESK_SIG="", YOU_OPEN="";   // YOU_OPEN: the message you tapped open, kept open across redraws
 const DP=id=>document.getElementById(id);
 function markSel(){
   document.querySelectorAll("#floor .desk.sel").forEach(e=>e.classList.remove("sel"));
@@ -2016,7 +2017,7 @@ function refreshDesk(force){
   const atEnd=force || body.scrollHeight-body.scrollTop-body.clientHeight<40;
   let h=taskBlock(m)+`<div class="taskedit" hidden><textarea rows="3" placeholder="Main task&#10;sub-task&#10;sub-task"></textarea>
       <div class="taskbtns"><button class="tsave">Save</button><button class="tcancel">Cancel</button></div></div>`;
-  if(m.you) h+=`<div class="dp-you" dir="auto">${mdInline(esc(m.you))}</div>`;
+  if(m.you) h+=`<div class="dp-you${YOU_OPEN===m.session+m.you?" full":""}" dir="auto"><div>${mdInline(esc(m.you))}</div></div>`;
   if(m._sent) h+=`<div class="sent-note"><span class="dots"></span> Sent, ${esc(who)} is replying…</div>`;
   else{
     const inner=mdHtml(m.full||"");
@@ -2029,7 +2030,7 @@ function refreshDesk(force){
   body.innerHTML=h;
   body.querySelectorAll(".dp-q .opt").forEach(b=>b.onclick=()=>say(m.session,m.options[+b.dataset.i],null));
   const sd=body.querySelector(".dp-senddraft"); if(sd) sd.onclick=()=>submitDraft(m.session);
-  const yb=body.querySelector(".dp-you"); if(yb) yb.onclick=()=>yb.classList.toggle("full");
+  const yb=body.querySelector(".dp-you"); if(yb) yb.onclick=()=>{ YOU_OPEN=yb.classList.toggle("full") ? m.session+m.you : ""; };
   const ed=body.querySelector(".taskedit"), ta=ed.querySelector("textarea");
   const closeEd=()=>{ ed.hidden=true; DESK_SIG=""; };
   ed.querySelector(".tsave").onclick=()=>{ const v=ta.value; ed.hidden=true; saveTask(m.session,v,null); };
