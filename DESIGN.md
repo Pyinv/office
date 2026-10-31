@@ -78,7 +78,7 @@ components:
 **Key characteristics:**
 - Calm by default; only "needs you" is loud.
 - Faces and names outrank operational metadata.
-- Rooms go Ventures, Clients, Personal; inside a room the most recently active desk comes first (pinned before all).
+- Everyone is one list: pinned first, then the most recently active, in Today / This week / Older, each desk tagged with its room. The room switch (Everyone, Ventures, Clients, Personal) shows one room the same way.
 - Ink on paper in light mode, warm charcoal in dark mode, with no purple, gradients or glows.
 
 ## Colors
@@ -93,7 +93,7 @@ Bricolage Grotesque gives names, rooms and the "need you" count a slightly hand-
 
 ## Layout
 
-The floor is grouped into rooms (Ventures, Clients, Personal), most recently active first in each. The target is a compact desk (about 74px) showing face, name, project and one line (only what Claude Code's own files say it waits for, or that it isn't running: never a guess from the reply's wording); the full reply lives in the person's panel (side panel on a laptop, sheet on a phone). A "Your move" row is a shortcut to whoever needs you; it never moves the desks themselves. The page max width is 1180px with a 16px phone gutter.
+The floor is one list by activity, in bands of time (Pinned, Today, This week, Older), with a quiet room tag on each desk; a room switch above it focuses one room, and dropping a desk on a room there moves it. The target is a compact desk (about 74px) showing face, name, project and one line (only what Claude Code's own files say it waits for, or that it isn't running: never a guess from the reply's wording); the full reply lives in the person's panel (side panel on a laptop, sheet on a phone). A "Your move" row is a shortcut to whoever needs you; it never moves the desks themselves. The page max width is 1180px with a 16px phone gutter.
 
 ## Elevation & Depth
 
@@ -132,6 +132,7 @@ Radii: 6px for small controls and code, 10px for desks, inputs and buttons, 14px
 |------|----------|-----------|
 | 2026-10-29 | Initial design system created | Created by /design-consultation from the product context, with independent proposals from Codex and a Claude subagent |
 | 2026-10-29 | Stage 1 shipped: palette, fonts, header count | Purple, gradients, glows and card stripes removed |
+| 2026-10-31 | One list by activity, a room switch to focus | The user's call: a busy Personal desk sat below every Venture and Client; who is busy matters more than which room, and one switch covers both views |
 | 2026-10-30 | Desks sorted by activity, Ventures first | The user's call: activity order over fixed seats |
 | 2026-10-30 | State only from Claude Code's files | The user's call: no guessing from text. Busy / idle / waiting comes from ~/.claude/sessions, the question and its choices from the transcript's open AskUserQuestion; the reply preview line and the Draft note are gone |
 | 2026-10-29 | Floor of desks, the person's panel, face rail, front desk | Rooms with fixed seats; a desk opens a panel (side panel / phone sheet) with the reply, answer buttons and one ⋯ menu; Nadia sits at the bottom on a laptop but stays at the top on the phone, where a bottom bar fights the keyboard |

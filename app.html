@@ -360,15 +360,6 @@
   .recentrow::-webkit-scrollbar{display:none}
   .recentrow:empty{display:none}
   .recentrow .rl{font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);flex:0 0 auto;margin-right:.2rem}
-  .rchip{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:.3rem .75rem .3rem .6rem;
-    font-size:.78rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap;flex:0 0 auto;transition:all .12s}
-  .rchip:hover{border-color:var(--accent)}
-  .rchip .d{width:7px;height:7px;border-radius:50%;background:var(--idle);flex:0 0 auto}
-  .rchip.waiting .d{background:var(--wait);box-shadow:0 0 6px var(--wait)}
-  .rchip.typed .d{background:var(--pend)} .rchip.review .d{background:var(--rev)}
-  .rchip.working .d{background:var(--work);animation:pulse 2.4s infinite}
-  .rchip .p{color:var(--faint);font-weight:500;font-family:var(--mono);font-size:.7rem}
-  .rchip .t{color:var(--faint);font-weight:500;font-size:.68rem}
   /* connectivity: a spinner while the first floor loads, a banner when the poll fails */
   .spin{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);
     animation:spin .8s linear infinite;vertical-align:-2px;margin-right:.45rem}
@@ -527,6 +518,20 @@
     .sec-form{flex-direction:column;gap:.45rem}}
 
   /* ── the floor: rooms of desks (DESIGN.md) ── */
+  /* the room switch: Everyone is one list by activity; a room shows only its desks */
+  .roomsw{display:flex;width:fit-content;max-width:100%;background:var(--panel2);border-radius:10px;padding:3px;margin:0 0 .2rem;overflow-x:auto;scrollbar-width:none}
+  .roomsw::-webkit-scrollbar{display:none}
+  .roomsw:empty{display:none}
+  .roomsw button{flex:1 0 auto;border:0;background:none;border-radius:8px;padding:.4rem .75rem;min-height:2.3rem;font:inherit;font-size:.86rem;
+    font-weight:500;color:var(--dim);cursor:pointer;white-space:nowrap;transition:background .12s,box-shadow .12s}
+  .roomsw button.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+  .roomsw button:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--ink) 18%,transparent)}
+  .roomsw button.droppable{box-shadow:0 0 0 2px color-mix(in srgb,var(--ink) 30%,transparent)}
+  .roomsw .c{color:var(--faint);font-size:.74rem;margin-left:.35rem;font-weight:500}
+  .desk .proj{display:flex;gap:.4rem;min-width:0}
+  .desk .proj .pn{overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .desk .rtag{display:none;flex:0 0 auto;font:500 .68rem "General Sans",sans-serif;color:var(--faint)}
+  #floor.mixed .desk .rtag{display:inline}
   .room{margin:1.3rem 0 .4rem}
   .rhead{display:flex;align-items:baseline;gap:.6rem;margin:0 0 .85rem;font:600 1.05rem var(--disp);letter-spacing:0}
   .rhead small{font:400 .8rem "General Sans",sans-serif;color:var(--dim)}
@@ -566,14 +571,13 @@
   .wdot{width:7px;height:7px;border-radius:50%;background:var(--work);flex:0 0 7px;animation:breathe 2s ease-in-out infinite}
   @keyframes breathe{0%,100%{opacity:1}50%{opacity:.3}}
   .mtag{font:500 .62rem "General Sans",sans-serif;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 .3rem}
-  @media (prefers-reduced-motion:reduce){.wdot,.live,.rchip.working .d{animation:none}}
+  @media (prefers-reduced-motion:reduce){.wdot,.live{animation:none}}
   /* "Your move" + "Recent" under Nadia */
   .mchip{border:0;background:var(--wait2);color:var(--ink);border-radius:999px;padding:.2rem .7rem .2rem .2rem;font:inherit;font-size:.8rem;font-weight:500;
     cursor:pointer;display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;flex:0 0 auto}
   .mchip .f{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.8rem;background:hsl(var(--h) var(--face-s) var(--face-l))}
   .mchip em{font-style:normal;color:var(--dim);font-size:.74rem}
   .mchip:hover{filter:brightness(.97)}
-  .rsep{width:1px;align-self:stretch;background:var(--line);margin:0 .35rem;flex:0 0 1px}
   .recentrow .rl{text-transform:none;letter-spacing:0;font-size:.78rem;font-weight:600;color:var(--ink)}
   /* ── a person's panel ── */
   .deskpanel{position:fixed;top:0;right:0;bottom:0;width:440px;max-width:100vw;z-index:40;background:var(--panel);
@@ -665,6 +669,11 @@
   /* ── phone: three seats a row — face, name, project; the line lives in the panel ── */
   @media (max-width:600px){
     .room{margin:1rem 0 .3rem}
+    .roomsw{width:auto}
+    .roomsw button{min-height:2.75rem;padding:.4rem .45rem;font-size:.82rem}
+    .desk .proj{justify-content:center}
+    #floor.mixed .desk .proj{flex-direction:column;align-items:center;gap:0}
+    .desk .proj .pn{max-width:100%}
     .rhead{font-size:1rem;margin-bottom:.8rem}
     .desks{grid-template-columns:repeat(3,minmax(0,1fr));gap:.9rem .5rem}
     .desk{grid-template-columns:minmax(0,1fr);justify-items:center;text-align:center;padding:.8rem .3rem .55rem;row-gap:.22rem;border-radius:12px}
@@ -697,14 +706,13 @@
   </div>
   <div class="controls">
     <div class="filtercol">
-      <div class="chiprow"><span class="frow-l">Team</span><div class="chips" id="catchips"></div></div>
       <div class="chiprow"><span class="frow-l">Status</span><div class="chips" id="chips"></div></div>
     </div>
     <div class="actioncol">
       <button class="newbtn" id="newbtn">New desk</button>
       <span class="searchwrap" id="searchwrap"><input type="search" class="search" id="search" placeholder="search  ·  who, project, “waiting”, “clients”…  (⌘F)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button type="button" class="searchx" id="searchx" title="clear search" aria-label="clear search">×</button></span>
       <div class="sugg" id="sugg" role="listbox"></div>
-      <button class="filtertoggle" id="filtertoggle" title="show / hide the team and status filters" aria-label="Filters" aria-expanded="false"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 5h18l-7 8v5l-4 2v-7L3 5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span class="c" id="filtercount" hidden></span></button>
+      <button class="filtertoggle" id="filtertoggle" title="show / hide the status filters" aria-label="Filters" aria-expanded="false"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 5h18l-7 8v5l-4 2v-7L3 5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span class="c" id="filtercount" hidden></span></button>
     </div>
   </div>
 </div></header>
@@ -724,6 +732,7 @@
   <div class="recentrow" id="recent"></div>
   <div class="netbar restorebar" id="restorebar"><span class="ni">⟳</span><div class="nt"><b id="rb-t"></b><span class="nd">Each comes back on its own conversation.</span></div><button id="rb-go">Bring back</button></div>
   <div class="netbar" id="netbar" role="alert"><span class="ni" id="net-i">📵</span><div class="nt"><b id="net-t"></b><span class="nd" id="net-d"></span></div><button id="net-retry">Retry now</button></div>
+  <div class="roomsw" id="roomsw" role="group" aria-label="rooms"></div>
   <div id="floor"><div class="empty"><span class="spin"></span>connecting to the office…</div></div>
   <footer class="foot">
     <span><a href="https://github.com/Pyinv/office" target="_blank" rel="noopener">Office</a> v<span id="ver">—</span></span>
@@ -1127,12 +1136,6 @@ const FILTERS = [           // status axis
   {id:"needs",  label:"🖐 Your turn", test:m=>m.state==="waiting"},
   {id:"working",label:"🔵 Working",   test:m=>m.state==="working"},
   {id:"review", label:"🟢 Finished",  test:m=>m.state==="review"},
-];
-const CATFILTERS = [        // category axis
-  {id:"all",      label:"Everyone"},
-  {id:"clients",  label:"💼 Clients"},
-  {id:"ventures", label:"🚀 Ventures"},
-  {id:"personal", label:"🏠 Personal"},
 ];
 let FILTER="all", CATFILTER="all", SEARCH="", LAST=[], FROZEN=false, CARDS={}, LAYOUT="", SENT={};
 const stateTest=()=>(FILTERS.find(x=>x.id===FILTER)||FILTERS[0]).test;
@@ -1995,7 +1998,7 @@ async function sendKey(key){
   // first open after the filters moved out of ⚙: say so once
   window.openSettings=function(){
     paintTheme(); paintFont(); paintNotify(); paintAgentsRow();
-    if(!pref("seenSettings")){ sub.hidden=false; sub.textContent="Team and Status filters moved to the Filters button."; } else sub.hidden=true;
+    if(!pref("seenSettings")){ sub.hidden=false; sub.textContent="Status filters moved to the Filters button."; } else sub.hidden=true;
     dlg.showModal();
     if(!pref("seenSettings")) setPref("seenSettings", true);     // the hint is for the first open only
     if(window.RESTART) RESTART.plan();
@@ -2035,10 +2038,12 @@ document.addEventListener("keydown",e=>{
 });
 
 // ── the floor: rooms of desks (DESIGN.md). A desk is a face, a name, a project and one line.
-//    Ventures, Clients, Personal; in each room pinned first, then the most recently active. A tap opens that person's panel; double-click, the terminal.
+//    Everyone is one list, pinned first, then the most recently active, in Today / This week / Older; the room switch
+//    shows one room. A tap opens that person's panel; double-click, the terminal.
 const ROOM_ORDER=["ventures","clients","personal"];                          // the floor's room order (Ventures first)
 const ROOMS=CATS.map(c=>({id:c.id, name:c.label.replace(/^\S+\s+/,"")}))     // "💼 Clients" -> "Clients"
   .sort((a,b)=>ROOM_ORDER.indexOf(a.id)-ROOM_ORDER.indexOf(b.id));
+const ROOM_ONE={ventures:"Venture", clients:"Client", personal:"Personal"};     // a desk's room tag in the mixed list
 const roomName=g=>(ROOMS.find(r=>r.id===g)||{name:g||"Elsewhere"}).name;
 // the desk's line holds only facts from Claude Code's own files: what it is waiting for, or that it
 // isn't running. The reply itself is read in the panel, whole.
@@ -2062,7 +2067,7 @@ function deskHtml(m){
     +(deskState(m)==="working"?`<span class="wdot" title="working"></span>`:"")
     +(m.unread?`<span class="att" title="a reply you haven't seen"></span>`:"")
     +(m.muted?`<span class="mtag">muted</span>`:"")
-    +`</div><div class="proj">${esc(m.project)}</div></div>`
+    +`</div><div class="proj"><span class="pn">${esc(m.project)}</span>${ROOM_ONE[m.group]?`<span class="rtag">${ROOM_ONE[m.group]}</span>`:""}</div></div>`
     +`<span class="ago"></span>`
     // a focus note takes the reply line's place (the reply is in the panel), so every desk keeps one height
     +(task && !note ? `<div class="dtask" title="focus note">${esc(task)}</div>`
@@ -2222,9 +2227,9 @@ function deskMenu(m){
   onPref("filters", paintOpen);
 }
 function markFilters(){ const t=document.getElementById("filtertoggle"), c=document.getElementById("filtercount");
-  const names=[CATFILTER!=="all"?CATFILTERS.find(x=>x.id===CATFILTER).label:"", FILTER!=="all"?FILTERS.find(f=>f.id===FILTER).label:""].filter(Boolean);
+  const names=[FILTER!=="all"?FILTERS.find(f=>f.id===FILTER).label:""].filter(Boolean);
   t.classList.toggle("active", names.length>0); c.hidden=!names.length; c.textContent=names.length||"";
-  t.title=names.length?"filters on: "+names.join(" · "):"show / hide the team and status filters"; }
+  t.title=names.length?"filters on: "+names.join(" · "):"show / hide the status filters"; }
 { const sec=document.getElementById("sec"); sec.classList.toggle("open", !!pref("sec"));
   const toggleSec=()=>{ const on=sec.classList.toggle("open"); setPref("sec", on); if(on) setTimeout(()=>document.getElementById("sec-in").focus(),50); };
   sec.addEventListener("click", e=>{ if(!sec.classList.contains("open")) toggleSec(); else if(e.target.closest("#sec-head")) toggleSec(); });
@@ -2235,19 +2240,19 @@ function markFilters(){ const t=document.getElementById("filtertoggle"), c=docum
 }
 let CHIPS_SIG="";
 function renderChips(team){
-  // category chips — counts respect the current STATUS filter
+  // the room switch: Everyone, then each room; counts respect the current STATUS filter
   const st=stateTest();
   const sig=FILTER+"|"+CATFILTER+"|"+team.map(m=>m.group+m.state).join(",");
   if(sig===CHIPS_SIG) return; CHIPS_SIG=sig;
   const inState=team.filter(st);
-  const cbox=document.getElementById("catchips"); cbox.innerHTML="";
-  CATFILTERS.forEach(cf=>{
-    const n=(cf.id==="all"?inState:inState.filter(m=>m.group===cf.id)).length;
+  const rbox=document.getElementById("roomsw"); rbox.innerHTML="";
+  [{id:"all", name:"Everyone"}, ...ROOMS].forEach(r=>{
+    const n=(r.id==="all"?inState:inState.filter(m=>m.group===r.id)).length;
     const b=document.createElement("button");
-    b.className="chip cat"+(CATFILTER===cf.id?" on":"");
-    b.innerHTML=`${cf.label} <span class="c">${n}</span>`;
-    b.onclick=()=>{ CATFILTER=cf.id; LAYOUT=""; render(); };
-    cbox.appendChild(b);
+    b.className=CATFILTER===r.id?"on":""; b.dataset.room=r.id; b.setAttribute("aria-pressed", CATFILTER===r.id);
+    b.innerHTML=`${esc(r.name)}<span class="c">${n}</span>`;
+    b.onclick=()=>{ CATFILTER=r.id; LAYOUT=""; render(); };
+    rbox.appendChild(b);
   });
   // status chips — counts respect the current CATEGORY filter
   const inCat=team.filter(catTest);
@@ -2262,34 +2267,21 @@ function renderChips(team){
   });
   markFilters();
 }
-// the row under Nadia: "Your move" — everyone asking you something, newest first (opens their
-// panel) — then "Recent", the few you touched last (straight into the terminal, as before)
+// the row under Nadia: "Your move", everyone asking you something, newest first (opens their panel)
 let RECENT_SIG="";
 function renderRecent(team){
   const wait=team.filter(m=>m.state==="waiting" && !m.ghost && !m._sent).sort((a,b)=>(b.ts||0)-(a.ts||0));
-  const recent=team.filter(m=>!m.ghost && m.ts && !wait.includes(m)).sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,6);
-  const sig=wait.map(m=>m.session).join(",")+"|"+recent.map(m=>m.session+":"+m.state+":"+Math.floor((m.ts||0)/60)).join(",");
+  const sig=wait.map(m=>m.session+":"+(m.asks||"")).join(",");
   if(sig===RECENT_SIG) return; RECENT_SIG=sig;
   const box=document.getElementById("recent"); box.innerHTML="";
-  const label=t=>{ const l=document.createElement("span"); l.className="rl"; l.textContent=t; box.appendChild(l); };
+  if(!wait.length) return;
+  const l=document.createElement("span"); l.className="rl"; l.textContent="Your move"; box.appendChild(l);
   const face=m=>`<span class="f" style="--h:${hueFor(m.person||m.project)}">${esc(m.emoji||emojiFor(m.project))}</span>`;
-  if(wait.length){
-    label("Your move");
-    wait.forEach(m=>{
-      const b=document.createElement("button"); b.className="mchip"; b.title=tabTitle(m)+" — open";
-      b.innerHTML=`${face(m)}${esc(m.person||m.project)} <em>${(noteOf(m)||"answer").toLowerCase()}</em>`;
-      b.onclick=()=>openDesk(m.session); box.appendChild(b);
-    });
-  }
-  if(recent.length){
-    if(wait.length){ const sp=document.createElement("span"); sp.className="rsep"; box.appendChild(sp); }
-    label("Recent");
-    recent.forEach(m=>{
-      const b=document.createElement("button"); b.className="rchip "+deskState(m); b.title=tabTitle(m)+" — open terminal";
-      b.innerHTML=`<span class="d"></span>${esc(m.person||m.project)} <span class="t">${esc(agoText(m.ts))}</span>`;
-      b.onclick=()=>openTerm(m.session,(m.person||m.project),tabTitle(m)); box.appendChild(b);
-    });
-  }
+  wait.forEach(m=>{
+    const b=document.createElement("button"); b.className="mchip"; b.title=tabTitle(m)+" — open";
+    b.innerHTML=`${face(m)}${esc(m.person||m.project)} <em>${(noteOf(m)||"answer").toLowerCase()}</em>`;
+    b.onclick=()=>openDesk(m.session); box.appendChild(b);
+  });
 }
 function render(){
   document.getElementById("searchwrap").classList.toggle("has", !!SEARCH);
@@ -2301,16 +2293,22 @@ function render(){
   const shown=team.filter(st).filter(catTest).filter(m=>!s || searchScore(m,s)>0);
   const floor=document.getElementById("floor");
   if(!shown.length){ floor.innerHTML=`<div class="empty">Nobody here${s?" matches “"+esc(s)+"”":" in this view"}.</div>`; LAYOUT=""; refreshDesk(); return; }
-  // within a room: pinned first, ghosts last, then the most recently active first
+  // pinned first, ghosts last, then the most recently active first
   const byName=(a,b)=>(a.person||a.project).localeCompare(b.person||b.project) || a.session.localeCompare(b.session);
   const seat=(a,b)=>((b.pinned?1:0)-(a.pinned?1:0)) || ((a.ghost?1:0)-(b.ghost?1:0)) || ((b.ts||0)-(a.ts||0)) || byName(a,b);
+  // not rooms but time: whatever room it is in, a desk busy today is at the top (the room switch focuses one room)
+  const day0=new Date(Date.now()); day0.setHours(0,0,0,0);
+  const today=day0.getTime()/1000, week=Date.now()/1000-7*86400;
+  const BANDS=[{id:"pinned", name:"Pinned", has:m=>m.pinned}, {id:"today", name:"Today", has:m=>(m.ts||0)>=today},
+               {id:"week", name:"This week", has:m=>(m.ts||0)>=week}, {id:"older", name:"Older", has:()=>true}];
   const rooms = s
     ? [{id:"search", name:"Matches", list:shown.slice().sort((a,b)=>searchScore(b,s)-searchScore(a,s) || seat(a,b))}]
-    : ROOMS.map(r=>({...r, list:shown.filter(m=>m.group===r.id).sort(seat)}))
-        .concat([{id:"other", name:"Elsewhere", list:shown.filter(m=>!ROOMS.some(r=>r.id===m.group)).sort(seat)}])
-        .filter(r=>r.list.length);
+    : BANDS.map(b=>({...b, list:[]}));
+  if(!s){ for(const m of shown.slice().sort(seat)) rooms.find(b=>BANDS.find(x=>x.id===b.id).has(m)).list.push(m); }
+  const bands=rooms.filter(r=>r.list.length);
+  floor.classList.toggle("mixed", CATFILTER==="all" || !!s);
   const need=r=>r.list.filter(m=>m.state==="waiting").length;
-  const layout=FILTER+"|"+CATFILTER+"|"+s+"|"+rooms.map(r=>r.id+"/"+need(r)+":"+r.list.map(m=>m.session).join(",")).join(";");
+  const layout=FILTER+"|"+CATFILTER+"|"+s+"|"+today+"|"+bands.map(r=>r.id+"/"+need(r)+":"+r.list.map(m=>m.session).join(",")).join(";");
   if(layout===LAYOUT){
     for(const m of shown){ const el=CARDS[m.session]; if(el && el._sig!==deskSig(m)) paintDesk(el,m); }
     refreshAgo(); refreshDesk(); return;
@@ -2319,7 +2317,7 @@ function render(){
   const keep=new Set(shown.map(m=>m.session));
   for(const k in CARDS) if(!keep.has(k)) delete CARDS[k];
   floor.textContent="";
-  for(const r of rooms){
+  for(const r of bands){
     const sec=document.createElement("section"); sec.className="room"; sec.dataset.room=r.id;
     const n=need(r);
     sec.innerHTML=`<h2 class="rhead">${esc(r.name)}<small>${r.list.length} desk${r.list.length===1?"":"s"}${n?` · ${n} need${n===1?"s":""} you`:""}</small></h2>`;
@@ -2525,24 +2523,24 @@ document.getElementById("floor").addEventListener("click",e=>{
   if(e.detail>=2){ const m=LAST.find(x=>x.session===d.dataset.session); if(m) openTerm(m.session,(m.person||m.project),tabTitle(m)); return; }
   openDesk(d.dataset.session);
 });
-// drag a desk onto another room to move it there — the same as ⋯ → Move to
+// drag a desk onto a room in the room switch to move it there — the same as ⋯ → Move to
 {
   const floor=document.getElementById("floor"); let dragging="";
-  const roomAt=e=>{ const r=e.target.closest(".room"); return r && ROOMS.some(x=>x.id===r.dataset.room) ? r : null; };
-  const clear=()=>floor.querySelectorAll(".room.droppable").forEach(r=>r.classList.remove("droppable"));
+  const roomAt=e=>{ const r=e.target.closest&&e.target.closest("#roomsw button"); return r && ROOMS.some(x=>x.id===r.dataset.room) ? r : null; };
+  const clear=()=>document.querySelectorAll("#roomsw .droppable").forEach(r=>r.classList.remove("droppable"));
   floor.addEventListener("dragstart",e=>{
     const d=e.target.closest(".desk"); if(!d) return;
     dragging=d.dataset.session; e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain",dragging);
     d.classList.add("dragging");
   });
-  floor.addEventListener("dragover",e=>{
+  document.addEventListener("dragover",e=>{
     const r=dragging && roomAt(e); if(!r) return;
     const m=LAST.find(x=>x.session===dragging); if(!m || m.group===r.dataset.room) return;
     e.preventDefault(); e.dataTransfer.dropEffect="move";
     if(!r.classList.contains("droppable")){ clear(); r.classList.add("droppable"); }
   });
-  floor.addEventListener("dragleave",e=>{ const r=roomAt(e); if(r && !r.contains(e.relatedTarget)) r.classList.remove("droppable"); });
-  floor.addEventListener("drop",e=>{
+  document.addEventListener("dragleave",e=>{ const r=roomAt(e); if(r && !r.contains(e.relatedTarget)) r.classList.remove("droppable"); });
+  document.addEventListener("drop",e=>{
     const r=dragging && roomAt(e); clear(); if(!r) return;
     e.preventDefault(); const s=dragging; dragging="";
     const m=LAST.find(x=>x.session===s); if(m && m.group!==r.dataset.room) setGroup(s, r.dataset.room);

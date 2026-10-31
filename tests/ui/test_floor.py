@@ -36,13 +36,22 @@ class Floor(BrowserCase):
         self.writes.append((route.request.url.rsplit("/", 1)[-1], route.request.post_data))
         route.fulfill(status=200, content_type="application/json", body='{"ok":true}')
 
-    def test_rooms_hold_desks_by_activity_and_the_needs_you_note(self):
+    def test_everyone_is_one_list_by_activity_and_a_room_shows_only_its_desks(self):
         self.open_floor()
-        self.assertEqual(self.js("[...document.querySelectorAll('.rhead')].map(h=>h.firstChild.textContent)"),
-                         ["Ventures", "Clients", "Personal"])
-        # inside a room the most recently active comes first: Zed (1 min ago) before Amy (2 min ago)
-        self.assertEqual(self.js("[...[...document.querySelectorAll('.room')][1].querySelectorAll('.desk .wn')].map(n=>n.textContent)"),
-                         ["Zed", "Amy"])
+        heads = "[...document.querySelectorAll('.rhead')].map(h=>h.firstChild.textContent)"
+        names = "[...document.querySelectorAll('.desk .wn')].map(n=>n.textContent)"
+        self.assertEqual(self.js(heads), ["Pinned", "Today"])
+        # whatever the room: pinned first, then the most recently active, the one not running last
+        self.assertEqual(self.js(names), ["Bo", "Zed", "Cy", "Amy", "Di"])
+        self.assertEqual(self.js("getComputedStyle(document.querySelector('[data-session=cy-delta] .rtag')).display"), "block")    # shown (a flex item computes to block)
+        self.assertEqual(self.js("document.querySelector('[data-session=cy-delta] .rtag').textContent"), "Personal")
+        self.assertEqual(self.js("[...document.querySelectorAll('#roomsw button')].map(b=>b.textContent)"),
+                         ["Everyone5", "Ventures1", "Clients2", "Personal2"])
+        self.page.click("#roomsw button[data-room=clients]")
+        self.assertEqual(self.js(names), ["Zed", "Amy"])
+        self.assertEqual(self.js("getComputedStyle(document.querySelector('[data-session=zed-alpha] .rtag')).display"), "none")
+        self.page.click("#roomsw button[data-room=all]")
+        self.assertEqual(len(self.js(names)), 5)
         self.assertEqual(self.js("document.querySelector('[data-session=amy-beta] .note').textContent"), "Answer")
         self.assertEqual(self.js("document.querySelector('[data-session=cy-delta] .note').textContent"), "Allow")
         self.assertTrue(self.js("document.querySelector('[data-session=di-eps]').classList.contains('ghost')"))
@@ -177,14 +186,14 @@ class Floor(BrowserCase):
         self.assertTrue(self.js("document.getElementById('dp-menu').hidden"))
 
 
-    def test_dragging_a_desk_to_another_room_moves_it(self):
+    def test_dragging_a_desk_onto_a_room_moves_it(self):
         self.open_floor()
-        self.page.drag_and_drop("[data-session=zed-alpha]", ".room[data-room=personal] .rhead")
+        self.page.drag_and_drop("[data-session=zed-alpha]", "#roomsw button[data-room=personal]")
         self.page.wait_for_timeout(200)
         self.assertEqual(self.writes[0][0], "group")
         self.assertEqual(json.loads(self.writes[0][1]), {"session": "zed-alpha", "group": "personal"})
         # dropping on its own room does nothing
-        self.page.drag_and_drop("[data-session=bo-gamma]", ".room[data-room=ventures] .rhead")
+        self.page.drag_and_drop("[data-session=bo-gamma]", "#roomsw button[data-room=ventures]")
         self.page.wait_for_timeout(200)
         self.assertEqual(len(self.writes), 1)
 
