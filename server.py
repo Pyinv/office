@@ -547,16 +547,18 @@ def _synth(h, out=None):
     finally:
         _SPEAKING[h].set()
 
-def _voice_rules():
-    """How everything she says out loud must sound: the briefing and her spoken answers share it."""
+def _voice_rules(arabic_only=False):
+    """How everything she says out loud must sound: the briefing and her spoken answers share it.
+    arabic_only: she may be speaking another language, so the Arabic rules say they are for Arabic."""
     boss = {"man": "a man: masculine forms (عايز، تحب، حضرتك)",
             "woman": "a woman: feminine forms (عايزة، تحبي، حضرتك)"}.get(OPERATOR_IS.lower(), "")
-    return ((f"- You talk to your boss, {boss}.\n" if boss else "")
+    ar = "When it is Arabic: " if arabic_only else ""
+    return ((f"- {ar}you talk to your boss, {boss}.\n" if boss else "")
             + "- You report other people's work in the third person; never \"I did\" for what an agent did.\n"
             "- Tech words the way developers say them out loud, in English letters (push, test, deploy), "
             "never a literal translation of them.\n"
             "- Plain sentences: no lists, markdown, emoji, URLs, paths or code; numbers as words.\n"
-            + (f"- Example of the voice (different news): \"{BRIEF_EXAMPLE}\"\n" if BRIEF_EXAMPLE else ""))
+            + (f"- {ar}example of the voice (different news): \"{BRIEF_EXAMPLE}\"\n" if BRIEF_EXAMPLE else ""))
 
 def _opener():
     """Hash of the line she says as you tap, so there is a voice before the floor is read."""
@@ -1611,8 +1613,10 @@ class Handler(SimpleHTTPRequestHandler):
             f"reply ONLY in the floor: states: working = coding now; waiting = needs the operator (see "
             f"needs_you); review = finished, operator's move. Light **bold** is fine, no bullet lists "
             f"unless asked, never em-dashes. Write the way a sharp person talks.\n\n"
-            + (f"\"say\" is what you say out loud: the same content as \"reply\", no more, spoken in "
-               f"{BRIEF_LANG}. How it must sound:\n" + _voice_rules() + "\n" if TTS_KEY and TTS_VOICE else "")
+            + f"Answer in the language the operator wrote in: English gets English, German gets German, "
+            f"and so on. If it is Arabic, use {BRIEF_LANG}.\n\n"
+            + ("\"say\" is what you say out loud: the same content as \"reply\", no more, in the same "
+               "language. How it must sound:\n" + _voice_rules(arabic_only=True) + "\n" if TTS_KEY and TTS_VOICE else "")
             + f"FLOOR (JSON): {json.dumps(floor, ensure_ascii=False)}\n\n"
             f"OPERATOR: {text}"
         )

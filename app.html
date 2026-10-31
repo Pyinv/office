@@ -951,6 +951,7 @@ document.querySelectorAll(".navlink").forEach(a=>{const h=a.getAttribute("href")
       const j=await r.json();
       if(j.ok){
         out.className="sec-reply ok"; inp.value="";
+        out.dir="auto";                                     // an Arabic answer reads right to left
         if(j.kind==="answer"){ out.innerHTML=mdHtml(j.reply); }   // the answer is markdown (mdHtml escapes first)
         else { out.textContent="✓ "+j.reply; }
         speak(j.audio);
