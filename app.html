@@ -514,7 +514,8 @@
   .brow b{font-weight:650;white-space:nowrap}
   .brow span{color:var(--dim)}
   .bfoot{display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding-top:.45rem;color:var(--faint);font-size:.82rem}
-  .bfoot button{background:none;border:1px solid var(--line);border-radius:8px;color:var(--ink);font:inherit;font-weight:600;padding:.25rem .65rem;cursor:pointer}
+  .bfoot button,.sec-reply>.bplay{background:none;border:1px solid var(--line);border-radius:8px;color:var(--ink);font:inherit;font-weight:600;padding:.25rem .65rem;cursor:pointer}
+  .sec-reply>.bplay{display:block;margin-top:.45rem;font-size:.82rem}
   .sec-reply{margin-top:.55rem;font-size:.9rem;min-height:1.1em}
   .sec-reply.ok{color:var(--rev)} .sec-reply.err{color:var(--wait)} .sec-reply.think{color:var(--faint)}
   @keyframes dispatch{0%,30%,72%,100%{box-shadow:0 0 0 0 transparent}
@@ -926,9 +927,24 @@ document.querySelectorAll(".navlink").forEach(a=>{const h=a.getAttribute("href")
     const el=document.querySelector(sel);
     if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.remove("dispatched"); void el.offsetWidth; el.classList.add("dispatched"); }
   };
+  // one player for everything she says; iOS only lets it make sound once a tap has started it
+  let AUD=null;
+  const SILENT="data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NwwAAAAAAAAAAAAEluZm8AAAAPAAAABAAAAlgAenp6enp6enp6enp6enp6enp6enp6enp6pqampqampqampqampqampqampqampqamptPT09PT09PT09PT09PT09PT09PT09PT09P/////////////////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCcQAAAAAAAAJY+/rsqgAAAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV";
+  const unlock=()=>{ try{ AUD=AUD||new Audio(); AUD.onplay=AUD.onpause=AUD.onended=AUD.onerror=null; AUD.src=SILENT; AUD.play().catch(()=>{}); }catch(_){} };
+  // her answer out loud (in her own language), with a ▶ to hear it again
+  const speak=(h)=>{
+    if(!h || !AUD) return;
+    const src="/api/brief.mp3?h="+encodeURIComponent(h), btn=document.createElement("button");
+    btn.type="button"; btn.className="bplay"; btn.textContent="▶ Play"; out.appendChild(btn);
+    const play=()=>{ try{ AUD.pause(); AUD.src=src; AUD.currentTime=0; AUD.play().catch(()=>{}); }catch(_){} };
+    btn.onclick=()=>{ if(!AUD.paused && AUD.src.endsWith(src)) AUD.pause(); else play(); };
+    AUD.onplay=()=>{ btn.textContent="❚❚ Pause"; }; AUD.onpause=AUD.onended=()=>{ btn.textContent="▶ Play"; };
+    play();
+  };
   f.addEventListener("submit", async e=>{
     e.preventDefault();
     const text=inp.value.trim(); if(!text) return;
+    unlock();
     out.className="sec-reply think"; out.textContent="…on it";
     try{
       const r=await fetch("/api/secretary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
@@ -937,6 +953,7 @@ document.querySelectorAll(".navlink").forEach(a=>{const h=a.getAttribute("href")
         out.className="sec-reply ok"; inp.value="";
         if(j.kind==="answer"){ out.innerHTML=mdHtml(j.reply); }   // the answer is markdown (mdHtml escapes first)
         else { out.textContent="✓ "+j.reply; }
+        speak(j.audio);
         if(typeof load==="function"){ try{ await load(); }catch(_){} }
         const fl=(j.kind==="answer")?((j.sessions&&j.sessions.length===1)?j.sessions[0]:null):j.session;
         if(fl) flashCard(fl);
@@ -944,7 +961,7 @@ document.querySelectorAll(".navlink").forEach(a=>{const h=a.getAttribute("href")
     }catch(err){ out.className="sec-reply err"; out.textContent="⚠ "+err.message; }
   });
   // 🔊 What's new: who waits on you and the replies you haven't read, put into words and spoken
-  const bb=document.getElementById("sec-brief"); let AUD=null, BTAP=0;
+  const bb=document.getElementById("sec-brief"); let BTAP=0;
   if(bb) bb.addEventListener("click", async ()=>{
     // iOS lets a page play sound only from a tap, so the player starts here with her greeting
     // ("let me see what the team's up to") and is handed the briefing once it is ready

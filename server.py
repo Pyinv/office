@@ -547,6 +547,17 @@ def _synth(h, out=None):
     finally:
         _SPEAKING[h].set()
 
+def _voice_rules():
+    """How everything she says out loud must sound: the briefing and her spoken answers share it."""
+    boss = {"man": "a man: masculine forms (عايز، تحب، حضرتك)",
+            "woman": "a woman: feminine forms (عايزة، تحبي، حضرتك)"}.get(OPERATOR_IS.lower(), "")
+    return ((f"- You talk to your boss, {boss}.\n" if boss else "")
+            + "- You report other people's work in the third person; never \"I did\" for what an agent did.\n"
+            "- Tech words the way developers say them out loud, in English letters (push, test, deploy), "
+            "never a literal translation of them.\n"
+            "- Plain sentences: no lists, markdown, emoji, URLs, paths or code; numbers as words.\n"
+            + (f"- Example of the voice (different news): \"{BRIEF_EXAMPLE}\"\n" if BRIEF_EXAMPLE else ""))
+
 def _opener():
     """Hash of the line she says as you tap, so there is a voice before the floor is read."""
     return _speak(_as_written(BRIEF_OPENER.replace("{name}", OPERATOR).strip("، ,"), OPERATOR), now=True) if BRIEF_OPENER else ""
@@ -1427,8 +1438,6 @@ class Handler(SimpleHTTPRequestHandler):
             if _BRIEF["key"] == key and _BRIEF["out"]:
                 return self._json(_BRIEF["out"])
             facts = [{k: v for k, v in i.items() if k != "session" and v} for i in items]
-            boss = {"man": "a man: masculine forms (عايز، تحب، حضرتك)",
-                    "woman": "a woman: feminine forms (عايزة، تحبي، حضرتك)"}.get(OPERATOR_IS.lower(), "")
             prompt = (
                 f"You are {SECRETARY}, the office manager of a one-person software studio whose team is AI "
                 f"coding agents. Your boss just tapped \"what's new?\" and you have already greeted them by "
@@ -1446,16 +1455,11 @@ class Handler(SimpleHTTPRequestHandler):
                 f"option numbers, model or tool names, commit ids, file names.\n"
                 f'  "text": the gist, spoken by you in {BRIEF_LANG}, at most about 70 words.\n\n'
                 f"How \"text\" must sound:\n"
-                + (f"- You talk to your boss, {boss}.\n" if boss else "")
-                + f"- You report other people's work in the third person; never \"I did\" for what an agent did.\n"
-                f"- Tech words the way developers say them out loud, in English letters (push, test, deploy), "
-                f"never a literal translation of them.\n"
-                f"- Say each agent's name. Keep the order. Never invent results the reply doesn't state. End "
+                + _voice_rules()
+                + f"- Say each agent's name. Keep the order. Never invent results the reply doesn't state. End "
                 f"with one short sentence on who is still working, if anyone (a count when many); if there is "
-                f"nothing at all, say so in one sentence. Plain sentences: no lists, markdown, emoji, URLs, "
-                f"paths or code; numbers as words.\n"
-                + (f"- Example of the voice (different news): \"{BRIEF_EXAMPLE}\"\n" if BRIEF_EXAMPLE else "")
-                + f"\nITEMS (JSON): {json.dumps(facts, ensure_ascii=False)}\n"
+                f"nothing at all, say so in one sentence.\n"
+                f"\nITEMS (JSON): {json.dumps(facts, ensure_ascii=False)}\n"
                 f"STILL WORKING: {json.dumps(working, ensure_ascii=False)}\n"
             )
             t0 = time.time()
@@ -1550,7 +1554,7 @@ class Handler(SimpleHTTPRequestHandler):
               else "Please " + instr[0].lower() + instr[1:]
         return self._sec_send(person, session, msg)
 
-    def _sec_send(self, person, session, msg, reply=""):
+    def _sec_send(self, person, session, msg, reply="", audio=""):
         # type the instruction into the agent's terminal and press Enter; always answers the request
         if cfg("OFFICE_DEMO"):
             _SEC_OVERLAY[session] = {"you": msg, "state": "working", "verb": "On it…", "ts": int(time.time())}
@@ -1571,7 +1575,7 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception:
                 self._json({"error": f"Couldn't reach {person}."}, 502); return True
         self._json({"ok": True, "kind": "dispatch", "person": person, "session": session,
-                    "message": msg, "reply": reply or f'Passed to {person} — "{msg}"'})
+                    "message": msg, "reply": reply or f'Passed to {person} — "{msg}"', "audio": audio})
         return True
 
     def _sec_ask_claude(self, text, snap, allow_send=True):
@@ -1595,10 +1599,10 @@ class Handler(SimpleHTTPRequestHandler):
             f"operator (asked a question or has an unsent draft — see needs_you); review = "
             f"finished, operator's move.\n\n"
             f"Decide what the operator wants and answer with ONE JSON object, nothing else:\n"
-            f'  {{"action":"reply","reply":"<1-3 short, warm, plain sentences>"}}\n'
+            f'  {{"action":"reply","reply":"<1-3 short, warm, plain sentences>","say":"<the same answer, spoken>"}}\n'
             + ('  {{"action":"send","to":"<agent name exactly as in the floor>","message":"<the instruction '
                'to type into that agent\'s terminal: imperative, complete, starts with Please>",'
-               '"reply":"<one short line telling the operator what you passed on>"}}\n' if allow_send else "")
+               '"reply":"<one short line telling the operator what you passed on>","say":"<that line, spoken>"}}\n' if allow_send else "")
             + f"Use send ONLY when the operator clearly wants an instruction delivered to one specific "
             f"agent (\"ask Lena to…\", \"tell Mara…\", \"Lena: …\", \"can you have Lena…\"). A question "
             f"about an agent, a status check, or anything ambiguous is a reply; if the agent is "
@@ -1607,7 +1611,9 @@ class Handler(SimpleHTTPRequestHandler):
             f"reply ONLY in the floor: states: working = coding now; waiting = needs the operator (see "
             f"needs_you); review = finished, operator's move. Light **bold** is fine, no bullet lists "
             f"unless asked, never em-dashes. Write the way a sharp person talks.\n\n"
-            f"FLOOR (JSON): {json.dumps(floor, ensure_ascii=False)}\n\n"
+            + (f"\"say\" is what you say out loud: the same content as \"reply\", no more, spoken in "
+               f"{BRIEF_LANG}. How it must sound:\n" + _voice_rules() + "\n" if TTS_KEY and TTS_VOICE else "")
+            + f"FLOOR (JSON): {json.dumps(floor, ensure_ascii=False)}\n\n"
             f"OPERATOR: {text}"
         )
         reply = _model(prompt)
@@ -1617,6 +1623,8 @@ class Handler(SimpleHTTPRequestHandler):
         if not isinstance(dec, dict):
             dec = {"action": "reply", "reply": reply}    # plain prose: treat it as the answer
         clean = lambda t: re.sub(r',\s*,', ',', re.sub(r'\s*—\s*', ', ', str(t or "")).replace('–', '-')).strip()
+        say = _as_written(str(dec.get("say") or "").strip(), OPERATOR)
+        audio = _speak(say) if say and dec.get("reply") else ""      # her answer out loud; a bare-prose fallback stays silent
         if dec.get("action") == "send" and allow_send:
             want = str(dec.get("to") or "").strip().lower()
             hit = [m for m in snap if want and (m.get("person") or "").strip().lower() in (want, want.split(" ")[0])
@@ -1625,7 +1633,7 @@ class Handler(SimpleHTTPRequestHandler):
             if len(hit) == 1 and msg:
                 if not re.match(r'(?i)^please\b', msg):
                     msg = "Please " + msg[0].lower() + msg[1:]
-                self._sec_send(hit[0].get("person") or want, hit[0]["session"], msg, clean(dec.get("reply")))
+                self._sec_send(hit[0].get("person") or want, hit[0]["session"], msg, clean(dec.get("reply")), audio)
                 return "dispatch"
             # no such agent, or more than one: say so instead of guessing
             names = ", ".join(sorted({(m.get("person") or "").split(" ")[0] for m in snap if m.get("person")}))
@@ -1636,7 +1644,7 @@ class Handler(SimpleHTTPRequestHandler):
         sess = [m["session"] for m in snap
                 if (m.get("person") or "").split(" ")[0]
                 and re.search(r'\b' + re.escape((m.get("person") or "").split(" ")[0].lower()) + r'\b', low)][:6]
-        self._json({"ok": True, "kind": "answer", "reply": answer, "sessions": sess})
+        self._json({"ok": True, "kind": "answer", "reply": answer, "sessions": sess, "audio": audio})
         return "answer"
 
     def _sec_answer(self, text, snap):
