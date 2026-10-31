@@ -1651,7 +1651,7 @@ function openTerm(session, who, title){
   f.src=`/terminal/#arg=${encodeURIComponent(session)}`;   // same-origin ttyd; one address for every agent, so its page is cached once
   f.addEventListener("load", ()=>{ for(const fn of [termFont, injectReconnect, injectAutoCopy, injectFileDrops, injectTouchScroll, injectLinks]){ try{ fn(f); }catch(_){} } });   // smaller type on the phone, select-to-copy, swipe-to-scroll, clickable links
   box.appendChild(f);
-  document.getElementById("mtitle").textContent=who+"  ·  "+session;
+  const mt=document.getElementById("mtitle"); mt.textContent=title||who; mt.title=session;   // the same name as the browser tab
   document.getElementById("say").placeholder="Message "+who+"…";
   document.title=title||who;                       // name the tab after the session so several open tabs stay tellable apart
   document.getElementById("modal").classList.add("open");
