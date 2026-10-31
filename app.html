@@ -929,11 +929,17 @@ document.querySelectorAll(".navlink").forEach(a=>{const h=a.getAttribute("href")
   };
   // one player for everything she says; iOS only lets it make sound once a tap has started it
   let AUD=null;
-  const SILENT="data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NwwAAAAAAAAAAAAEluZm8AAAAPAAAABAAAAlgAenp6enp6enp6enp6enp6enp6enp6enp6pqampqampqampqampqampqampqampqamptPT09PT09PT09PT09PT09PT09PT09PT09P/////////////////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCcQAAAAAAAAJY+/rsqgAAAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV";
-  const unlock=()=>{ try{ AUD=AUD||new Audio(); AUD.onplay=AUD.onpause=AUD.onended=AUD.onerror=null; AUD.src=SILENT; AUD.play().catch(()=>{}); }catch(_){} };
-  // her answer out loud (in her own language), with a ▶ to hear it again
+  // on the tap she says "one moment" (a fixed line, ready at once), which also unlocks the player;
+  // the answer follows when that line is over
+  let ATAP=0, held=null, said=false;
+  const unlock=()=>{ const tap=++ATAP; said=false; held=null;
+    const done=()=>{ if(tap!==ATAP||said) return; said=true; if(held){ const go=held; held=null; go(); } };
+    try{ AUD=AUD||new Audio(); AUD.onplay=AUD.onpause=null; AUD.onended=AUD.onerror=done;
+         AUD.src="/api/brief.mp3?h=wait"; AUD.play().catch(done); }catch(_){ done(); } };
+  // her answer out loud, in the language you asked in, with a ▶ to hear it again
   const speak=(h)=>{
     if(!h || !AUD) return;
+    if(!said){ held=()=>speak(h); return; }
     const src="/api/brief.mp3?h="+encodeURIComponent(h), btn=document.createElement("button");
     btn.type="button"; btn.className="bplay"; btn.textContent="▶ Play"; out.appendChild(btn);
     const play=()=>{ try{ AUD.pause(); AUD.src=src; AUD.currentTime=0; AUD.play().catch(()=>{}); }catch(_){} };

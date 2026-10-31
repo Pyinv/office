@@ -95,6 +95,7 @@ source of truth for identity — there is no roster file.
 | `OFFICE_TTS_MODEL` | `eleven_multilingual_v2` | ElevenLabs model |
 | `OFFICE_BRIEF_LANGUAGE` | Egyptian Arabic | Language of the spoken briefing (the rows on screen stay English) |
 | `OFFICE_BRIEF_OPENER` | Egyptian "let me see what the team is up to" | Said the moment you tap, while she reads the floor; `{name}` is your name, empty turns it off |
+| `OFFICE_ASK_OPENER` | Egyptian "one moment" | Said the moment you ask her something, while she works on the answer; `{name}` is your name, empty turns it off |
 | `OFFICE_OPERATOR_NAME` | *(none)* | What she calls you when she speaks, title included; vowel marks (e.g. Arabic tashkeel) steer how the voice says it and are kept |
 | `OFFICE_OPERATOR_GENDER` | *(none)* | `man` or `woman`: the forms she speaks to you in |
 | `OFFICE_BRIEF_MODEL` | `sonnet` | Model that words the briefing (kept open, no thinking) |

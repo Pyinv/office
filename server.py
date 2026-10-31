@@ -69,7 +69,7 @@ CLAUDE_BIN = cfg("OFFICE_CLAUDE_BIN", shutil.which("claude") or os.path.join(HOM
 STATUS_URL = cfg("OFFICE_STATUS_URL", "/status/")   # header "Usage & limits" link; "" hides it
 FILES_URL  = cfg("OFFICE_FILES_URL", "")            # header "Files" link (e.g. a dufs mount); "" hides it
 SECRETARY  = cfg("OFFICE_SECRETARY_NAME", "Secretary")   # the dispatcher's display name
-SEC_MODEL  = cfg("OFFICE_SECRETARY_MODEL", "claude-haiku-4-5-20251001")  # model the secretary reasons with
+SEC_MODEL  = cfg("OFFICE_SECRETARY_MODEL", "sonnet")  # model the secretary answers you with (Haiku got facts wrong)
 
 # ttyd listens on a private UNIX SOCKET (not a TCP port) and is reached only via the
 # /terminal reverse proxy below. A browser cannot open a websocket to a unix socket,
@@ -380,13 +380,12 @@ def _model(prompt, timeout=45, think=True, model=None):
         return ""
 
 class _Warm:
-    """The briefing's model kept open (stream-json over stdin/stdout), so a briefing doesn't wait ~10 s for
+    """A model kept open (stream-json over stdin/stdout), so a briefing doesn't wait ~10 s for
     Claude Code to start: it answers in a second or two. Each question lands in the same
     conversation, so it is replaced with a fresh one every few answers; anything odd (dead, slow,
-    no answer) kills it and the caller falls back to a one-off _model. It words, doesn't think."""
-    TURNS = 5
-
-    def __init__(self):
+    no answer) kills it and the caller falls back to a one-off _model. No thinking unless think=True."""
+    def __init__(self, model, think=False, turns=5):
+        self.model, self.think, self.TURNS = model, think, turns
         self.p, self.q, self.n = None, None, 0
         self.lock = threading.Lock()
 
@@ -395,7 +394,7 @@ class _Warm:
         os.makedirs(SEC_CWD, exist_ok=True)
         self.p = subprocess.Popen([CLAUDE_BIN, "-p", "--input-format", "stream-json", "--output-format",
                                    "stream-json", "--verbose", "--strict-mcp-config", "--tools", "",
-                                   "--model", BRIEF_MODEL], cwd=SEC_CWD, env=_FAST, text=True, bufsize=1,
+                                   "--model", self.model], cwd=SEC_CWD, env=None if self.think else _FAST, text=True, bufsize=1,
                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         self.q, self.n = queue.Queue(), 0
         def read(p=self.p, q=self.q):
@@ -450,7 +449,6 @@ class _Warm:
             self._stop()
             return ""
 
-_WARM = _Warm()
 
 def _json_in(reply):
     """The first JSON object in a model's answer (it may wrap it in a code fence), or None."""
@@ -478,6 +476,12 @@ OPERATOR_IS = cfg("OFFICE_OPERATOR_GENDER", "")   # "man" / "woman": which forms
 # Haiku got the facts and the dialect wrong in tests (pull for push, "I" for the agent, a word
 # that means "remembers" for "thinks"); Sonnet got them right, kept open it answers in a few seconds
 BRIEF_MODEL = cfg("OFFICE_BRIEF_MODEL", "sonnet")
+_WARM = _Warm(BRIEF_MODEL)                  # words the briefing
+# answers what you ask her, thinking first since it decides when to type into an agent (kept open,
+# it answered in 2-3.5 s either way); the floor is big, so it starts fresh every three questions
+_ASK = _Warm(SEC_MODEL, think=True, turns=3)
+# said the moment you send her a question, while she works on the answer; {name} is OFFICE_OPERATOR_NAME
+ASK_OPENER = cfg("OFFICE_ASK_OPENER", "ثانية واحدة {name}")
 # said the moment you tap, while she reads the floor; {name} is OFFICE_OPERATOR_NAME
 BRIEF_OPENER = cfg("OFFICE_BRIEF_OPENER", "{name}، خليني أشوف أخبار الشباب إيه في مكتب حضرتك.")
 BRIEF_DIR = os.path.join(ROOT, "briefs")
@@ -560,9 +564,11 @@ def _voice_rules(arabic_only=False):
             "- Plain sentences: no lists, markdown, emoji, URLs, paths or code; numbers as words.\n"
             + (f"- {ar}example of the voice (different news): \"{BRIEF_EXAMPLE}\"\n" if BRIEF_EXAMPLE else ""))
 
-def _opener():
-    """Hash of the line she says as you tap, so there is a voice before the floor is read."""
-    return _speak(_as_written(BRIEF_OPENER.replace("{name}", OPERATOR).strip("، ,"), OPERATOR), now=True) if BRIEF_OPENER else ""
+def _opener(line=None):
+    """Hash of a line she says the moment you tap (the briefing's greeting by default), so there
+    is a voice before any model has answered."""
+    line = BRIEF_OPENER if line is None else line
+    return _speak(_as_written(line.replace("{name}", OPERATOR).strip("، ,"), OPERATOR), now=True) if line else ""
 
 def brief_items(snap):
     """The briefing's items in order: whoever waits on you, then finished replies you haven't
@@ -1031,7 +1037,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json({"history": gone})
         if self.path.split("?")[0] == "/api/brief.mp3":
             h = (parse_qs(urlparse(self.path).query).get("h") or [""])[0]
-            if h == "hello": h = _opener()       # the greeting, a fixed address the page can play on the tap
+            # her fixed lines, at fixed addresses the page can play on the tap: the greeting and "one moment"
+            if h in ("hello", "wait"): h = _opener() if h == "hello" else _opener(ASK_OPENER)
             if not re.fullmatch(r"[0-9a-f]{24}", h):
                 return self._json({"error": "not found"}, 404)
             if h in _PENDING and _claim(h):       # first to ask: play it as ElevenLabs makes it
@@ -1620,7 +1627,11 @@ class Handler(SimpleHTTPRequestHandler):
             + f"FLOOR (JSON): {json.dumps(floor, ensure_ascii=False)}\n\n"
             f"OPERATOR: {text}"
         )
-        reply = _model(prompt)
+        t0 = time.time()
+        reply, by = _ASK.ask(prompt, timeout=40), "warm"
+        if not reply:
+            reply, by = _model(prompt, think=_ASK.think), "one-off"
+        print(f"ask: answered in {time.time() - t0:.1f}s ({by})", file=sys.stderr, flush=True)
         if not reply:
             return None                                  # model unavailable -> the caller falls back
         dec = _json_in(reply)
@@ -2298,7 +2309,9 @@ def main():
     httpd = ThreadingHTTPServer((ip, PORT), Handler)
     threading.Thread(target=_drop_ticker, daemon=True).start()
     _opener()                               # have the greeting ready before the first tap
-    threading.Thread(target=_WARM.warm, daemon=True).start()   # and her model already running
+    _opener(ASK_OPENER)
+    threading.Thread(target=_WARM.warm, daemon=True).start()   # and her models already running
+    threading.Thread(target=_ASK.warm, daemon=True).start()
     sys.stderr.write(f"office/server: http://{ip}:{PORT}/  ({name or 'office'}:{PORT})\n")
     httpd.serve_forever()
 
