@@ -88,6 +88,7 @@ source of truth for identity — there is no roster file.
 | `OFFICE_CLAUDE_BIN` | `$(which claude)` | Path to the `claude` binary |
 | `OFFICE_PORT` | `8899` | Port for the web server |
 | `OFFICE_STATUS_URL` | `/status/` | Header "Usage &amp; limits" link; empty hides it |
+| `OFFICE_SWITCH_BIN` | `claude-switch` on `PATH` | An account switcher (`<bin> json` lists the saved accounts with their usage, `<bin> --yes <email>` moves the login, exit 3 when it needs a browser sign-in). When it is there, the header shows the account every agent uses with its fullest limit, and a tap opens every account's usage and a switch, in place of the Usage link |
 | `OFFICE_FILES_URL` | *(off)* | Header "Files" link, e.g. a `/dufs/` mount; empty hides it |
 | `OFFICE_SECRETARY_NAME` | `Secretary` | Display name for the dispatcher panel |
 | `OFFICE_ELEVENLABS_KEY` | *(off)* | ElevenLabs API key: the secretary reads *What's new* aloud |

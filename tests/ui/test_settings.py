@@ -107,7 +107,7 @@ class DesktopDefaults(BrowserCase):
     def test_desktop_font_default_and_row_order(self):
         self.open_floor()
         self.assertEqual(self.js("termFontSize()"), 14)
-        self.assertEqual(self.js("[...document.querySelectorAll('.titlerow > button')].map(b=>b.id).join(' ')"),
+        self.assertEqual(self.js("[...document.querySelectorAll('.titlerow > button:not(.navlink)')].map(b=>b.id).join(' ')"),
                          "restartbtn bell settingsbtn")
         self.assertEqual(self.js("document.getElementById('restartbtn').textContent"), "⟳ Update 1 agent")
         # the update lives behind the gear on the laptop too: the button hides, the gear lights up

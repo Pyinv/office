@@ -71,6 +71,29 @@
   .navlink{color:var(--dim);text-decoration:none;font-size:.8rem;font-weight:500;
     border:1px solid var(--line);border-radius:999px;padding:.2rem .6rem;white-space:nowrap}
   .navlink:hover{border-color:var(--faint);color:var(--ink)}
+  /* the Claude account every agent shares: a pill with its fullest limit; its dialog switches */
+  .navlink.acct{background:none;font-family:inherit;cursor:pointer;line-height:inherit}
+  .navlink.acct .pc{color:var(--faint);margin-left:.15rem}
+  .navlink.acct.hot .pc{color:var(--wait);font-weight:600}
+  .acctdlg .ac-sub{margin:-.25rem 0 .5rem;font-size:.78rem;color:var(--faint)}
+  .acctdlg .acc{padding:.75rem 0;border-top:1px solid var(--line)}
+  .acctdlg .acc .top{display:flex;align-items:center;gap:.6rem}
+  .acctdlg .acc .nm{flex:1;min-width:0}
+  .acctdlg .acc .nm b{font:650 1rem var(--disp)}
+  .acctdlg .acc .em{display:block;font-size:.74rem;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .acctdlg .acc .tag{font-size:.74rem;font-weight:600;color:var(--ink);background:var(--panel2);border-radius:999px;padding:.25rem .6rem;white-space:nowrap}
+  .acctdlg .acc button{flex:0 0 auto;min-height:2.5rem;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;
+    font:inherit;font-size:.82rem;font-weight:600;padding:.3rem .8rem;cursor:pointer;white-space:nowrap}
+  .acctdlg .acc button.sure{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+  .acctdlg .acc button:disabled{opacity:.5;cursor:default}
+  .acctdlg .lims{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.3rem .6rem;align-items:center;margin-top:.55rem;font-size:.76rem}
+  .acctdlg .lims .ln{color:var(--dim)}
+  .acctdlg .bar{height:6px;border-radius:3px;background:var(--panel2);overflow:hidden}
+  .acctdlg .bar i{display:block;height:100%;background:var(--ink);border-radius:3px}
+  .acctdlg .bar.hot i{background:var(--wait)}
+  .acctdlg .lims .w{color:var(--faint);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .acctdlg .anote{font-size:.74rem;color:var(--faint);margin-top:.4rem}
+  .acctdlg .ac-full{text-align:center;font-size:.82rem;color:var(--dim);text-decoration:none;padding:.4rem}
   .sub{color:var(--faint);font-size:.8rem;margin-left:auto;display:inline-flex;align-items:center;gap:.4rem}
   .bell{background:var(--panel);border:1px solid var(--line);border-radius:999px;font-size:.95rem;cursor:pointer;color:var(--ink);
     padding:.18rem .5rem;line-height:1.2;opacity:.55;transition:opacity .15s,border-color .15s,background .15s}
@@ -697,7 +720,8 @@
 <header><div class="hin">
   <div class="titlerow">
     <h1><span class="logo" id="logo" title="back to the top" role="button" tabindex="0" aria-label="back to the top"><i></i><i></i><i></i><i></i></span> {{OFFICE_TITLE}}</h1>
-    <a class="navlink" href="{{OFFICE_STATUS_URL}}">📊 <span class="lng">Usage &amp; limits</span><span class="shr">Usage</span> →</a>
+    <button type="button" class="navlink acct" id="acctbtn" style="display:none"></button>
+    <a class="navlink" id="usagelink" href="{{OFFICE_STATUS_URL}}">📊 <span class="lng">Usage &amp; limits</span><span class="shr">Usage</span> →</a>
     <a class="navlink" href="{{OFFICE_FILES_URL}}">📁 Files →</a>
     <div class="sub" id="sub">loading…</div>
     <button class="bell restart" id="restartbtn" hidden></button>
@@ -810,6 +834,12 @@
     <div class="srow"><label for="st-notify" style="display:block;cursor:pointer"><span class="sl">Notifications</span><span class="ss" id="st-notify-s">Ping me when an agent needs me</span></label><input type="checkbox" id="st-notify"></div>
   </div>
   <div class="lk-btns"><button type="button" onclick="this.closest('dialog').close()">Done</button></div>
+</dialog>
+<dialog class="newdlg linkdlg settingsdlg acctdlg" id="acctdlg" aria-labelledby="ac-title">
+  <h2 id="ac-title" tabindex="-1" autofocus>Claude account</h2>
+  <div class="ac-sub">Every agent uses this login. Switching moves them all.</div>
+  <div id="ac-list"></div>
+  <div class="lk-btns"><a class="ac-full" href="{{OFFICE_STATUS_URL}}">Full usage dashboard →</a><button type="button" onclick="this.closest('dialog').close()">Done</button></div>
 </dialog>
 <dialog class="viewdlg" id="viewdlg">
   <div class="vbar"><span id="vw-name"></span><button type="button" id="vw-x">✕</button></div>
@@ -926,7 +956,7 @@ const EMOJI = Object.assign(
 );
 function emojiFor(p){ p=(p||"").toLowerCase(); for(const k in EMOJI) if(p.includes(k)) return EMOJI[k]; return "👤"; }
 // drop header links whose URL isn't configured (OFFICE_STATUS_URL / OFFICE_FILES_URL empty)
-document.querySelectorAll(".navlink").forEach(a=>{const h=a.getAttribute("href"); if(!h||h.startsWith("{{")) a.remove();});
+document.querySelectorAll("a.navlink, a.ac-full").forEach(a=>{const h=a.getAttribute("href"); if(!h||h.startsWith("{{")) a.remove();});
 // --- Secretary: dispatch plain-language instructions to the team ---
 (function(){
   const f=document.getElementById("sec-form"), inp=document.getElementById("sec-in"), out=document.getElementById("sec-reply");
@@ -2006,6 +2036,65 @@ async function sendKey(key){
   btn.addEventListener("click", openSettings);
   dlg.addEventListener("click", e=>{ if(e.target!==dlg) return; const r=dlg.getBoundingClientRect();   // the backdrop (outside the box) closes it
     if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) dlg.close(); });
+})();
+// ── the Claude account every agent shares (claude-switch on the server): the header pill shows who and
+//    the fullest limit; its dialog shows every saved account's usage and switches with two taps
+(function(){
+  const btn=document.getElementById("acctbtn"), dlg=document.getElementById("acctdlg"), list=document.getElementById("ac-list");
+  let DATA=null, SURE="", BUSY="";
+  const nameOf=a=>a.label||a.email.split("@")[0];
+  const fullest=a=>Math.max(0,...(a.limits||[]).map(l=>+l.percent||0));
+  const LIM={session:"5h", week:"Week"};
+  const clock=t=>t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
+  const resets=iso=>{ if(!iso) return ""; const t=new Date(iso), s=(t-Date.now())/1000;
+    return s<0 ? "" : s<86400 ? clock(t) : t.toLocaleDateString([],{weekday:"short"})+" "+clock(t); };
+  function paintBtn(){
+    const cur=DATA && (DATA.accounts||[]).find(a=>a.current), usage=document.getElementById("usagelink");
+    btn.style.display=cur?"":"none"; if(usage) usage.style.display=cur?"none":"";   // the dialog links to the full dashboard
+    if(!cur) return;
+    const n=fullest(cur);
+    btn.innerHTML=`👤 ${esc(nameOf(cur))}<span class="pc">${n}%</span>`;
+    btn.classList.toggle("hot", n>=80);
+    btn.title=cur.email+": every agent uses this account. Tap to see usage or switch";
+  }
+  function paintList(){
+    const agents=LAST.filter(m=>!m.ghost).length;
+    list.innerHTML=(DATA&&DATA.accounts||[]).map(a=>{
+      const lims=(a.limits||[]).map(l=>{ const p=Math.max(0,Math.min(100,+l.percent||0)), r=resets(l.resets_at);
+        return `<span class="ln">${esc(LIM[l.label]||l.label)}</span><span class="bar${p>=80?" hot":""}"><i style="width:${p}%"></i></span>`
+          +`<span class="w">${p}%${r?" · "+esc(r):""}</span>`; }).join("");
+      const act=a.current ? `<span class="tag">Logged in</span>`
+        : a.state==="login" ? ""
+        : `<button type="button" data-email="${esc(a.email)}"${SURE===a.email?' class="sure"':""}${BUSY?" disabled":""}>`
+          +(BUSY===a.email?"Switching…":SURE===a.email?`Move ${agents?"all "+agents+" agents":"everyone"} here`:"Switch")+`</button>`;
+      const note=a.state==="login" ? a.note+": run claude-switch in a terminal"
+        : a.note || (!a.live && a.fetched_at ? "numbers from "+agoText(a.fetched_at)+" ago" : "");
+      return `<div class="acc"><div class="top"><div class="nm"><b>${esc(nameOf(a))}</b><span class="em">${esc(a.email)}</span></div>${act}</div>`
+        +(lims?`<div class="lims">${lims}</div>`:"")+(note?`<div class="anote">${esc(note)}</div>`:"")+`</div>`;
+    }).join("") || `<div class="anote">${esc((DATA&&DATA.error)||"Loading…")}</div>`;
+  }
+  async function load(fresh){
+    try{ const r=await fetch("/api/accounts"+(fresh?"?fresh=1":"")); DATA=await r.json(); }catch(_){ return; }
+    if(DATA.available===false) DATA=null;
+    paintBtn(); if(dlg.open) paintList();
+  }
+  btn.addEventListener("click", ()=>{ SURE=""; paintList(); dlg.showModal(); load(true); });
+  list.addEventListener("click", async e=>{
+    const b=e.target.closest("button[data-email]"); if(!b || BUSY) return;
+    const em=b.dataset.email, a=DATA.accounts.find(x=>x.email===em);
+    if(SURE!==em){ SURE=em; paintList(); return; }          // the first tap asks, the second moves every agent
+    BUSY=em; SURE=""; paintList();
+    try{
+      const r=await fetch("/api/account",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:em})});
+      const j=await r.json().catch(()=>({}));
+      if(r.ok && j.ok) toast("Every agent now uses "+nameOf(a)); else toast("⚠ "+(j.error||"the switch failed"), true);
+    }catch(err){ toast("⚠ "+err.message, true); }
+    BUSY=""; await load(true);
+  });
+  dlg.addEventListener("click", e=>{ if(e.target!==dlg) return; const r=dlg.getBoundingClientRect();   // the backdrop closes it
+    if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) dlg.close(); });
+  load(false);
+  setInterval(()=>{ if(!document.hidden && !BUSY) load(false); }, 120000);
 })();
 // ⌘K / Ctrl-K: bring the secretary panel into view from anywhere. It sits at the top, so
 // scroll up to it; if the terminal is open, close it first so you land straight on it.

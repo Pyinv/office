@@ -68,6 +68,7 @@ SEC_CWD    = os.path.join(tempfile.gettempdir(), "office-secretary")   # secreta
 CLAUDE_BIN = cfg("OFFICE_CLAUDE_BIN", shutil.which("claude") or os.path.join(HOME, ".local", "bin", "claude"))
 STATUS_URL = cfg("OFFICE_STATUS_URL", "/status/")   # header "Usage & limits" link; "" hides it
 FILES_URL  = cfg("OFFICE_FILES_URL", "")            # header "Files" link (e.g. a dufs mount); "" hides it
+SWITCH_BIN = cfg("OFFICE_SWITCH_BIN", shutil.which("claude-switch") or os.path.join(HOME, ".local", "bin", "claude-switch"))
 SECRETARY  = cfg("OFFICE_SECRETARY_NAME", "Secretary")   # the dispatcher's display name
 SEC_MODEL  = cfg("OFFICE_SECRETARY_MODEL", "sonnet")  # model the secretary answers you with (Haiku got facts wrong)
 
@@ -475,6 +476,46 @@ BRIEF_EXAMPLE = cfg("OFFICE_BRIEF_EXAMPLE", "أحمد خلّص صفحة الدف
 OPERATOR_IS = cfg("OFFICE_OPERATOR_GENDER", "")   # "man" / "woman": which forms she speaks to you in
 # Haiku got the facts and the dialect wrong in tests (pull for push, "I" for the agent, a word
 # that means "remembers" for "thinks"); Sonnet got them right, kept open it answers in a few seconds
+# ── the Claude login every agent shares: who it is, each saved account's plan usage, and a switch.
+#    claude-switch does the work (its saved logins, its usage fetch); the Office only asks it.
+_ACCTS = {"at": 0.0, "data": None}
+_ACCTS_LOCK = threading.Lock()
+
+
+def accounts(fresh=False):
+    """`claude-switch json`, kept a minute; None when the script isn't installed."""
+    if not os.access(SWITCH_BIN, os.X_OK):
+        return None
+    with _ACCTS_LOCK:
+        if fresh or not _ACCTS["data"] or time.time() - _ACCTS["at"] > 60:
+            try:
+                out = subprocess.run([SWITCH_BIN, "json"], capture_output=True, text=True, timeout=60,
+                                     stdin=subprocess.DEVNULL).stdout
+                _ACCTS.update(data=json.loads(out.strip().splitlines()[-1]), at=time.time())
+            except Exception:
+                if not _ACCTS["data"]:
+                    return {"error": "couldn't read the accounts"}
+        return _ACCTS["data"]
+
+
+def switch_account(email):
+    """Move every agent to a saved account: (http code, answer). A login that needs the browser is left to a terminal."""
+    if email not in [a.get("email") for a in (accounts() or {}).get("accounts", [])]:
+        return 400, {"error": "not a saved account"}
+    with _ACCTS_LOCK:
+        try:
+            r = subprocess.run([SWITCH_BIN, "--yes", email], capture_output=True, text=True, timeout=180,
+                               stdin=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            return 504, {"error": "the switch took too long"}
+        finally:
+            _ACCTS["at"] = 0.0
+    said = [l.strip() for l in r.stdout.splitlines() if l.strip()]
+    if r.returncode == 0:
+        return 200, {"ok": True}
+    return (409 if r.returncode == 3 else 500), {"error": (said[-1] if said else "the switch failed"), "login": r.returncode == 3}
+
+
 BRIEF_MODEL = cfg("OFFICE_BRIEF_MODEL", "sonnet")
 _WARM = _Warm(BRIEF_MODEL)                  # words the briefing
 # answers what you ask her, thinking first since it decides when to type into an agent (kept open,
@@ -1024,6 +1065,9 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json({"dirs": dirs})
         if self.path.split("?")[0] == "/api/drop":
             return self._drop_list()
+        if self.path.split("?")[0] == "/api/accounts":
+            fresh = (parse_qs(urlparse(self.path).query).get("fresh") or [""])[0] == "1"
+            return self._json((None if cfg("OFFICE_DEMO") else accounts(fresh)) or {"available": False})
         if self.path.split("?")[0] == "/api/restart":
             if cfg("OFFICE_DEMO"):
                 return self._json({"restore": [], "update": [], "skip": [], "job": dict(_JOB)})
@@ -1125,6 +1169,9 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/task":  return self._task(data)
         if path == "/api/secretary": return self._secretary(data)
         if path == "/api/brief": return self._brief(data)
+        if path == "/api/account":
+            code, answer = switch_account(str((data or {}).get("email") or "")) if isinstance(data, dict) else (400, {"error": "bad json"})
+            return self._json(answer, code)
         if path == "/api/key":   return self._key(data)
         if path == "/api/paste": return self._paste(data)
         if path == "/api/menu":  return self._menu(data)

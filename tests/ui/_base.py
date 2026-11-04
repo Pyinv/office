@@ -63,6 +63,9 @@ class BrowserCase(unittest.TestCase):
         self.page.on("pageerror", lambda e: self.errors.append(str(e)))
         if self.plan is not None:
             self.stub_plan(self.plan, self.plan_status)
+        # a switch would move every live agent to another login: no test ever reaches the server with one
+        self.page.route("**/api/account", lambda r: r.fulfill(status=403, content_type="application/json",
+                                                             body='{"error":"tests never switch accounts"}'))
 
     def tearDown(self):
         self.ctx.close()
