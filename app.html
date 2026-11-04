@@ -1929,7 +1929,7 @@ async function sendKey(key){
     btn.textContent=running ? "⟳ restarting…" : n ? `⟳ Restore ${n} agent${n===1?"":"s"}` : u ? `⟳ Update ${u} agent${u===1?"":"s"}` : `⟳ ${s} waiting`;
     btn.title=n ? "the agents that were running before the restart — bring them all back" : "a new Claude Code is installed — restart the idle agents into it";
     // the banner: only for agents missing since a reboot — the one state that should interrupt
-    if(bar){ bar.classList.toggle("show", n>0 && !running); barT.textContent=`The Tower restarted — ${n} agent${n===1?"":"s"} to bring back`; }
+    if(bar){ bar.classList.toggle("show", n>0 && !running); barT.textContent=`The machine restarted — ${n} agent${n===1?"":"s"} to bring back`; }
     if(dlg.open && running) showLog();
     if(window.paintAgentsRow) paintAgentsRow();
   }
@@ -1941,7 +1941,7 @@ async function sendKey(key){
       if(!PLAN) return {k:"loading", l:"Checking agents…", s:""};
       const n=PLAN.restore.length, u=PLAN.update.length, j=PLAN.job||{};
       if(j.running){ const log=j.log||[], done=log.filter(t=>/^[✓✗–]/.test(t)).length, total=done+1; return {k:"running", l:`Restarting ${Math.min(done+1,total)} of ${done+(n||u||1)}…`, s:"one agent at a time; tap for the log"}; }
-      if(n) return {k:"pending", l:`Restore ${n} agent${n===1?"":"s"} →`, s:"they were running before the Tower restarted"};
+      if(n) return {k:"pending", l:`Restore ${n} agent${n===1?"":"s"} →`, s:"they were running before the machine restarted"};
       if(u) return {k:"pending", l:`Update ${u} agent${u===1?"":"s"} →`, s:"a new Claude Code is installed"};
       const log=j.log||[], bad=log.filter(t=>t.startsWith("✗")).length, ok=log.filter(t=>t.startsWith("✓")).length;
       if(j.done && bad) return {k:"partial", l:`${ok} back · ${bad} need you →`, s:"tap for the log"};
@@ -1954,7 +1954,7 @@ async function sendKey(key){
   function showPlan(){
     body.innerHTML=""; const n=PLAN.restore.length, u=PLAN.update.length;
     title.textContent=n ? "Bring the agents back" : "Update the agents";
-    sub.textContent=n ? "These were running before the Tower restarted. Each comes back on its own conversation."
+    sub.textContent=n ? "These were running before the machine restarted. Each comes back on its own conversation."
                       : "A new Claude Code is installed. Each idle agent is quit and started again on the same conversation, same permission mode; an unsent draft is typed back in. Busy agents are left alone.";
     if(n){ body.appendChild(head(`Restore (${n})`)); const l=document.createElement("div"); l.className="rlist"; PLAN.restore.forEach(x=>l.appendChild(row(x.session))); body.appendChild(l); }
     if(u){ body.appendChild(head(`Restart (${u})`)); const l=document.createElement("div"); l.className="rlist"; PLAN.update.forEach(x=>l.appendChild(row(who(x)+(x.mode?`  ·  ${x.mode}`:"")+(x.draft?"  ·  draft kept":"")))); body.appendChild(l); }

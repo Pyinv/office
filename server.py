@@ -9,13 +9,13 @@ Serves:
 
 Binds to the Tailscale IP ONLY. Refuses to start without one, so the reply
 endpoint (which can type into live Claude sessions) is never exposed to the LAN
-or the internet — same trust boundary as sitting at the tower.
+or the internet — same trust boundary as sitting at the machine.
 """
 import glob, json, subprocess, sys, os, time, importlib, signal, socket, threading, shutil, re, tempfile, shlex, gzip, hashlib
 from urllib.parse import urlparse, parse_qs, unquote
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-__version__ = "0.0.2"
+__version__ = "0.1.0"
 
 
 def _build_id():

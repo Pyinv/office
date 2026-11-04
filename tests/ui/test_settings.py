@@ -173,7 +173,7 @@ class AgentsRow(BrowserCase):
     def test_restore_pending_shows_banner_and_row_first(self):
         self.stub_plan(PLAN_RESTORE); self.open_floor()
         self.assertTrue(self.js("document.getElementById('restorebar').classList.contains('show')"))
-        self.assertEqual(self.js("document.getElementById('rb-t').textContent"), "The Tower restarted — 2 agents to bring back")
+        self.assertEqual(self.js("document.getElementById('rb-t').textContent"), "The machine restarted — 2 agents to bring back")
         self.assertTrue(self.js("document.getElementById('settingsbtn').classList.contains('pending')"))
         self.open_settings()
         self.assertEqual(self.row(), ("Restore 2 agents →", True))

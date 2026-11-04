@@ -24,7 +24,7 @@ IPHONE = dict(viewport={"width": 390, "height": 844}, device_scale_factor=3, is_
                          "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
 DESKTOP = dict(viewport={"width": 1300, "height": 900})
 
-# a restart plan the server would return — stubbed so the tests never depend on the live Tower
+# a restart plan the server would return — stubbed so the tests never depend on the live machine
 PLAN_EMPTY = {"restore": [], "update": [], "skip": [], "job": {"running": False}}
 PLAN_RESTORE = {"restore": [{"session": "a-b"}, {"session": "c-d"}], "update": [], "skip": [], "job": {"running": False}}
 PLAN_UPDATE = {"restore": [], "update": [{"session": "x-y", "person": "X", "mode": "auto"}], "skip": [], "job": {"running": False}}
