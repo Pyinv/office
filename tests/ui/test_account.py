@@ -1,6 +1,7 @@
 """The header's account pill and its switch dialog. /api/accounts is stubbed with made-up accounts and
 /api/account (the switch) is caught here, so the real login is never touched."""
 import json
+from datetime import datetime, timedelta, timezone
 
 from ._base import BrowserCase, IPHONE, skip_unless_browser
 
@@ -51,6 +52,19 @@ class AccountPill(BrowserCase):
         self.page.wait_for_timeout(300)
         self.assertEqual(self.switched, [{"email": "two@example.test"}])
 
+    def test_each_limit_says_when_it_resets_and_how_long_until(self):
+        in2h = (datetime.now(timezone.utc) + timedelta(hours=2, minutes=5)).isoformat()
+        soon = dict(ACCOUNTS, accounts=[dict(ACCOUNTS["accounts"][0], limits=[
+            {"label": "session", "percent": 4, "resets_at": None}, {"label": "week", "percent": 83, "resets_at": in2h}])])
+        self.page.unroute("**/api/accounts*")
+        self.page.route("**/api/accounts*", lambda r: r.fulfill(status=200, content_type="application/json",
+                                                                body=json.dumps(soon)))
+        self.open_floor()
+        self.page.click("#acctbtn")
+        self.page.wait_for_timeout(300)
+        lines = self.js("[...document.querySelectorAll('#ac-list .rs')].map(e=>e.textContent)")
+        self.assertEqual(len(lines), 1)                         # a limit with no reset time gets no line
+        self.assertRegex(lines[0], r"^resets (tomorrow )?\d\d:\d\d · in 2h [45]m$")
 
 @skip_unless_browser
 class PhoneAccountPill(AccountPill):

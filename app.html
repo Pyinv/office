@@ -91,7 +91,8 @@
   .acctdlg .bar{height:6px;border-radius:3px;background:var(--panel2);overflow:hidden}
   .acctdlg .bar i{display:block;height:100%;background:var(--ink);border-radius:3px}
   .acctdlg .bar.hot i{background:var(--wait)}
-  .acctdlg .lims .w{color:var(--faint);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .acctdlg .lims .w{color:var(--dim);white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
+  .acctdlg .lims .rs{grid-column:2/4;margin:-.15rem 0 .2rem;color:var(--dim);font-size:.72rem;font-variant-numeric:tabular-nums}
   .acctdlg .anote{font-size:.74rem;color:var(--faint);margin-top:.4rem}
   .acctdlg .ac-full{text-align:center;font-size:.82rem;color:var(--dim);text-decoration:none;padding:.4rem}
   .sub{color:var(--faint);font-size:.8rem;margin-left:auto;display:inline-flex;align-items:center;gap:.4rem}
@@ -2046,8 +2047,14 @@ async function sendKey(key){
   const fullest=a=>Math.max(0,...(a.limits||[]).map(l=>+l.percent||0));
   const LIM={session:"5h", week:"Week"};
   const clock=t=>t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
+  const until=s=>{ const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60);
+    return d ? d+"d "+h+"h" : h ? h+"h "+m+"m" : Math.max(1,m)+"m"; };
+  // when a limit resets, as claude-switch says it: "resets 17:00 · in 15h 31m" (a day name once it's past tomorrow)
   const resets=iso=>{ if(!iso) return ""; const t=new Date(iso), s=(t-Date.now())/1000;
-    return s<0 ? "" : s<86400 ? clock(t) : t.toLocaleDateString([],{weekday:"short"})+" "+clock(t); };
+    if(s<=0) return "reset since";
+    const day=new Date(); day.setHours(0,0,0,0); const dd=Math.floor((t-day)/86400000);
+    const when=dd===0 ? clock(t) : dd===1 ? "tomorrow "+clock(t) : t.toLocaleDateString([],{weekday:"short",day:"numeric",month:"short"})+" "+clock(t);
+    return "resets "+when+" · in "+until(s); };
   function paintBtn(){
     const cur=DATA && (DATA.accounts||[]).find(a=>a.current), usage=document.getElementById("usagelink");
     btn.style.display=cur?"":"none"; if(usage) usage.style.display=cur?"none":"";   // the dialog links to the full dashboard
@@ -2062,13 +2069,13 @@ async function sendKey(key){
     list.innerHTML=(DATA&&DATA.accounts||[]).map(a=>{
       const lims=(a.limits||[]).map(l=>{ const p=Math.max(0,Math.min(100,+l.percent||0)), r=resets(l.resets_at);
         return `<span class="ln">${esc(LIM[l.label]||l.label)}</span><span class="bar${p>=80?" hot":""}"><i style="width:${p}%"></i></span>`
-          +`<span class="w">${p}%${r?" · "+esc(r):""}</span>`; }).join("");
+          +`<span class="w">${p}%</span>`+(r?`<span class="rs">${esc(r)}</span>`:""); }).join("");
       const act=a.current ? `<span class="tag">Logged in</span>`
         : a.state==="login" ? ""
         : `<button type="button" data-email="${esc(a.email)}"${SURE===a.email?' class="sure"':""}${BUSY?" disabled":""}>`
           +(BUSY===a.email?"Switching…":SURE===a.email?`Move ${agents?"all "+agents+" agents":"everyone"} here`:"Switch")+`</button>`;
       const note=a.state==="login" ? a.note+": run claude-switch in a terminal"
-        : a.note || (!a.live && a.fetched_at ? "numbers from "+agoText(a.fetched_at)+" ago" : "");
+        : a.note || (!a.live && a.fetched_at && Date.now()/1000-a.fetched_at>300 ? "numbers from "+agoText(a.fetched_at)+" ago" : "");
       return `<div class="acc"><div class="top"><div class="nm"><b>${esc(nameOf(a))}</b><span class="em">${esc(a.email)}</span></div>${act}</div>`
         +(lims?`<div class="lims">${lims}</div>`:"")+(note?`<div class="anote">${esc(note)}</div>`:"")+`</div>`;
     }).join("") || `<div class="anote">${esc((DATA&&DATA.error)||"Loading…")}</div>`;
