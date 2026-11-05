@@ -34,3 +34,7 @@ inbox/
 ios/Office.xcodeproj/
 ios/Office/Assets.xcassets/
 ios/Office/Info.plist
+
+# phones registered for the app's notifications, and the APNs key
+devices.json
+*.p8

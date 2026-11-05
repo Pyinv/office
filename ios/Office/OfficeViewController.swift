@@ -33,7 +33,26 @@ final class OfficeViewController: UIViewController, WKNavigationDelegate, WKUIDe
             web.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             web.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
-        if let url = savedURL() { load(url) }
+        NotificationCenter.default.addObserver(forName: Push.openSession, object: nil, queue: .main) { [weak self] n in
+            if let s = n.object as? String { self?.open(session: s) }
+        }
+        if let url = savedURL() {
+            if let s = Push.pending { Push.pending = nil; load(url.appendingPathComponent(s)) }   // opened from a notification
+            else { load(url) }
+        }
+    }
+
+    /// a tapped notification: that agent's terminal. On a page that's up, the page opens it in place;
+    /// otherwise the Office opens straight at /<session>.
+    private func open(session: String) {
+        guard let base = savedURL() else { return }
+        Push.pending = nil
+        if presentedViewController != nil { dismiss(animated: false) }
+        let arg = (try? String(data: JSONSerialization.data(withJSONObject: [session]), encoding: .utf8)) ?? "[]"
+        let js = "(()=>{const s=\(arg)[0]; if(typeof openTermByName!=='function'||!LAST.length) return false; openTermByName(s); return true;})()"
+        web.evaluateJavaScript(js) { [weak self] r, _ in
+            if (r as? Bool) != true { self?.load(base.appendingPathComponent(session)) }
+        }
     }
 
     // an alert can only be presented once the view is on screen — not from viewDidLoad
@@ -62,6 +81,7 @@ final class OfficeViewController: UIViewController, WKNavigationDelegate, WKUIDe
             if !s.contains("://") { s = "https://" + s }
             guard let u = URL(string: s), u.host != nil else { self.askForURL(message: "That isn't a valid address."); return }
             OfficeAddress.save(u)
+            Push.sendToken()
             self.load(u)
         })
         present(a, animated: true)

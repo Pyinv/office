@@ -27,6 +27,21 @@ the Files browser opens as a sheet on top with a Done button.
 
 The app has to be on the same network as the Office (your VPN on the phone).
 
+## Notifications
+
+The app shows the Office's notifications: an agent needs you, is done, or is gone. Tap one and
+the app opens that agent's terminal. One-time setup:
+
+1. developer.apple.com → Certificates, IDs & Profiles → **Keys** → **+** → tick *Apple Push
+   Notifications service (APNs)* → download `AuthKey_XXXXXXXXXX.p8` (Apple lets you download it once).
+2. Put it on the Office machine, outside git, and set `OFFICE_APNS_KEY` (its path),
+   `OFFICE_APNS_KEY_ID` and `OFFICE_APNS_TEAM_ID` in `.env`; then restart the Office.
+3. Build and run the app again (`sh ios/make.sh`, then Run) and allow notifications when it asks.
+   Xcode turns on the Push Notifications capability from `project.yml`.
+
+A build run from Xcode uses Apple's test push service and a TestFlight build the real one; the app
+tells the Office which, so both work. Needs a paid developer team.
+
 ## Share → Office
 
 The app carries a Share Sheet entry (the `OfficeShare` extension). In any app, share texts, links,

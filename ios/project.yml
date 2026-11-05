@@ -7,8 +7,8 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: "1.1"
-    CURRENT_PROJECT_VERSION: "2"
+    MARKETING_VERSION: "1.2"
+    CURRENT_PROJECT_VERSION: "3"
 targets:
   Office:
     type: application
@@ -20,6 +20,7 @@ targets:
       path: Office/Office.entitlements
       properties:
         com.apple.security.application-groups: [group.com.pyinv.office]   # the Office address, shared with OfficeShare
+        aps-environment: development   # notifications; Xcode switches it to production for TestFlight / App Store
     info:
       path: Office/Info.plist
       properties:

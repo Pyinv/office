@@ -126,33 +126,21 @@ _TTYD_ARG_SHIM = (b"<script>if(location.hash.indexOf('#arg=')===0)"
 
 _SEC_OVERLAY = {}   # demo: session -> {you,state,verb,ts} set by the Secretary, shown live on the floor
 
-# ── phone push (ntfy) ──────────────────────────────────────────────────────
-# When a session turns to you with a question, post it to a private ntfy server so the
-# phone buzzes: "Ahmed needs you" + the question + a tap target straight into that
-# terminal. Nothing is sent without OFFICE_NTFY_URL/TOPIC/TOKEN; the body carries the real
-# text because the server is yours (see README: ntfy.sh only ever relays a wake-up ping).
-NTFY_URL    = cfg("OFFICE_NTFY_URL").rstrip("/")
-NTFY_TOPIC  = cfg("OFFICE_NTFY_TOPIC")
-NTFY_TOKEN  = cfg("OFFICE_NTFY_TOKEN")
-NTFY_EVENTS = {e.strip() for e in cfg("OFFICE_NTFY_EVENTS", "waiting,review,secretary,gone").split(",") if e.strip()}
-OFFICE_URL  = cfg("OFFICE_URL").rstrip("/")       # deep-link base for the tap target
+# ── phone notifications (the iPhone app, through APNs) ─────────────────────
+# When a session turns to you with a question, finishes, or is gone, the Office app on your phone
+# shows it; a tap opens that agent's terminal. Nothing is sent until the APNs key is set
+# (OFFICE_APNS_*, see apns.py) and the app has registered the phone.
+import apns  # noqa: E402
+PUSH = apns.Pusher(cfg("OFFICE_APNS_KEY"), cfg("OFFICE_APNS_KEY_ID"), cfg("OFFICE_APNS_TEAM_ID"),
+                   cfg("OFFICE_APNS_TOPIC", "com.pyinv.office"), os.path.join(ROOT, "devices.json"))
+PUSH_EVENTS = {e.strip() for e in cfg("OFFICE_PUSH_EVENTS", "waiting,review,secretary,gone").split(",") if e.strip()}
 _NOTIFIED = {}      # session -> key of the last state we pushed, so one question = one push
 _NOTIFY_LOCK = threading.Lock()
 _NOTIFY_SEEDED = False   # the first snapshot after a (re)start only records state: no burst of old questions
 
-def _ntfy_post(title, body, click, tags, priority="default"):
-    import urllib.request
-    req = urllib.request.Request(NTFY_URL + "/" + NTFY_TOPIC, data=body.encode("utf-8"), method="POST")
-    req.add_header("Authorization", "Bearer " + NTFY_TOKEN)
-    req.add_header("Title", title.encode("utf-8").decode("latin-1", "replace"))   # header-safe
-    req.add_header("Tags", tags)
-    req.add_header("Priority", priority)
-    if click:
-        req.add_header("Click", click)
-    try:
-        urllib.request.urlopen(req, timeout=5).read()
-    except Exception as e:
-        sys.stderr.write(f"office/ntfy: {e}\n")
+def push(session, body, title=""):
+    """A notification in the background, so a poll never waits on Apple."""
+    threading.Thread(target=PUSH.send, args=(title or push_title(session), body, session), daemon=True).start()
 
 def push_title(session):
     # "ibrahim-countrol-edi" -> "Countrol Edi | Ibrahim": the project leads, like the browser tab
@@ -165,7 +153,7 @@ def notify_changes(snap):
     """Push once per new question (or finish), never on every poll. Runs after each
     floor snapshot; the HTTP call itself goes to a thread so polls stay fast."""
     global _NOTIFY_SEEDED
-    if not (NTFY_URL and NTFY_TOPIC and NTFY_TOKEN):
+    if not PUSH.ready:
         return
     with _NOTIFY_LOCK:
         quiet = not _NOTIFY_SEEDED; _NOTIFY_SEEDED = True
@@ -173,20 +161,19 @@ def notify_changes(snap):
         for m in snap:
             s = m["session"]; live.add(s)
             st = m.get("state")
-            click = f"{OFFICE_URL}/{s}" if OFFICE_URL else ""
             if m.get("muted"):                      # 🔕: track state silently so unmuting doesn't replay
                 quiet_s = True
             else:
                 quiet_s = quiet
-            if st == "waiting" and "waiting" in NTFY_EVENTS and (m.get("ask") or "").strip():
+            if st == "waiting" and "waiting" in PUSH_EVENTS and (m.get("ask") or "").strip():
                 ask = re.sub(r"\s+", " ", m["ask"]).strip()
                 key = "waiting:" + ask[:200]
                 if _NOTIFIED.get(s) != key:
                     _NOTIFIED[s] = key
-                    if not quiet_s: threading.Thread(target=_ntfy_post, args=(push_title(s), "needs you: " + ask[:400], click, "raising_hand", "high"), daemon=True).start()
-            elif st == "review" and "review" in NTFY_EVENTS and str(_NOTIFIED.get(s, "")).startswith("working"):
+                    if not quiet_s: push(s, "needs you: " + ask[:400])
+            elif st == "review" and "review" in PUSH_EVENTS and str(_NOTIFIED.get(s, "")).startswith("working"):
                 _NOTIFIED[s] = "review"
-                if not quiet_s: threading.Thread(target=_ntfy_post, args=(push_title(s), "done — " + ((m.get("full") or "")[-300:].strip() or "your move"), click, "white_check_mark"), daemon=True).start()
+                if not quiet_s: push(s, "done: " + ((m.get("full") or "")[-300:].strip() or "your move"))
             elif st == "working":
                 if not str(_NOTIFIED.get(s, "")).startswith("working"):
                     _NOTIFIED[s] = "working"
@@ -195,17 +182,14 @@ def notify_changes(snap):
         for s in list(_NOTIFIED):
             if s not in live:                       # was on the floor, now isn't: closed, crashed, killed
                 _NOTIFIED.pop(s, None)
-                if "gone" in NTFY_EVENTS and not quiet:
-                    threading.Thread(target=_ntfy_post, args=(push_title(s), "session is gone (closed, crashed or killed)", OFFICE_URL or "", "wave", "low"), daemon=True).start()
+                if "gone" in PUSH_EVENTS and not quiet:
+                    threading.Thread(target=PUSH.send, args=(push_title(s), "session is gone (closed, crashed or killed)"), daemon=True).start()
 
 def notify_event(person, session, text):
     # the Secretary's follow-ups ("ping me when Mara's done") also reach the phone
-    if not (NTFY_URL and NTFY_TOPIC and NTFY_TOKEN) or "secretary" not in NTFY_EVENTS:
+    if not PUSH.ready or "secretary" not in PUSH_EVENTS or session in load_mutes():
         return
-    if session in load_mutes():
-        return
-    click = f"{OFFICE_URL}/{session}" if OFFICE_URL else ""
-    threading.Thread(target=_ntfy_post, args=(push_title(session), "follow-up: " + text, click, "bell"), daemon=True).start()
+    push(session, "follow-up: " + text)
 _WATCHES = []       # follow-ups: [{session,person,act,prev,ts}] — fire when a session finishes
 _WATCHES_LOCK = threading.Lock()   # serialize watch fire+remove across concurrent /api/floor polls
 
@@ -1172,6 +1156,10 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/account":
             code, answer = switch_account(str((data or {}).get("email") or "")) if isinstance(data, dict) else (400, {"error": "bad json"})
             return self._json(answer, code)
+        if path == "/api/push":     # the iPhone app registering this phone for notifications
+            d = data if isinstance(data, dict) else {}
+            ok = PUSH.register(d.get("token") or "", d.get("env") or "")
+            return self._json({"ok": True} if ok else {"error": "bad token"}, 200 if ok else 400)
         if path == "/api/key":   return self._key(data)
         if path == "/api/paste": return self._paste(data)
         if path == "/api/menu":  return self._menu(data)
@@ -2328,10 +2316,8 @@ def _drop_deliver(sess, msg):
     return True
 
 def _drop_stuck(sess, count):
-    if NTFY_URL and NTFY_TOPIC and NTFY_TOKEN:
-        threading.Thread(target=_ntfy_post, args=(push_title(sess),
-            f"{count} shared item{'s' if count != 1 else ''} waiting: answer the question or clear the draft, then they go in",
-            f"{OFFICE_URL}/{sess}" if OFFICE_URL else "", "paperclip"), daemon=True).start()
+    if PUSH.ready:
+        push(sess, f"{count} shared item{'s' if count != 1 else ''} waiting: answer the question or clear the draft, then they go in")
 
 DROPS = dropbatch.Batches(_drop_deliver, _drop_stuck)
 
