@@ -45,8 +45,10 @@ tells the Office which, so both work. Needs a paid developer team.
 ## Share → Office
 
 The app carries a Share Sheet entry (the `OfficeShare` extension). In any app, share texts, links,
-photos or files → **Office** → optionally type a note → tap the agent. Everything you selected goes to
-that agent as **one message, in the order you selected it**, in a single upload (`POST /api/share`).
+photos or files → **Office** → tick one or more agents → optionally type a note → **↑**. As in WhatsApp, a
+tap only ticks an agent; the bar at the bottom shows who it goes to, and nothing is sent until ↑.
+Everything you selected goes to each ticked agent as **one message, in the order you selected it**, in a
+single upload per agent (`POST /api/share`). If one fails, it stays ticked and ↑ retries just that one.
 A WhatsApp selection works the same way: its texts arrive as text, its photos as files in the agent's
 `inbox/`. If the agent is asking a question or has an unsent draft, the message waits and goes in
 right after.

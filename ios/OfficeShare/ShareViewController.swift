@@ -2,13 +2,15 @@ import UIKit
 import UniformTypeIdentifiers
 
 /// Share → Office: everything you shared (texts, links, photos, files, in the order the app hands them
-/// over) goes to one agent as ONE message, in one upload (POST /api/share, multipart).
+/// over) goes to each agent you tick as ONE message, in one upload per agent (POST /api/share, multipart).
+/// Like WhatsApp: a tap only ticks an agent, nothing goes until you press send.
 ///
 ///   ┌ Cancel      Send to…         Done ┐
 ///   │ 📎 3 items · 1 photo, 2 texts       │  status strip: always visible (sending… / Sent ✓ / waiting / error)
 ///   │ 🔍 Search agents                    │
-///   │ ─ agents, most recent first ─       │  the only part that scrolls; tap one to send
-///   │ ✏️ Add a note (optional)            │  pinned to the keyboard / bottom edge
+///   │ ─ agents, most recent first    ◯ ◉ │  the only part that scrolls; tap one to tick or untick it
+///   │ To: Zed, Amy                        │
+///   │ [ Add a note…               ]  (↑) │  pinned to the keyboard / bottom edge; ↑ sends to everyone ticked
 ///   └─────────────────────────────────────┘
 final class ShareViewController: UIViewController {
     override func viewDidLoad() {
@@ -44,16 +46,20 @@ final class ShareSheetController: UIViewController, UITableViewDataSource, UITab
     private var shown: [Agent] = []
     private var items: [SharedItem] = []
     private var meta = ""                       // see loadItems()
-    private var sendingTo: String?              // label of the agent being sent to
-    private var sent = false
+    private var picked: [String] = []           // labels of the ticked agents, in the order you ticked them
+    private var progress: [String: AgentCell.State] = [:]   // label -> sending / done, while and after sending
+    private var sending = false
     private let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("share-" + UUID().uuidString)
 
     private let status = StatusStrip()
     private let waitNote = StatusStrip()
     private let search = UISearchBar()
     private let table = UITableView(frame: .zero, style: .insetGrouped)
+    private let bar = UIView()
+    private let toLabel = UILabel()
     private let noteBox = UIView()
     private let note = UITextField()
+    private let sendButton = UIButton(type: .system)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -73,19 +79,36 @@ final class ShareSheetController: UIViewController, UITableViewDataSource, UITab
         table.keyboardDismissMode = .onDrag
         table.backgroundColor = .clear
 
-        noteBox.backgroundColor = .secondarySystemGroupedBackground
-        noteBox.layer.cornerRadius = 12
-        note.placeholder = "✏️  Add a note (optional)"
+        // the send bar, always there: who it goes to, the note, the send button
+        bar.backgroundColor = .secondarySystemGroupedBackground
+        let hairline = UIView()
+        hairline.backgroundColor = .separator
+        toLabel.font = .preferredFont(forTextStyle: .footnote)
+        toLabel.lineBreakMode = .byTruncatingTail
+        noteBox.backgroundColor = .systemGroupedBackground
+        noteBox.layer.cornerRadius = 19
+        noteBox.layer.borderWidth = 1 / UIScreen.main.scale
+        noteBox.layer.borderColor = UIColor.separator.cgColor
+        note.placeholder = "Add a note…"
         note.clearButtonMode = .whileEditing
         note.returnKeyType = .done
         note.delegate = self
+        var sc = UIButton.Configuration.filled()
+        sc.image = UIImage(systemName: "arrow.up", withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .bold))
+        sc.cornerStyle = .capsule
+        sc.baseBackgroundColor = .label
+        sc.baseForegroundColor = .systemBackground
+        sendButton.configuration = sc
+        sendButton.accessibilityLabel = "Send"
+        sendButton.addTarget(self, action: #selector(sendTapped), for: .touchUpInside)
         waitNote.isHidden = true
 
         let stack = UIStackView(arrangedSubviews: [status, waitNote, search])
         stack.axis = .vertical
         stack.spacing = 6
-        for v in [stack, table, noteBox, note] as [UIView] { v.translatesAutoresizingMaskIntoConstraints = false }
-        view.addSubview(stack); view.addSubview(table); view.addSubview(noteBox); noteBox.addSubview(note)
+        for v in [stack, table, bar, hairline, toLabel, noteBox, note, sendButton] as [UIView] { v.translatesAutoresizingMaskIntoConstraints = false }
+        view.addSubview(stack); view.addSubview(table); view.addSubview(bar)
+        bar.addSubview(hairline); bar.addSubview(toLabel); bar.addSubview(noteBox); bar.addSubview(sendButton); noteBox.addSubview(note)
         let g = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: g.topAnchor, constant: 6),
@@ -94,16 +117,32 @@ final class ShareSheetController: UIViewController, UITableViewDataSource, UITab
             table.topAnchor.constraint(equalTo: stack.bottomAnchor),
             table.leadingAnchor.constraint(equalTo: g.leadingAnchor),
             table.trailingAnchor.constraint(equalTo: g.trailingAnchor),
-            table.bottomAnchor.constraint(equalTo: noteBox.topAnchor, constant: -6),
-            noteBox.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
-            noteBox.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
+            table.bottomAnchor.constraint(equalTo: bar.topAnchor),
+            bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            bar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            hairline.topAnchor.constraint(equalTo: bar.topAnchor),
+            hairline.leadingAnchor.constraint(equalTo: bar.leadingAnchor),
+            hairline.trailingAnchor.constraint(equalTo: bar.trailingAnchor),
+            hairline.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale),
+            toLabel.topAnchor.constraint(equalTo: bar.topAnchor, constant: 9),
+            toLabel.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 18),
+            toLabel.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -18),
+            noteBox.topAnchor.constraint(equalTo: toLabel.bottomAnchor, constant: 7),
+            noteBox.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 12),
+            noteBox.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8),
             noteBox.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -8),
-            note.leadingAnchor.constraint(equalTo: noteBox.leadingAnchor, constant: 12),
+            noteBox.heightAnchor.constraint(equalToConstant: 38),
+            note.leadingAnchor.constraint(equalTo: noteBox.leadingAnchor, constant: 14),
             note.trailingAnchor.constraint(equalTo: noteBox.trailingAnchor, constant: -8),
             note.topAnchor.constraint(equalTo: noteBox.topAnchor),
             note.bottomAnchor.constraint(equalTo: noteBox.bottomAnchor),
-            note.heightAnchor.constraint(equalToConstant: 44),
+            sendButton.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -12),
+            sendButton.centerYAnchor.constraint(equalTo: noteBox.centerYAnchor),
+            sendButton.widthAnchor.constraint(equalToConstant: 38),
+            sendButton.heightAnchor.constraint(equalToConstant: 38),
         ])
+        paintBar()
         view.keyboardLayoutGuide.followsUndockedKeyboard = true
         status.show(.info, icon: "⏳", "Loading…")
         Task { await start() }
@@ -133,6 +172,7 @@ final class ShareSheetController: UIViewController, UITableViewDataSource, UITab
         do {
             agents = try await list
             filter(search.text ?? "")
+            paintBar()
             status.show(.info, icon: "📎", items.isEmpty ? "Nothing to send" : summary())
             if agents.isEmpty { status.show(.bad, icon: "!", "No agents are running.") }
         } catch {
@@ -280,25 +320,90 @@ final class ShareSheetController: UIViewController, UITableViewDataSource, UITab
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "a", for: indexPath) as! AgentCell
         let a = shown[indexPath.row]
-        let state: AgentCell.State = sendingTo == nil ? .idle : (sendingTo == a.label ? (sent ? .done : .sending) : .dimmed)
+        let state = progress[a.label] ?? (picked.contains(a.label) ? .ticked : (sending ? .dimmed : .idle))
         cell.set(a.emoji, a.person, a.project, query: search.text ?? "", state: state)
         return cell
     }
 
+    /// a tap only ticks (or unticks) an agent; nothing is sent until ↑
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        tableView.deselectRow(at: indexPath, animated: true)
-        guard sendingTo == nil, !items.isEmpty, let base = OfficeAddress.url else { return }
+        tableView.deselectRow(at: indexPath, animated: false)
+        guard !sending else { return }
         let a = shown[indexPath.row]
-        sendingTo = a.label
-        view.endEditing(true)
-        status.show(.info, icon: "⏳", "Sending \(items.count == 1 ? "1 item" : "\(items.count) items") to \(a.person)…", spinning: true)
-        table.reloadData()
-        Task { await send(to: a, base: base) }
+        if let i = picked.firstIndex(of: a.label) { picked.remove(at: i) } else { picked.append(a.label) }
+        progress[a.label] = nil
+        UISelectionFeedbackGenerator().selectionChanged()
+        tableView.reloadRows(at: [indexPath], with: .none)
+        paintBar()
+    }
+
+    private func paintBar() {
+        let names = picked.compactMap { l in agents.first { $0.label == l }?.person }
+        if names.isEmpty {
+            toLabel.text = "Tick who gets it"
+            toLabel.textColor = .secondaryLabel
+        } else {
+            let t = NSMutableAttributedString(string: "To: ", attributes: [.foregroundColor: UIColor.secondaryLabel])
+            t.append(NSAttributedString(string: names.joined(separator: ", "),
+                                        attributes: [.foregroundColor: UIColor.label,
+                                                     .font: UIFont.preferredFont(forTextStyle: .footnote).withWeight(.semibold)]))
+            toLabel.attributedText = t
+        }
+        sendButton.isEnabled = !names.isEmpty && !items.isEmpty && !sending
     }
 
     // MARK: sending
 
-    private func send(to a: Agent, base: URL) async {
+    @objc private func sendTapped() {
+        guard !sending, !items.isEmpty, let base = OfficeAddress.url else { return }
+        let to = picked.compactMap { l in agents.first { $0.label == l } }
+        guard !to.isEmpty else { return }
+        view.endEditing(true)
+        sending = true
+        paintBar()
+        Task { await send(to: to, base: base) }
+    }
+
+    /// One upload per ticked agent, one after the other. Whoever failed stays ticked, so ↑ retries just them.
+    private func send(to list: [Agent], base: URL) async {
+        let what = items.count == 1 ? "1 item" : "\(items.count) items"
+        var sentTo: [String] = [], waits: [String] = [], failed: [String] = []
+        var lastError = ""
+        for (n, a) in list.enumerated() {
+            progress[a.label] = .sending
+            table.reloadData()
+            status.show(.info, icon: "⏳", "Sending \(what) to \(a.person)" + (list.count > 1 ? " (\(n + 1) of \(list.count))…" : "…"), spinning: true)
+            do {
+                if let why = try await send(to: a, base: base) { waits.append(why) }
+                progress[a.label] = .done
+                picked.removeAll { $0 == a.label }
+                sentTo.append(a.person)
+            } catch {
+                progress[a.label] = nil
+                failed.append(a.person)
+                lastError = error.localizedDescription
+            }
+        }
+        sending = false
+        table.reloadData()
+        paintBar()
+        if !failed.isEmpty {
+            status.show(.bad, icon: "!", (sentTo.isEmpty ? "" : "Sent to \(sentTo.joined(separator: ", ")). ")
+                        + "Not sent to \(failed.joined(separator: ", ")): \(lastError). Tap ↑ to retry.")
+            return
+        }
+        status.show(.ok, icon: "✓", "Sent to \(sentTo.joined(separator: ", ")) · \(what)")
+        if !waits.isEmpty { waitNote.show(.warn, icon: "⏳", waits.joined(separator: "\n")) }
+        navigationItem.leftBarButtonItem = nil
+        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(done))
+        if waits.isEmpty {                              // nothing to read: close by itself
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            done()
+        }
+    }
+
+    /// The share to one agent. Returns a line to show when it waits there instead of going in now.
+    private func send(to a: Agent, base: URL) async throws -> String? {
         do {
             let boundary = "office-" + UUID().uuidString
             let body = try multipart(boundary: boundary, session: a.label, note: note.text ?? "")
@@ -313,25 +418,12 @@ final class ShareSheetController: UIViewController, UITableViewDataSource, UITab
                 throw NSError(domain: "Office", code: code,
                               userInfo: [NSLocalizedDescriptionKey: (answer["error"] as? String) ?? "the Office answered \(code)"])
             }
-            sent = true
-            status.show(.ok, icon: "✓", "Sent to \(a.person) · \(items.count == 1 ? "1 item" : "\(items.count) items")")
             switch answer["why"] as? String {
-            case "question": waitNote.show(.warn, icon: "⏳", "\(a.person) is asking you something. It goes in once you answer.")
-            case "draft": waitNote.show(.warn, icon: "⏳", "There is unsent text in \(a.person)'s box. It goes in once that is sent or cleared.")
-            case "busy": waitNote.show(.warn, icon: "⏳", "It goes in in a moment.")
-            default: break
+            case "question": return "\(a.person) is asking you something. It goes in once you answer."
+            case "draft": return "There is unsent text in \(a.person)'s box. It goes in once that is sent or cleared."
+            case "busy": return "\(a.person) gets it in a moment."
+            default: return nil
             }
-            table.reloadData()
-            navigationItem.leftBarButtonItem = nil
-            navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(done))
-            if waitNote.isHidden {                          // nothing to read: close by itself
-                try? await Task.sleep(nanoseconds: 900_000_000)
-                done()
-            }
-        } catch {
-            sendingTo = nil
-            status.show(.bad, icon: "!", "Not sent: \(error.localizedDescription). Tap the agent to retry.")
-            table.reloadData()
         }
     }
 
@@ -411,13 +503,14 @@ private final class StatusStrip: UIView {
     }
 }
 
-/// An agent row: emoji avatar, name (search match in the accent colour), project.
+/// An agent row: emoji avatar, name (search match in the accent colour), project, and the tick circle.
 private final class AgentCell: UITableViewCell {
-    enum State { case idle, sending, done, dimmed }
+    enum State { case idle, ticked, sending, done, dimmed }
     private let avatar = UILabel()
     private let name = UILabel()
     private let project = UILabel()
     private let spin = UIActivityIndicatorView(style: .medium)
+    private let tick = UIImageView()
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -430,7 +523,10 @@ private final class AgentCell: UITableViewCell {
         project.textColor = .secondaryLabel
         let text = UIStackView(arrangedSubviews: [name, project])
         text.axis = .vertical
-        let row = UIStackView(arrangedSubviews: [avatar, text, spin])
+        tick.contentMode = .scaleAspectFit
+        tick.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 22, weight: .regular)
+        spin.hidesWhenStopped = true
+        let row = UIStackView(arrangedSubviews: [avatar, text, spin, tick])
         row.spacing = 12
         row.alignment = .center
         row.translatesAutoresizingMaskIntoConstraints = false
@@ -438,6 +534,8 @@ private final class AgentCell: UITableViewCell {
         NSLayoutConstraint.activate([
             avatar.widthAnchor.constraint(equalToConstant: 32),
             avatar.heightAnchor.constraint(equalToConstant: 32),
+            tick.widthAnchor.constraint(equalToConstant: 26),
+            tick.heightAnchor.constraint(equalToConstant: 26),
             row.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
             row.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
             row.leadingAnchor.constraint(equalTo: contentView.layoutMarginsGuide.leadingAnchor),
@@ -455,9 +553,16 @@ private final class AgentCell: UITableViewCell {
         name.attributedText = highlight(person, query)
         project.attributedText = highlight(proj, query, base: .secondaryLabel)
         contentView.alpha = state == .dimmed ? 0.4 : 1
-        selectionStyle = state == .idle ? .default : .none
-        accessoryType = state == .done ? .checkmark : .none
+        selectionStyle = .none
+        accessoryType = .none
         if state == .sending { spin.startAnimating() } else { spin.stopAnimating() }
+        tick.isHidden = state == .sending
+        switch state {
+        case .ticked: tick.image = UIImage(systemName: "checkmark.circle.fill"); tick.tintColor = .label
+        case .done: tick.image = UIImage(systemName: "checkmark.circle.fill"); tick.tintColor = .systemGreen
+        default: tick.image = UIImage(systemName: "circle"); tick.tintColor = .tertiaryLabel
+        }
+        accessibilityTraits = state == .ticked ? [.button, .selected] : .button
     }
 
     private func highlight(_ s: String, _ q: String, base: UIColor = .label) -> NSAttributedString {
@@ -467,5 +572,11 @@ private final class AgentCell: UITableViewCell {
             out.addAttribute(.foregroundColor, value: UIColor.tintColor, range: NSRange(r, in: s))
         }
         return out
+    }
+}
+
+private extension UIFont {
+    func withWeight(_ w: UIFont.Weight) -> UIFont {
+        UIFont(descriptor: fontDescriptor.addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: w]]), size: pointSize)
     }
 }
