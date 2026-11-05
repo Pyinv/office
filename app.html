@@ -565,6 +565,11 @@
     display:grid;grid-template-columns:34px minmax(0,1fr) auto;column-gap:.6rem;row-gap:.32rem;align-items:center;
     cursor:pointer;min-width:0;transition:border-color .15s;-webkit-tap-highlight-color:transparent}
   .desk:hover{border-color:var(--faint)}
+  /* laptop: a click opens the terminal; this, on hover, opens the person's panel */
+  .desk .peek{position:absolute;right:.5rem;bottom:.45rem;display:none;border:1px solid var(--line);background:var(--panel);color:var(--dim);
+    border-radius:999px;font:500 .72rem "General Sans",sans-serif;padding:.12rem .55rem;cursor:pointer}
+  .desk .peek:hover{color:var(--ink);border-color:var(--faint)}
+  @media (hover:hover){ .desk:hover .peek{display:block} }
   .desk:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--ink) 18%,transparent)}
   .desk.sel{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
   .desk .av{width:34px;height:34px;flex:0 0 34px;border-radius:9px;font-size:1.05rem}
@@ -1741,7 +1746,8 @@ const BASE_TITLE=document.title;
 function closeTerm(){
   if(location.pathname!=="/") history.pushState(null, "", "/");
   document.getElementById("modal").classList.remove("open");
-  document.title=BASE_TITLE;
+  const dm=DESK && LAST.find(x=>x.session===DESK);
+  document.title=dm ? tabTitle(dm) : BASE_TITLE;         // back to the panel that's still open, or the floor
   const f=document.getElementById("termframe"); if(f) f.remove();  // tear down ttyd fully -> detach tmux
   MODAL_OPEN=false;
   document.body.classList.remove("termkeys");
@@ -2171,6 +2177,7 @@ function deskHtml(m){
     +(m.muted?`<span class="mtag">muted</span>`:"")
     +`</div><div class="proj"><span class="pn">${esc(m.project)}</span>${ROOM_ONE[m.group]?`<span class="rtag">${ROOM_ONE[m.group]}</span>`:""}</div></div>`
     +`<span class="ago"></span>`
+    +(PHONE||m.ghost?"":`<button type="button" class="peek" tabindex="-1" title="Read the conversation" aria-label="Read the conversation">💬 Read</button>`)
     // a focus note takes the reply line's place (the reply is in the panel), so every desk keeps one height
     +(task && !note ? `<div class="dtask" title="focus note">${esc(task)}</div>`
                     : `<div class="line${note?" q":""}" dir="auto">${esc(deskLine(m))}</div>`);
@@ -2211,6 +2218,7 @@ function openDesk(session){
   const m=LAST.find(x=>x.session===session); if(!m) return;
   if(DESK!==session){ DP("dp-in").value=""; DP("dp-menu").hidden=true; }
   DESK=session; DESK_SIG=""; try{ sessionStorage.setItem("office.desk", session); }catch(_){}
+  if(!MODAL_OPEN) document.title=tabTitle(m);           // the tab says whose panel is open, like a terminal
   if(m.unread){ m.unread=false; if(typeof render==="function") try{ render(); }catch(_){} }
   DP("desk").hidden=false; document.body.classList.add("deskopen");
   refreshDesk(true); markSel();
@@ -2219,6 +2227,7 @@ function openDesk(session){
 function closeDesk(){
   if(!DESK) return;
   DESK=""; try{ sessionStorage.removeItem("office.desk"); }catch(_){}
+  if(!MODAL_OPEN) document.title=BASE_TITLE;
   DP("desk").hidden=true; DP("dp-menu").hidden=true; document.body.classList.remove("deskopen"); markSel();
 }
 const STATE_TEXT={waiting:"Asking you", typed:"Unsent draft in the box", working:"Working", review:"Finished"};
@@ -2621,13 +2630,19 @@ function hueOf(m){ let h=0; for(const c of (m.session||"")) h=(h*31+c.charCodeAt
   document.getElementById("searchx").addEventListener("click",()=>{ inp.value=""; SEARCH=""; render(); renderSugg(); inp.focus(); });
   box.addEventListener("mousedown",e=>{ const r=e.target.closest(".row"); if(r){ e.preventDefault(); SUGSEL=+r.dataset.i; openSel(); } });
 }
-// a tap on a desk opens that person's panel; a double-click (laptop) goes straight to the terminal
+// a click on a desk (laptop) opens its terminal, the thing you open most; its 💬 Read opens the
+// person's panel. On the phone a tap opens the panel (a sheet), as does a desk that isn't running.
+function openDeskTerm(session){
+  const m=LAST.find(x=>x.session===session); if(!m) return;
+  if(PHONE || m.ghost) return openDesk(session);
+  openTerm(m.session,(m.person||m.project),tabTitle(m));
+}
 document.getElementById("floor").addEventListener("click",e=>{
-  if(e.target.closest("a, button, input, textarea, select")) return;
   const d=e.target.closest(".desk"); if(!d) return;
+  if(e.target.closest(".peek")){ openDesk(d.dataset.session); return; }
+  if(e.target.closest("a, button, input, textarea, select")) return;
   try{ if(String(getSelection()).length) return; }catch(_){}
-  if(e.detail>=2){ const m=LAST.find(x=>x.session===d.dataset.session); if(m) openTerm(m.session,(m.person||m.project),tabTitle(m)); return; }
-  openDesk(d.dataset.session);
+  openDeskTerm(d.dataset.session);
 });
 // drag a desk onto a room in the room switch to move it there — the same as ⋯ → Move to
 {
@@ -2654,7 +2669,9 @@ document.getElementById("floor").addEventListener("click",e=>{
   floor.addEventListener("dragend",()=>{ dragging=""; clear(); floor.querySelectorAll(".desk.dragging").forEach(d=>d.classList.remove("dragging")); });
 }
 document.getElementById("floor").addEventListener("keydown",e=>{
-  const d=e.target.closest(".desk"); if(d && (e.key==="Enter"||e.key===" ")){ e.preventDefault(); openDesk(d.dataset.session); }
+  const d=e.target.closest(".desk"); if(!d) return;
+  if(e.key==="Enter"){ e.preventDefault(); openDeskTerm(d.dataset.session); }      // Enter: the terminal, like a click
+  else if(e.key===" "){ e.preventDefault(); openDesk(d.dataset.session); }         // Space: the panel
 });
 // deep link: /<session> opens that terminal once the floor is known
 load().then(()=>{ if(location.pathname.length>1 && !MODAL_OPEN) openTermByName(decodeURIComponent(location.pathname.slice(1))); });

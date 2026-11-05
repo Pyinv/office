@@ -93,7 +93,7 @@ Bricolage Grotesque gives names, rooms and the "need you" count a slightly hand-
 
 ## Layout
 
-The floor is one list by activity, in bands of time (Pinned, Today, This week, Older), with a quiet room tag on each desk; a room switch above it focuses one room, and dropping a desk on a room there moves it. The target is a compact desk (about 74px) showing face, name, project and one line (only what Claude Code's own files say it waits for, or that it isn't running: never a guess from the reply's wording); the full reply lives in the person's panel (side panel on a laptop, sheet on a phone). A "Your move" row is a shortcut to whoever needs you; it never moves the desks themselves. The page max width is 1180px with a 16px phone gutter.
+The floor is one list by activity, in bands of time (Pinned, Today, This week, Older), with a quiet room tag on each desk; a room switch above it focuses one room, and dropping a desk on a room there moves it. The target is a compact desk (about 74px) showing face, name, project and one line (only what Claude Code's own files say it waits for, or that it isn't running: never a guess from the reply's wording); the full reply lives in the person's panel (side panel on a laptop, sheet on a phone). On a laptop a click on a desk opens its terminal, the thing opened most, and a 💬 Read button on hover opens the panel; on the phone a tap opens the sheet. The tab is named after whoever's panel or terminal is open. A "Your move" row is a shortcut to whoever needs you; it never moves the desks themselves. The page max width is 1180px with a 16px phone gutter.
 
 ## Elevation & Depth
 
@@ -136,3 +136,4 @@ Radii: 6px for small controls and code, 10px for desks, inputs and buttons, 14px
 | 2026-10-30 | Desks sorted by activity, Ventures first | The user's call: activity order over fixed seats |
 | 2026-10-30 | State only from Claude Code's files | The user's call: no guessing from text. Busy / idle / waiting comes from ~/.claude/sessions, the question and its choices from the transcript's open AskUserQuestion; the reply preview line and the Draft note are gone |
 | 2026-10-29 | Floor of desks, the person's panel, face rail, front desk | Rooms with fixed seats; a desk opens a panel (side panel / phone sheet) with the reply, answer buttons and one ⋯ menu; Nadia sits at the bottom on a laptop but stays at the top on the phone, where a bottom bar fights the keyboard |
+| 2026-11-05 | Laptop: a desk click opens the terminal | Opening the panel first made the most used action two clicks; the panel moved to a 💬 Read button on hover, the phone keeps tap → sheet |

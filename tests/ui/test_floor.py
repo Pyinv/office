@@ -31,6 +31,12 @@ class Floor(BrowserCase):
                                                           body=json.dumps({"team": TEAM, "version": "test"})))
         for api in ("say", "pin", "mute", "group", "task", "kill", "rename", "key", "icon", "brief"):
             self.page.route(f"**/api/{api}", self._catch)
+        # a terminal is a blank page here: no test ever attaches to a real one
+        self.page.route("**/terminal/**", lambda r: r.fulfill(status=200, content_type="text/html", body="<html></html>"))
+
+    def open_panel(self, session):
+        self.page.hover(f"[data-session={session}]")
+        self.page.click(f"[data-session={session}] .peek")
 
     def _catch(self, route):
         self.writes.append((route.request.url.rsplit("/", 1)[-1], route.request.post_data))
@@ -64,9 +70,30 @@ class Floor(BrowserCase):
         self.assertEqual(self.js("document.querySelector('[data-session=di-eps] .line').textContent"), "Not running")
         self.assertEqual(self.js("[...document.querySelectorAll('#recent .mchip')].map(b=>b.textContent.trim())"), ["👤Cy allow", "🫀Amy answer"])
 
+    def test_a_click_opens_the_terminal_and_read_opens_the_panel_and_the_tab_says_whose(self):
+        self.open_floor()
+        base = self.js("document.title")
+        self.page.click("[data-session=zed-alpha] .wn")
+        self.assertTrue(self.js("MODAL_OPEN"))
+        self.assertEqual(self.js("MODAL_SESSION"), "zed-alpha")
+        self.assertTrue(self.js("document.getElementById('desk').hidden"))
+        self.assertEqual(self.js("document.title"), "Alpha | Zed")
+        self.js("closeTerm()")
+        self.assertEqual(self.js("document.title"), base)
+        self.open_panel("amy-beta")
+        self.assertFalse(self.js("MODAL_OPEN"))
+        self.assertFalse(self.js("document.getElementById('desk').hidden"))
+        self.assertEqual(self.js("document.title"), "Beta | Amy")
+        self.page.keyboard.press("Escape")
+        self.assertEqual(self.js("document.title"), base)
+        # a desk that isn't running opens its panel: there's no terminal to show
+        self.page.click("[data-session=di-eps] .wn")
+        self.assertFalse(self.js("MODAL_OPEN"))
+        self.assertFalse(self.js("document.getElementById('desk').hidden"))
+
     def test_a_desk_opens_its_panel_and_a_choice_presses_its_key(self):
         self.open_floor()
-        self.page.click("[data-session=amy-beta]")
+        self.open_panel("amy-beta")
         self.assertFalse(self.js("document.getElementById('desk').hidden"))
         self.assertEqual(self.js("document.getElementById('dp-name').textContent"), "Amy")
         self.assertTrue(self.js("document.querySelector('[data-session=amy-beta]').classList.contains('sel')"))
@@ -82,7 +109,7 @@ class Floor(BrowserCase):
 
     def test_the_reply_box_sends_on_enter_and_keeps_shift_enter(self):
         self.open_floor()
-        self.page.click("[data-session=zed-alpha]")
+        self.open_panel("zed-alpha")
         self.assertIn("<table>", self.js("document.querySelector('#dp-body .dp-reply').innerHTML"))
         self.page.fill("#dp-in", "line one")
         self.page.keyboard.press("Shift+Enter")
@@ -93,7 +120,7 @@ class Floor(BrowserCase):
 
     def test_a_permission_prompt_allows_with_1_and_denies_with_esc(self):
         self.open_floor()
-        self.page.click("[data-session=cy-delta]")
+        self.open_panel("cy-delta")
         self.assertEqual(self.js("[...document.querySelectorAll('#dp-body .opt span')].map(s=>s.textContent)"), ["Allow", "Deny"])
         self.page.click("#dp-body .opt >> nth=1")
         self.page.wait_for_timeout(200)
@@ -105,7 +132,7 @@ class Floor(BrowserCase):
         self.page.route("**/api/turns?session=zed-alpha", lambda r: r.fulfill(
             status=200, content_type="application/json", body=json.dumps({"turns": turns})))
         self.open_floor()
-        self.page.click("[data-session=zed-alpha]")
+        self.open_panel("zed-alpha")
         self.page.wait_for_function("document.querySelectorAll('#dp-body .dp-you').length===2")
         self.assertEqual(self.js("[...document.querySelectorAll('#dp-body .dp-you')].map(b=>b.textContent)"), ["first ask", "second ask"])
         replies = self.js("[...document.querySelectorAll('#dp-body .dp-reply')].map(b=>b.textContent.trim())")
@@ -117,7 +144,7 @@ class Floor(BrowserCase):
         self.page.unroute("**/api/say")
         self.page.route("**/api/say", lambda r: held.append(r))  # the agent hasn't taken it yet
         self.open_floor()
-        self.page.click("[data-session=zed-alpha]")
+        self.open_panel("zed-alpha")
         self.page.fill("#dp-in", "ship it")
         self.page.keyboard.press("Enter")
         self.page.wait_for_timeout(200)
@@ -131,7 +158,7 @@ class Floor(BrowserCase):
 
     def test_an_icon_you_pick_for_one_desk(self):
         self.open_floor()
-        self.page.click("[data-session=zed-alpha]")
+        self.open_panel("zed-alpha")
         self.page.click("#dp-more")
         self.page.click("#dp-menu button[data-act='icon']")
         self.assertEqual(self.page.input_value("#icondlg input"), "🧾")      # starts from the icon it has now
@@ -171,7 +198,7 @@ class Floor(BrowserCase):
         self.open_floor()
         self.assertTrue(self.js("!!document.querySelector('[data-session=zed-alpha] .att')"))
         self.assertFalse(self.js("!!document.querySelector('[data-session=amy-beta] .att')"))
-        self.page.click("[data-session=zed-alpha]")
+        self.open_panel("zed-alpha")
         self.assertFalse(self.js("!!document.querySelector('[data-session=zed-alpha] .att')"))
 
     def test_whats_new_lists_who_needs_you_and_opens_them(self):
@@ -191,7 +218,7 @@ class Floor(BrowserCase):
 
     def test_the_menu_pins_and_moves(self):
         self.open_floor()
-        self.page.click("[data-session=zed-alpha]")
+        self.open_panel("zed-alpha")
         self.page.click("#dp-more")
         items = self.js("[...document.querySelectorAll('#dp-menu button')].map(b=>b.textContent)")
         self.assertIn("Pin to the front", items)
