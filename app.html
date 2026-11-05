@@ -1211,19 +1211,25 @@ function toast(msg,err,session){ const t=document.getElementById("toast"); t.tex
   clearTimeout(t._h); t._h=setTimeout(()=>{ t.className="toast"; t.onclick=null; }, session?6000:1900); }
 
 async function post(body, okmsg, inputEl){
+  // your message shows the moment you send it (its bubble, then "replying…"), like any chat; a send
+  // that fails takes it back and puts the text back in the box
+  const typed=inputEl?inputEl.value:"", before=body.session&&SENT[body.session];
+  const undo=()=>{ if(!body.session) return; if(before) SENT[body.session]=before; else delete SENT[body.session];
+    if(inputEl && !inputEl.value) inputEl.value=typed; load(); };
+  if(body.session){
+    SENT[body.session]={at:Date.now(), text:body.text||""};
+    if(inputEl) inputEl.value="";
+    applySent(LAST); LAYOUT=""; render(); refreshDesk();
+  }
   try{
     const r=await fetch("/api/say",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const j=await r.json();
     if(j.ok){
       toast(okmsg); if(inputEl) inputEl.value=""; FROZEN=false;
-      if(body.session){                              // instant feedback: flip the card to "sent, replying…"
-        SENT[body.session]={at:Date.now(), text:body.text||""};
-        applySent(LAST); LAYOUT=""; render();
-      }
       setTimeout(load,700);
     }
-    else toast("⚠ "+(j.error||"failed"),true);
-  }catch(e){ toast("⚠ "+e.message,true); }
+    else { undo(); toast("⚠ "+(j.error||"failed"),true); }
+  }catch(e){ undo(); toast("⚠ "+e.message,true); }
 }
 // press one key in an agent's terminal (an answer to its open menu), then refresh the floor
 async function pressKey(session,key){
@@ -2241,6 +2247,10 @@ function refreshDesk(force){
     if(t.you) h+=(t.ts?`<div class="dp-when">${esc(agoText(t.ts))}</div>`:"")+`<div class="dp-you" dir="auto">${mdInline(esc(t.you))}</div>`;
     t.said.forEach(x=>{ h+=`<div class="ctx dp-reply">${mdHtml(x)}</div>`; });
   });
+  // what you just sent, until the transcript has it: its bubble goes first, the "replying…" under it
+  const sent=m._sent && SENT[m.session], last=list[list.length-1];
+  if(sent && sent.text && !(last && last.you && (last.you.trim()===sent.text.trim() || (last.ts||0)*1000>=sent.at-5000)))
+    h+=`<div class="dp-you" dir="auto">${mdInline(esc(sent.text))}</div>`;
   if(m._sent) h+=`<div class="sent-note"><span class="dots"></span> Sent, ${esc(who)} is replying…</div>`;
   else if(!list.some(t=>t.said.length))
     h+=`<div class="dp-empty">${esc(m.attached?"You're in its terminal right now.":m.ghost?"Not running. Open the terminal to start it again.":"Nothing to read yet.")}</div>`;

@@ -112,6 +112,23 @@ class Floor(BrowserCase):
         self.assertEqual(replies[:2], ["one", "looking into it"])
         self.assertTrue(replies[2].endswith(" end") and len(replies[2]) > 5000)     # nothing cut
 
+    def test_what_you_send_shows_at_once_with_replying_under_it(self):
+        held = []
+        self.page.unroute("**/api/say")
+        self.page.route("**/api/say", lambda r: held.append(r))  # the agent hasn't taken it yet
+        self.open_floor()
+        self.page.click("[data-session=zed-alpha]")
+        self.page.fill("#dp-in", "ship it")
+        self.page.keyboard.press("Enter")
+        self.page.wait_for_timeout(200)
+        order = "[...document.querySelectorAll('#dp-body .dp-you, #dp-body .sent-note')].map(e=>e.className+':'+e.textContent.trim())"
+        self.assertEqual(self.js(order)[-2:], ["dp-you:ship it", "sent-note:Sent, Zed is replying…"])
+        self.assertEqual(self.js("document.getElementById('dp-in').value"), "")
+        held[0].fulfill(status=200, content_type="application/json", body='{"error":"not running"}')
+        self.page.wait_for_timeout(300)                           # a failed send takes it back
+        self.assertEqual(self.js("document.querySelectorAll('#dp-body .sent-note').length"), 0)
+        self.assertEqual(self.js("document.getElementById('dp-in').value"), "ship it")
+
     def test_an_icon_you_pick_for_one_desk(self):
         self.open_floor()
         self.page.click("[data-session=zed-alpha]")
