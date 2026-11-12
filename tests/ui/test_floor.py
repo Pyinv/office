@@ -139,6 +139,29 @@ class Floor(BrowserCase):
         self.assertEqual(replies[:2], ["one", "looking into it"])
         self.assertTrue(replies[2].endswith(" end") and len(replies[2]) > 5000)     # nothing cut
 
+    def test_a_picture_you_pasted_shows_under_your_message_and_opens_big(self):
+        turns = [{"you": "see inbox/Screen shot 1.png and inbox/notes.pdf", "ts": NOW - 60, "said": ["ok"]}]
+        asked = []
+        png = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+                            "1f15c4890000000d49444154789c6360000002000100e5279dee0000000049454e44ae426082")
+
+        def pic(r):
+            asked.append(r.request.url)
+            r.fulfill(status=200, content_type="image/png", body=png)
+        self.page.route("**/api/turns?session=zed-alpha", lambda r: r.fulfill(
+            status=200, content_type="application/json", body=json.dumps({"turns": turns})))
+        self.page.route("**/api/inbox?*", pic)
+        self.open_floor()
+        self.open_panel("zed-alpha")
+        self.page.wait_for_function("(i=>i && i.complete && i.naturalWidth>0)(document.querySelector('#dp-body .dp-pic img'))")
+        self.assertEqual(self.js("document.querySelectorAll('#dp-body .dp-pic').length"), 1)
+        self.assertIn("session=zed-alpha", asked[0])
+        self.assertIn("path=inbox%2FScreen%20shot%201.png", asked[0])     # the pdf gets no preview
+        self.page.click("#dp-body .dp-pic")
+        self.page.wait_for_timeout(200)
+        self.assertTrue(self.js("document.getElementById('viewdlg').open"))
+        self.assertEqual(self.js("document.getElementById('vw-name').textContent"), "Screen shot 1.png")
+
     def test_what_you_send_shows_at_once_with_replying_under_it(self):
         held = []
         self.page.unroute("**/api/say")

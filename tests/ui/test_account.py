@@ -66,6 +66,27 @@ class AccountPill(BrowserCase):
         self.assertEqual(len(lines), 1)                         # a limit with no reset time gets no line
         self.assertRegex(lines[0], r"^resets (tomorrow )?\d\d:\d\d · in 2h [45]m$")
 
+    def test_refresh_asks_for_every_account_renewed_and_shows_the_new_numbers(self):
+        asked = []
+        newer = dict(ACCOUNTS, accounts=[dict(ACCOUNTS["accounts"][0]), dict(ACCOUNTS["accounts"][1], live=True,
+                     limits=[{"label": "week", "percent": 55, "resets_at": None}])])
+
+        def answer(r):
+            asked.append(r.request.url)
+            r.fulfill(status=200, content_type="application/json", body=json.dumps(newer if "renew=1" in r.request.url else ACCOUNTS))
+        self.page.unroute("**/api/accounts*")
+        self.page.route("**/api/accounts*", answer)
+        self.open_floor()
+        self.page.click("#acctbtn")
+        self.page.wait_for_timeout(300)
+        self.assertNotIn("55%", self.js("document.getElementById('ac-list').textContent"))
+        self.page.click("#ac-refresh")
+        self.page.wait_for_function("document.getElementById('ac-list').textContent.includes('55%')")
+        self.assertTrue(any("renew=1" in u for u in asked))
+        self.assertEqual(self.js("document.getElementById('ac-refresh').textContent"), "↻ Refresh")
+        self.assertFalse(self.js("document.getElementById('ac-refresh').disabled"))
+
+
 @skip_unless_browser
 class PhoneAccountPill(AccountPill):
     device = IPHONE

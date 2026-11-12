@@ -112,6 +112,8 @@ def _fresh(mod):
 # cost one snapshot, not two). Any POST empties it, so what you just did shows on the next poll.
 FLOOR_TTL = 1.5
 _FLOOR = {"at": 0.0, "body": b""}
+INBOX_PICS = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
+              ".webp": "image/webp", ".heic": "image/heic"}
 _SIDS = {}          # session -> its conversation id, from the last floor: where /api/turns reads
 _FLOOR_LOCK = threading.Lock()
 # what the snapshot carries for the server's own bookkeeping (restore, restart) — the page never reads it
@@ -466,14 +468,15 @@ _ACCTS = {"at": 0.0, "data": None}
 _ACCTS_LOCK = threading.Lock()
 
 
-def accounts(fresh=False):
-    """`claude-switch json`, kept a minute; None when the script isn't installed."""
+def accounts(fresh=False, renew=False):
+    """`claude-switch json`, kept a minute; None when the script isn't installed. `renew` first gives
+    saved logins whose access ran out new access, so every account's numbers are live."""
     if not os.access(SWITCH_BIN, os.X_OK):
         return None
     with _ACCTS_LOCK:
-        if fresh or not _ACCTS["data"] or time.time() - _ACCTS["at"] > 60:
+        if fresh or renew or not _ACCTS["data"] or time.time() - _ACCTS["at"] > 60:
             try:
-                out = subprocess.run([SWITCH_BIN, "json"], capture_output=True, text=True, timeout=60,
+                out = subprocess.run([SWITCH_BIN, "json"] + (["renew"] if renew else []), capture_output=True, text=True, timeout=60,
                                      stdin=subprocess.DEVNULL).stdout
                 _ACCTS.update(data=json.loads(out.strip().splitlines()[-1]), at=time.time())
             except Exception:
@@ -1050,8 +1053,9 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/drop":
             return self._drop_list()
         if self.path.split("?")[0] == "/api/accounts":
-            fresh = (parse_qs(urlparse(self.path).query).get("fresh") or [""])[0] == "1"
-            return self._json((None if cfg("OFFICE_DEMO") else accounts(fresh)) or {"available": False})
+            q = parse_qs(urlparse(self.path).query)
+            fresh, renew = (q.get("fresh") or [""])[0] == "1", (q.get("renew") or [""])[0] == "1"
+            return self._json((None if cfg("OFFICE_DEMO") else accounts(fresh, renew)) or {"available": False})
         if self.path.split("?")[0] == "/api/restart":
             if cfg("OFFICE_DEMO"):
                 return self._json({"restore": [], "update": [], "skip": [], "job": dict(_JOB)})
@@ -1084,6 +1088,29 @@ class Handler(SimpleHTTPRequestHandler):
             os.utime(f)                         # in use: not one of the old ones briefs/ lets go of
             with open(f, "rb") as fh:
                 return self._send(fh.read(), "audio/mpeg")
+        if self.path.split("?")[0] == "/api/inbox":
+            # a picture you pasted or shared to an agent, for the preview in its panel: only from
+            # that agent's own inbox/, and only pictures
+            q = parse_qs(urlparse(self.path).query)
+            sess, rel = (q.get("session") or [""])[0], (q.get("path") or [""])[0]
+            d = self._drop_dir(sess) if sess in live_sessions() else None
+            ext = os.path.splitext(rel)[1].lower()
+            if not d or ext not in INBOX_PICS or "/inbox/" not in "/" + rel.replace("\\", "/"):
+                return self._json({"error": "not found"}, 404)
+            inbox = os.path.join(d, "inbox")
+            f = os.path.realpath(os.path.join(inbox, rel.replace("\\", "/").rsplit("inbox/", 1)[1]))
+            if os.path.dirname(f) != inbox or not os.path.isfile(f):
+                return self._json({"error": "not found"}, 404)
+            with open(f, "rb") as fh:
+                b = fh.read()
+            self.send_response(200)
+            self.send_header("Content-Type", INBOX_PICS[ext])
+            self.send_header("Content-Length", str(len(b)))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Cache-Control", "private, max-age=86400")
+            self.end_headers()
+            self.wfile.write(b)
+            return
         if self.path.split("?")[0] == "/api/turns":
             # one agent's last exchanges for its panel, read from its transcript only when asked
             sess = (parse_qs(urlparse(self.path).query).get("session") or [""])[0]
