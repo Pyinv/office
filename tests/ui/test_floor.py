@@ -109,6 +109,17 @@ class Floor(BrowserCase):
         # Bo finishes while the terminal is open: the list follows without reopening anything
         team[2].update(state="review", full="## Built\n\nall 40 pages", unread=True)
         self.page.wait_for_function("[...document.querySelectorAll('#rail .r2')].some(e=>e.textContent==='done · Built')", timeout=10000)
+        self.assertEqual(self.js("document.querySelector('#rail .rp.on .rn').textContent"), "Alpha | Zed")   # as the browser tab says it
+        # drag its edge to make it wider; the width is kept, a double-click puts it back
+        box = self.page.locator("#railgrip").bounding_box()
+        x, y = box["x"] + box["width"] / 2, box["y"] + 200
+        self.page.mouse.move(x, y); self.page.mouse.down(); self.page.mouse.move(x + 90, y, steps=5); self.page.mouse.up()
+        self.assertEqual(self.js("Math.round(document.getElementById('rail').getBoundingClientRect().width)"), 340)
+        self.assertEqual(self.js("pref('railW')"), 340)
+        self.page.mouse.move(x + 90, y); self.page.mouse.down(); self.page.mouse.move(x + 900, y, steps=5); self.page.mouse.up()
+        self.assertEqual(self.js("pref('railW')"), 480)                                    # never wider than that
+        self.page.dblclick("#railgrip")
+        self.assertEqual(self.js("pref('railW')"), 250)
         # ‹ hide folds it to faces, and that is remembered
         self.page.click("#rail .rfold")
         self.assertTrue(self.js("document.getElementById('rail').classList.contains('fold')"))

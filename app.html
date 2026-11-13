@@ -703,6 +703,13 @@
   .rail .r2 b.w{color:var(--wait)} .rail .r2 b.k{color:var(--work)} .rail .r2 b.v{color:var(--rev)} .rail .r2 b.d{color:var(--pend)}
   .rail .rf{margin-top:auto;display:flex;align-items:center;gap:.55rem;padding:.6rem .9rem;border-top:1px solid var(--line);color:var(--dim);font-size:.74rem}
   .rail .floorbtn{width:30px;height:30px;flex:0 0 auto;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);cursor:pointer;font-size:.95rem}
+  .railgrip{flex:0 0 6px;margin-left:-3px;margin-right:-3px;cursor:col-resize;position:relative;z-index:2;touch-action:none}
+  .railgrip::after{content:"";position:absolute;inset:0 2px;border-radius:2px;transition:background .15s}
+  .railgrip:hover::after,.railgrip.drag::after{background:var(--work)}
+  .rail.fold+.railgrip{display:none}
+  body.raildrag,body.raildrag *{cursor:col-resize!important;user-select:none}
+  body.raildrag #termframe{pointer-events:none}
+  @media (max-width:600px),(pointer:coarse){ .railgrip{display:none} }
   /* folded: faces only, for a wider terminal */
   .rail.fold{flex-basis:64px}
   .rail.fold .rh{justify-content:center;padding:.6rem 0 .3rem}
@@ -821,7 +828,7 @@
       <button class="mx" id="mpop" title="open in a new tab (run two side by side)">↗</button>
       <button class="mx" id="mx" title="close">✕</button>
     </div>
-    <div class="mrow"><nav class="rail" id="rail" aria-label="switch desk"></nav>
+    <div class="mrow"><nav class="rail" id="rail" aria-label="switch desk"></nav><div class="railgrip" id="railgrip" role="separator" aria-orientation="vertical" aria-label="drag to change the list's width" title="drag to change the width · double-click to reset"></div>
     <iframe id="termframe" src="about:blank" allow="clipboard-read; clipboard-write"></iframe></div>
   </div>
 </div>
@@ -1776,7 +1783,7 @@ function paintRail(session, force){
   const row=m=>{ const st=deskState(m), dot=m.state==="waiting"&&!m._sent?"w":st==="working"?"k":m.unread?"u":"";
     return `<button class="rp${m.session===session?" on":""}" data-s="${esc(m.session)}" title="${esc(tabTitle(m))}">`
       +`<span class="av" style="--h:${hueFor(m.person||m.project)}">${esc(m.emoji||emojiFor(m.project))}${dot?`<i class="${dot}"></i>`:""}</span>`
-      +`<span class="rt"><span class="r1"><span class="rn">${esc(m.person||m.project)}</span><span class="ra">${esc(agoText(m.ts))}</span></span>`
+      +`<span class="rt"><span class="r1"><span class="rn">${esc(tabTitle(m))}</span><span class="ra">${esc(agoText(m.ts))}</span></span>`
       +`<span class="r2" dir="auto">${railLine(m)}</span></span></button>`; };
   const html=`<div class="rh"><span>Desks</span><button type="button" class="rfold" title="${fold?"show the list":"faces only, a wider terminal"}">${fold?"›":"‹ hide"}</button></div>`
     +(wait.length?`<div class="rg">Needs you · ${wait.length}</div>`+wait.map(row).join(""):"")
@@ -1785,12 +1792,28 @@ function paintRail(session, force){
   if(!force && html===RAIL_SIG) return; RAIL_SIG=html;
   const top=rail.scrollTop;
   rail.classList.toggle("fold", fold);
+  rail.style.flexBasis=fold ? "" : railWidth()+"px";
   rail.innerHTML=html; rail.scrollTop=top;
   rail.querySelectorAll("button[data-s]").forEach(b=>b.onclick=()=>{ if(b.dataset.s!==MODAL_SESSION) openTermByName(b.dataset.s); });
   rail.querySelector(".floorbtn").onclick=closeTerm;
   rail.querySelector(".rfold").onclick=()=>{ setPref("railFold", !fold); paintRail(MODAL_SESSION, true); };
 }
-setInterval(()=>{ if(MODAL_OPEN && !document.hidden) paintRail(MODAL_SESSION); }, 30000);   // "4m" becomes "5m" between floor updates
+setInterval(()=>{ if(MODAL_OPEN && !document.hidden) paintRail(MODAL_SESSION); }, 30000);
+// the list's width: drag the edge between it and the terminal (kept per device), double-click for the default
+const RAIL_W=250, RAIL_MIN=170, RAIL_MAX=480;
+function railWidth(){ const w=+pref("railW"); return w>=RAIL_MIN && w<=RAIL_MAX ? w : RAIL_W; }
+(function(){
+  const g=document.getElementById("railgrip"), rail=document.getElementById("rail"); if(!g || !rail) return;
+  let x0=0, w0=0;
+  const set=w=>{ w=Math.round(Math.max(RAIL_MIN, Math.min(RAIL_MAX, w))); rail.style.flexBasis=w+"px"; return w; };
+  g.addEventListener("pointerdown", e=>{ if(e.button) return; e.preventDefault(); x0=e.clientX; w0=rail.getBoundingClientRect().width;
+    g.setPointerCapture(e.pointerId); g.classList.add("drag"); document.body.classList.add("raildrag"); });
+  g.addEventListener("pointermove", e=>{ if(g.classList.contains("drag")) set(w0+e.clientX-x0); });
+  const end=e=>{ if(!g.classList.contains("drag")) return; g.classList.remove("drag"); document.body.classList.remove("raildrag");
+    setPref("railW", set(w0+e.clientX-x0)); };
+  g.addEventListener("pointerup", end); g.addEventListener("pointercancel", end);
+  g.addEventListener("dblclick", ()=>{ setPref("railW", set(RAIL_W)); });
+})();   // "4m" becomes "5m" between floor updates
 const BASE_TITLE=document.title;
 function closeTerm(){
   if(location.pathname!=="/") history.pushState(null, "", "/");
