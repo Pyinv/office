@@ -307,6 +307,21 @@ class Floor(BrowserCase):
 class PhoneFloor(BrowserCase):
     device = IPHONE
 
+    def test_closing_the_terminal_comes_back_to_where_you_were_on_the_floor(self):
+        self.page.route("**/api/floor", lambda r: r.fulfill(status=200, content_type="application/json",
+                                                          body=json.dumps({"team": TEAM, "version": "test"})))
+        self.page.route("**/terminal/**", lambda r: r.fulfill(status=200, content_type="text/html", body="<html></html>"))
+        for api in ("say", "key", "paste"):
+            self.page.route(f"**/api/{api}", lambda r: r.fulfill(status=200, content_type="application/json", body='{"ok":true}'))
+        self.open_floor()
+        self.page.evaluate("document.body.style.minHeight='3000px'; window.scrollTo(0, 400)")
+        self.page.evaluate("openTermByName('zed-alpha')")
+        self.page.wait_for_timeout(200)
+        self.page.evaluate("window.scrollTo(0, 1500)")          # what the keyboard does to the page under the terminal
+        self.page.evaluate("closeTerm()")
+        self.page.wait_for_timeout(800)
+        self.assertEqual(self.js("Math.round(scrollY)"), 400)
+
     def test_three_seats_a_row_and_the_panel_fills_the_screen(self):
         self.page.route("**/api/floor", lambda r: r.fulfill(status=200, content_type="application/json",
                                                           body=json.dumps({"team": TEAM, "version": "test"})))

@@ -1738,7 +1738,7 @@ function injectTouchScroll(frame){
   doc.addEventListener("touchend", ()=>{ y=null; }, {passive:true, capture:true});
   doc.addEventListener("touchcancel", ()=>{ y=null; }, {passive:true, capture:true});
 }
-let MODAL_OPEN=false, MODAL_SESSION="";
+let MODAL_OPEN=false, MODAL_SESSION="", TERM_Y=0;
 // "web-app" + "Alex" -> "Web App | Alex": the project leads so tabs sort by what you're working on
 const projTitle=m=>(m.project||"").split(/[-_]+/).filter(Boolean).map(w=>w[0].toUpperCase()+w.slice(1)).join(" ");
 function tabTitle(m){
@@ -1759,6 +1759,7 @@ function openTerm(session, who, title){
   const mt=document.getElementById("mtitle"); mt.textContent=title||who; mt.title=session;   // the same name as the browser tab
   document.getElementById("say").placeholder="Message "+who+"…";
   document.title=title||who;                       // name the tab after the session so several open tabs stay tellable apart
+  if(!MODAL_OPEN) TERM_Y=window.scrollY;           // where you were on the floor: closing comes back here
   document.getElementById("modal").classList.add("open");
   MODAL_OPEN=true;
   document.body.classList.add("termkeys");        // show the phone key-bar
@@ -1832,6 +1833,10 @@ function closeTerm(){
   const say=document.getElementById("say"); say.value=""; say.blur();   // the draft stays in localStorage
   const sb=document.getElementById("search"); if(sb && sb.value){ sb.value=""; SEARCH=""; }  // clear the search used to find this session
   render();                                   // the floor catches up with what the polls brought while it was covered
+  // back where you were: on the phone the keyboard scrolled the page under the terminal, and it slides away
+  // after the close, so put it back now and once more when it has gone
+  const y=TERM_Y, back=()=>{ if(!MODAL_OPEN) window.scrollTo(0, y); };
+  back(); requestAnimationFrame(back); setTimeout(back, 350); setTimeout(back, 700);
 }
 document.getElementById("modal").addEventListener("mousedown",e=>{ if(e.target.id==="modal") closeTerm(); });
 // browser back/forward between the floor and a terminal
