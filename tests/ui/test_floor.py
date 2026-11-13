@@ -109,7 +109,8 @@ class Floor(BrowserCase):
         # Bo finishes while the terminal is open: the list follows without reopening anything
         team[2].update(state="review", full="## Built\n\nall 40 pages", unread=True)
         self.page.wait_for_function("[...document.querySelectorAll('#rail .r2')].some(e=>e.textContent==='done · Built')", timeout=10000)
-        self.assertEqual(self.js("document.querySelector('#rail .rp.on .rn').textContent"), "Alpha | Zed")   # as the browser tab says it
+        self.assertEqual(self.js("document.querySelector('#rail .rp.on .rn').textContent"), "Alpha")   # the project, as the tab says it
+        self.assertEqual(self.js("document.querySelector('#rail .rp.on .pn').textContent"), "Zed")     # the agent under its face
         # drag its edge to make it wider; the width is kept, a double-click puts it back
         box = self.page.locator("#railgrip").bounding_box()
         x, y = box["x"] + box["width"] / 2, box["y"] + 200
