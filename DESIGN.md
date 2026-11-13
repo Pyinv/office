@@ -78,6 +78,7 @@ components:
 **Key characteristics:**
 - Calm by default; only "needs you" is loud.
 - Faces and names outrank operational metadata.
+- Beside a laptop terminal the desks are a chat list (face, how long ago, what's going on), kept current while it is open.
 - Everyone is one list: pinned first, then the most recently active, in Today / This week / Older, each desk tagged with its room. The room switch (Everyone, Ventures, Clients, Personal) shows one room the same way.
 - Ink on paper in light mode, warm charcoal in dark mode, with no purple, gradients or glows.
 
@@ -139,3 +140,4 @@ Radii: 6px for small controls and code, 10px for desks, inputs and buttons, 14px
 | 2026-11-05 | Laptop: a desk click opens the terminal | Opening the panel first made the most used action two clicks; the panel moved to a 💬 Read button on hover, the phone keeps tap → sheet |
 | 2026-11-12 | Pictures show in the panel | A picture pasted or shared to an agent was only its inbox/ path; it now shows as a thumbnail under your bubble (max 240×180, rounded 8px) and a tap opens the full-screen viewer |
 | 2026-11-12 | ↻ Refresh in the account dialog | Saved logins whose access ran out showed numbers days old; Refresh renews them and fetches every account live |
+| 2026-11-13 | The rail beside the terminal is a chat list | It was faces only and drawn once; now 250px rows with the face, how long ago and one line (needs you: the question, working, done · the reply), needs you first then by last activity, repainted on every floor update (the floor keeps polling while a terminal is open); ‹ hide folds it to faces |

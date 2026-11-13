@@ -91,6 +91,32 @@ class Floor(BrowserCase):
         self.assertFalse(self.js("MODAL_OPEN"))
         self.assertFalse(self.js("document.getElementById('desk').hidden"))
 
+    def test_beside_the_terminal_a_chat_list_says_who_how_long_ago_and_whats_going_on_and_keeps_up(self):
+        team = [dict(m) for m in TEAM]
+        self.page.unroute("**/api/floor")
+        self.page.route("**/api/floor", lambda r: r.fulfill(status=200, content_type="application/json",
+                                                          body=json.dumps({"team": team, "version": "test"})))
+        self.open_floor()
+        self.page.click("[data-session=zed-alpha] .wn")
+        self.page.wait_for_selector("#rail .rp")
+        rows = lambda: self.js("[...document.querySelectorAll('#rail .rp')].map(b=>[b.dataset.s, b.querySelector('.ra').textContent, b.querySelector('.r2').textContent])")
+        self.assertEqual(rows(), [["cy-delta", "1m", "needs you: Permission to use Bash"],
+                                  ["amy-beta", "2m", "needs you: Ship 2.8.1 now?"],
+                                  ["bo-gamma", "now", "working"],
+                                  ["zed-alpha", "1m", "done · Passt das so?"]])          # a desk that isn't running isn't listed
+        self.assertEqual(self.js("document.querySelector('#rail .rp.on').dataset.s"), "zed-alpha")
+        self.assertEqual(self.js("[...document.querySelectorAll('#rail .rg')].map(g=>g.textContent)"), ["Needs you · 2", "Recent"])
+        # Bo finishes while the terminal is open: the list follows without reopening anything
+        team[2].update(state="review", full="## Built\n\nall 40 pages", unread=True)
+        self.page.wait_for_function("[...document.querySelectorAll('#rail .r2')].some(e=>e.textContent==='done · Built')", timeout=10000)
+        # ‹ hide folds it to faces, and that is remembered
+        self.page.click("#rail .rfold")
+        self.assertTrue(self.js("document.getElementById('rail').classList.contains('fold')"))
+        self.assertEqual(self.js("getComputedStyle(document.querySelector('#rail .rt')).display"), "none")
+        self.assertTrue(self.js("pref('railFold')"))
+        self.page.click("#rail .rfold")
+        self.assertFalse(self.js("document.getElementById('rail').classList.contains('fold')"))
+
     def test_a_desk_opens_its_panel_and_a_choice_presses_its_key(self):
         self.open_floor()
         self.open_panel("amy-beta")

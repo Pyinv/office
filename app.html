@@ -679,20 +679,37 @@
     .toast{bottom:6.2rem}
     .recentrow{margin-top:.9rem}          /* Nadia moved to the bottom: nothing above it to tuck under any more */
   }
-  /* ── the terminal: a rail of faces beside it on a laptop ── */
+  /* ── the terminal: beside it on a laptop, the desks as a chat list (who, how long ago, what's going on) ── */
   .mrow{flex:1;display:flex;min-height:0}
-  .rail{flex:0 0 76px;display:flex;flex-direction:column;align-items:stretch;gap:.35rem;padding:.6rem .3rem;background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;scrollbar-width:none}
-  /* faces repeat (many 👤, 🚗), so every face carries its name */
-  .rail .rp{display:flex;flex-direction:column;align-items:center;gap:.2rem;border:0;background:none;padding:.3rem .1rem;border-radius:10px;cursor:pointer;color:var(--dim);font:inherit;min-width:0}
-  .rail .rp:hover{background:var(--panel2);color:var(--ink)}
-  .rail .rp.on{background:var(--panel2);color:var(--ink)}
+  .rail{flex:0 0 250px;display:flex;flex-direction:column;background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;scrollbar-width:none;min-width:0}
+  .rail .rh{display:flex;align-items:center;justify-content:space-between;padding:.7rem .7rem .35rem .9rem;font-size:.72rem;font-weight:600;color:var(--faint)}
+  .rail .rh button{border:0;background:none;color:var(--dim);font:inherit;font-size:.72rem;cursor:pointer;padding:.15rem .35rem;border-radius:6px}
+  .rail .rh button:hover{background:var(--panel2);color:var(--ink)}
+  .rail .rg{font-size:.64rem;font-weight:600;color:var(--faint);padding:.5rem .9rem .2rem;text-transform:uppercase;letter-spacing:.05em}
+  .rail .rp{display:flex;gap:.6rem;align-items:flex-start;border:0;border-left:2px solid transparent;background:none;padding:.5rem .7rem .5rem .8rem;cursor:pointer;color:var(--ink);font:inherit;text-align:left;min-width:0;width:100%}
+  .rail .rp:hover{background:var(--panel2)}
+  .rail .rp.on{background:var(--panel2);border-left-color:var(--ink)}
   .rail .rp .av{position:relative;width:34px;height:34px;flex:0 0 34px;border-radius:9px;font-size:1rem;background:hsl(var(--h) 22% 24%)}
-  .rail .rp.on .av{outline:2px solid var(--ink);outline-offset:2px}
-  .rail .rp .av i{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:#f0a020;border:2px solid var(--panel)}
-  .rail .rp .rn{font-size:.66rem;font-weight:500;line-height:1.15;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .rail .floorbtn{align-self:center;flex:0 0 auto}
-  .rail .grow{flex:1}
-  .rail .floorbtn{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);cursor:pointer;font-size:1rem}
+  .rail .rp .av i{position:absolute;bottom:-3px;right:-3px;width:10px;height:10px;border-radius:50%;border:2px solid var(--panel)}
+  .rail .rp .av i.w{background:var(--wait)}
+  .rail .rp .av i.k{background:var(--work);animation:breathe 2s ease-in-out infinite}
+  .rail .rp .av i.u{background:var(--ink)}
+  .rail .rt{display:block;flex:1;min-width:0}
+  .rail .r1{display:flex;align-items:baseline;gap:.4rem}
+  .rail .rn{font:650 .88rem var(--disp);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rail .ra{font:500 .66rem "JetBrains Mono",monospace;color:var(--faint);white-space:nowrap}
+  .rail .r2{display:block;font-size:.74rem;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:.05rem}
+  .rail .r2 b{font-weight:600}
+  .rail .r2 b.w{color:var(--wait)} .rail .r2 b.k{color:var(--work)} .rail .r2 b.v{color:var(--rev)} .rail .r2 b.d{color:var(--pend)}
+  .rail .rf{margin-top:auto;display:flex;align-items:center;gap:.55rem;padding:.6rem .9rem;border-top:1px solid var(--line);color:var(--dim);font-size:.74rem}
+  .rail .floorbtn{width:30px;height:30px;flex:0 0 auto;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);cursor:pointer;font-size:.95rem}
+  /* folded: faces only, for a wider terminal */
+  .rail.fold{flex-basis:64px}
+  .rail.fold .rh{justify-content:center;padding:.6rem 0 .3rem}
+  .rail.fold .rh span,.rail.fold .rg,.rail.fold .rt,.rail.fold .rf span{display:none}
+  .rail.fold .rp{justify-content:center;padding:.4rem 0}
+  .rail.fold .rf{justify-content:center;padding:.6rem 0;border:0}
+  @media (prefers-reduced-motion:reduce){ .rail .rp .av i.k{animation:none} }
   @media (max-width:600px),(pointer:coarse){ .rail{display:none} }
   /* ── dialogs ── */
   .newdlg{border-radius:16px}
@@ -1736,19 +1753,44 @@ function openTerm(session, who, title){
   if(window.restoreDraft) restoreDraft();          // an unsent message for this session comes back (after the bar is visible, so the box can be measured)
   if(window.placeKeybar) setTimeout(placeKeybar,60);
 }
-// the face rail beside a laptop terminal: whoever needs you, then the ones you touched last — one click
-// hops desk to desk without going back to the floor; an amber dot means that person is asking you
-function paintRail(session){
-  const rail=document.getElementById("rail"); if(!rail) return;
-  const wait=LAST.filter(m=>m.state==="waiting" && !m.ghost).sort((a,b)=>(b.ts||0)-(a.ts||0));
-  const rest=LAST.filter(m=>!m.ghost && m.ts && !wait.includes(m)).sort((a,b)=>(b.ts||0)-(a.ts||0));
+// the chat list beside a laptop terminal: whoever needs you, then the ones busy last, each with how long ago and
+// one line on what's going on; one click hops desk to desk. Repainted on every floor update (render) and as time passes.
+let RAIL_SIG="";
+const firstLine=t=>(String(t||"").split("\n").map(l=>l.replace(/^[\s#>*\-`|]+/,"").replace(/[*`_]+/g,"").trim()).find(Boolean)||"");
+function railLine(m){
+  const st=deskState(m);
+  if(m.state==="waiting") return `<b class="w">needs you:</b> `+esc(m.ask||NOTES[m.asks]||"answer");
+  if(st==="working") return `<b class="k">working${m.you_at&&!m._sent?" · "+agoText(m.you_at).replace("now","just now"):""}</b>`+(m.you?" · "+esc(firstLine(m.you)):"");
+  if(st==="typed") return `<b class="d">draft in the box</b>`;
+  const said=esc(firstLine(m.full));
+  return m.unread ? `<b class="v">done</b>`+(said?" · "+said:"") : said;
+}
+function paintRail(session, force){
+  const rail=document.getElementById("rail"); if(!rail || !session) return;
+  const live=LAST.filter(m=>!m.ghost), byTs=(a,b)=>(b.ts||0)-(a.ts||0);
+  const wait=live.filter(m=>m.state==="waiting" && !m._sent).sort(byTs);
+  let rest=live.filter(m=>!wait.includes(m) && m.ts).sort(byTs).slice(0, Math.max(4, 12-wait.length));
   const cur=LAST.find(m=>m.session===session);
-  const list=[cur, ...wait, ...rest].filter((m,i,a)=>m && a.indexOf(m)===i).slice(0,10);
-  rail.innerHTML=list.map(m=>`<button class="rp${m.session===session?" on":""}" data-s="${esc(m.session)}" title="${esc(tabTitle(m))}"><span class="av" style="--h:${hueFor(m.person||m.project)}">${esc(m.emoji||emojiFor(m.project))}${m.state==="waiting"?"<i></i>":""}</span><span class="rn">${esc(m.person||m.project)}</span></button>`).join("")
-    +`<span class="grow"></span><button class="floorbtn" title="back to the floor (Esc)" aria-label="back to the floor">▦</button>`;
+  if(cur && !wait.includes(cur) && !rest.includes(cur)) rest=[...rest, cur];      // the one you're in is always there
+  const fold=!!pref("railFold");
+  const row=m=>{ const st=deskState(m), dot=m.state==="waiting"&&!m._sent?"w":st==="working"?"k":m.unread?"u":"";
+    return `<button class="rp${m.session===session?" on":""}" data-s="${esc(m.session)}" title="${esc(tabTitle(m))}">`
+      +`<span class="av" style="--h:${hueFor(m.person||m.project)}">${esc(m.emoji||emojiFor(m.project))}${dot?`<i class="${dot}"></i>`:""}</span>`
+      +`<span class="rt"><span class="r1"><span class="rn">${esc(m.person||m.project)}</span><span class="ra">${esc(agoText(m.ts))}</span></span>`
+      +`<span class="r2" dir="auto">${railLine(m)}</span></span></button>`; };
+  const html=`<div class="rh"><span>Desks</span><button type="button" class="rfold" title="${fold?"show the list":"faces only, a wider terminal"}">${fold?"›":"‹ hide"}</button></div>`
+    +(wait.length?`<div class="rg">Needs you · ${wait.length}</div>`+wait.map(row).join(""):"")
+    +`<div class="rg">Recent</div>`+rest.map(row).join("")
+    +`<div class="rf"><button class="floorbtn" title="back to the floor (Esc)" aria-label="back to the floor">▦</button><span>back to the floor · Esc</span></div>`;
+  if(!force && html===RAIL_SIG) return; RAIL_SIG=html;
+  const top=rail.scrollTop;
+  rail.classList.toggle("fold", fold);
+  rail.innerHTML=html; rail.scrollTop=top;
   rail.querySelectorAll("button[data-s]").forEach(b=>b.onclick=()=>{ if(b.dataset.s!==MODAL_SESSION) openTermByName(b.dataset.s); });
   rail.querySelector(".floorbtn").onclick=closeTerm;
+  rail.querySelector(".rfold").onclick=()=>{ setPref("railFold", !fold); paintRail(MODAL_SESSION, true); };
 }
+setInterval(()=>{ if(MODAL_OPEN && !document.hidden) paintRail(MODAL_SESSION); }, 30000);   // "4m" becomes "5m" between floor updates
 const BASE_TITLE=document.title;
 function closeTerm(){
   if(location.pathname!=="/") history.pushState(null, "", "/");
@@ -1759,7 +1801,8 @@ function closeTerm(){
   MODAL_OPEN=false;
   document.body.classList.remove("termkeys");
   const say=document.getElementById("say"); say.value=""; say.blur();   // the draft stays in localStorage
-  const sb=document.getElementById("search"); if(sb && sb.value){ sb.value=""; SEARCH=""; render(); }  // clear the search used to find this session
+  const sb=document.getElementById("search"); if(sb && sb.value){ sb.value=""; SEARCH=""; }  // clear the search used to find this session
+  render();                                   // the floor catches up with what the polls brought while it was covered
 }
 document.getElementById("modal").addEventListener("mousedown",e=>{ if(e.target.id==="modal") closeTerm(); });
 // browser back/forward between the floor and a terminal
@@ -2434,6 +2477,7 @@ function render(){
   const team=LAST;
   renderChips(team);
   renderRecent(team);
+  if(MODAL_OPEN) paintRail(MODAL_SESSION);
   const st=stateTest();
   const s=SEARCH.trim().toLowerCase();
   const shown=team.filter(st).filter(catTest).filter(m=>!s || searchScore(m,s)>0);
@@ -2570,7 +2614,6 @@ window.addEventListener("online", ()=>{ NET.diag=null; load(); });
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) load(); });
 
 async function load(){
-  if(MODAL_OPEN) return;                // terminal open — don't reflow behind it
   if(FROZEN || composing()){
     document.getElementById("sub").innerHTML=`<span class="frozen-note">paused while you answer</span> — resumes when you send`;
     return;
@@ -2606,6 +2649,8 @@ async function load(){
   const w=LAST.filter(t=>t.state==="waiting").length, p=LAST.filter(t=>t.state==="typed").length;
   document.getElementById("sub").innerHTML=
     `<span class="needdot"></span><b class="needn">${w}</b> need you · ${LAST.length} desks`+(p?` · ${p} unsent`:"");
+  // terminal open: keep the list beside it current, but don't reflow the floor behind it (closeTerm renders it)
+  if(MODAL_OPEN){ paintRail(MODAL_SESSION); return; }
   render();
   if(REOPEN){ const s=REOPEN; REOPEN=""; if(!DESK) openDesk(s); }      // a reload comes back to the panel you had open
 }
