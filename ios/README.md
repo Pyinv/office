@@ -21,7 +21,7 @@ it stays for a year, or ship it to yourself through TestFlight.
 
 ## Use
 
-First launch asks for the Office address and remembers it. Shake the phone to change it.
+First launch asks for the Office address and remembers it. To change it later, use "Change address" on the "Can't reach the Office" screen.
 Links to other sites open in an in-app Safari sheet; a popped-out terminal or a file from
 the Files browser opens as a sheet on top with a Done button.
 

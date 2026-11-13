@@ -84,18 +84,14 @@ final class OfficeViewController: UIViewController, WKNavigationDelegate, WKUIDe
             Push.sendToken()
             self.load(u)
         })
+        // the address is changed only from "Can't reach the Office"; with one saved, you can back out
+        if OfficeAddress.url != nil { a.addAction(UIAlertAction(title: "Cancel", style: .cancel)) }
         present(a, animated: true)
     }
 
     private func load(_ url: URL) {
         officeHost = url.host ?? ""
         web.load(URLRequest(url: url))
-    }
-
-    // shake the phone to change the address
-    override var canBecomeFirstResponder: Bool { true }
-    override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
-        if motion == .motionShake { askForURL(message: "Change the Office address?") }
     }
 
     // MARK: navigation
