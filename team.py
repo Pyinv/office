@@ -384,6 +384,51 @@ def _epoch(iso):
     except Exception:
         return 0
 
+_MD_LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_SENT_END = re.compile(r"(?<=[.!?؟])\s+(?=[\"“(\[A-Z0-9؀-ۿ])")
+
+
+def _plain(par):
+    """One paragraph of markdown as plain words: no list or quote markers, emphasis, code ticks or links."""
+    t = ""
+    for l in par.splitlines():
+        item = re.match(r"^\s*(?:[-*+]|\d+[.)])\s+", l)             # each list item is its own piece
+        l = re.sub(r"^\s*(?:[-*+>]|\d+[.)])\s+", "", l).strip()
+        if l:
+            t += ((" · " if item and not t.endswith(":") else " ") if t else "") + l
+    t = _MD_LINK.sub(r"\1", t)
+    t = re.sub(r"(\*\*|__|\*|`)", "", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def gist(text, limit=200):
+    """What a reply says, in a line or two: its opening sentence(s), where Claude puts the point. Code,
+    tables, headings and rules are skipped; a short lead-in ending in ":" takes the item after it; cut
+    at a sentence, or failing that a word, never mid-word."""
+    text = re.sub(r"```.*?(```|$)", "\n\n", text or "", flags=re.S)
+    pars = []
+    for par in re.split(r"\n\s*\n", text):
+        first = par.strip().splitlines()[0].strip() if par.strip() else ""
+        if not first or first.startswith(("#", "|")) or re.fullmatch(r"[-*_=\s]{3,}", first):
+            continue
+        p_ = _plain(par)
+        if p_:
+            pars.append(p_)
+    if not pars:
+        return ""
+    out = pars[0]
+    if out.endswith(":") and len(out) <= 80 and len(pars) > 1:      # "For 2026 only:" says nothing alone
+        out += " " + pars[1]
+    sents, said = _SENT_END.split(out), ""
+    for s_ in sents:
+        if said and len(said) + 1 + len(s_) > limit:
+            break
+        said = (said + " " + s_).strip()
+    if len(said) > limit:
+        said = said[:limit].rsplit(" ", 1)[0].rstrip(",;:-–—") + "…"
+    return said
+
+
 def snapshot():
     # Demo mode: return fixture data instead of reading live tmux, so the floor can
     # be shown or screenshotted with no real sessions. OFFICE_DEMO=1 loads demo.json
@@ -436,6 +481,7 @@ def snapshot():
             "dir": path, "attached": attached, "state": state,
             "ask": ask["ask"] if ask else "", "asks": ask["kind"] if ask else "",
             "more": ask["more"] if ask else 0, "detail": ask["detail"] if ask else "", "full": full[-2000:] if full else "",
+            "gist": gist(full),
             "you": you[:400] if you else "",
             "options": ask["options"] if ask else [],
             "typed": None, "ghost": ghost, "running": running, "verb": "",

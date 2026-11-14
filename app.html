@@ -1775,7 +1775,7 @@ function railLine(m){
   if(m.state==="waiting") return `<b class="w">needs you:</b> `+esc(m.ask||NOTES[m.asks]||"answer");
   if(st==="working") return `<b class="k">working${m.you_at&&!m._sent?" · "+agoText(m.you_at).replace("now","just now"):""}</b>`+(m.you?" · "+esc(firstLine(m.you)):"");
   if(st==="typed") return `<b class="d">draft in the box</b>`;
-  const said=esc(firstLine(m.full));
+  const said=esc(m.gist||firstLine(m.full));
   return m.unread ? `<b class="v">done</b>`+(said?" · "+said:"") : said;
 }
 function paintRail(session, force){

@@ -225,5 +225,31 @@ class PromptBox(unittest.TestCase):
         self.assertEqual(self.pane("❯\xa0")[6], "")
 
 
+
+class Gist(unittest.TestCase):
+    """The line a notification and the list beside the terminal show for a reply."""
+
+    def test_the_opening_sentences_plain_not_the_tail_cut_mid_word(self):
+        reply = ("Yes, the fix needs a new app build. It's committed but not in 95, so the error stays until "
+                 "build **96** is on your phone.\n\nBuild 96 would contain:\n1. the share fix\n2. the map")
+        self.assertEqual(team.gist(reply), "Yes, the fix needs a new app build. It's committed but not in 95, "
+                                           "so the error stays until build 96 is on your phone.")
+
+    def test_headings_tables_and_code_are_skipped(self):
+        self.assertEqual(team.gist("## Summary\n\n| a | b |\n|---|---|\n\n```sh\nls\n```\n\nDone. See [the report](https://example.test/r) for more."),
+                         "Done. See the report for more.")
+
+    def test_a_lead_in_with_a_colon_takes_what_follows(self):
+        self.assertEqual(team.gist("For 2026 only:\n\n- **Jan**: 3 invoices\n- Feb: none"), "For 2026 only: Jan: 3 invoices · Feb: none")
+
+    def test_a_long_sentence_is_cut_at_a_word(self):
+        g = team.gist("word " * 100)
+        self.assertTrue(g.endswith("word…") and len(g) <= 201)
+
+    def test_arabic_sentences_and_nothing(self):
+        self.assertEqual(team.gist("تم. الفاتورة جاهزة الآن."), "تم. الفاتورة جاهزة الآن.")
+        self.assertEqual(team.gist(""), "")
+
+
 if __name__ == "__main__":
     unittest.main()

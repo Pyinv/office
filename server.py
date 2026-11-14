@@ -175,7 +175,7 @@ def notify_changes(snap):
                     if not quiet_s: push(s, "needs you: " + ask[:400])
             elif st == "review" and "review" in PUSH_EVENTS and str(_NOTIFIED.get(s, "")).startswith("working"):
                 _NOTIFIED[s] = "review"
-                if not quiet_s: push(s, "done: " + ((m.get("full") or "")[-300:].strip() or "your move"))
+                if not quiet_s: push(s, "done: " + (m.get("gist") or "your move"))
             elif st == "working":
                 if not str(_NOTIFIED.get(s, "")).startswith("working"):
                     _NOTIFIED[s] = "working"
