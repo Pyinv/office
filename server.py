@@ -1239,7 +1239,7 @@ class Handler(SimpleHTTPRequestHandler):
     #      <s> is the session name or its label
     # POST ?session=<s>&text=1                  body = text      -> typed into the agent's terminal
     # Either way the agent gets one line in its terminal saying what arrived and where.
-    DROP_MAX = 200 * 1024 * 1024
+    DROP_MAX = 300 * 1024 * 1024
 
     def _drop_rows(self):
         """[(label, session)] for the live agents, most recently active first. The label is
@@ -1327,7 +1327,7 @@ class Handler(SimpleHTTPRequestHandler):
         # items in order: "text" parts and file parts). Delivered as one message, guarded like drops.
         n = int(self.headers.get("Content-Length", 0) or 0)
         if n <= 0 or n > self.DROP_MAX:
-            return self._json({"error": "empty or too big (200 MB max)"}, 413)
+            return self._json({"error": "empty or too big (300 MB max)"}, 413)
         body = self.rfile.read(n)
         try:
             fields, parts = dropbatch.parse_share(self.headers.get("Content-Type", ""), body)
@@ -1368,7 +1368,7 @@ class Handler(SimpleHTTPRequestHandler):
             return
         n = int(self.headers.get("Content-Length", 0) or 0)
         if n <= 0 or n > self.DROP_MAX:
-            return self._json({"error": "empty or too big (200 MB max)"}, 413)
+            return self._json({"error": "empty or too big (300 MB max)"}, 413)
         rel = self._drop_save(d, unquote((q.get("name") or [""])[0]), self.rfile.read(n))
         return self._json({"ok": True, "path": rel})
 
@@ -1379,7 +1379,7 @@ class Handler(SimpleHTTPRequestHandler):
             return
         n = int(self.headers.get("Content-Length", 0) or 0)
         if n <= 0 or n > self.DROP_MAX:
-            return self._json({"error": "empty or too big (200 MB max)"}, 413)
+            return self._json({"error": "empty or too big (300 MB max)"}, 413)
         body = self.rfile.read(n)
         note = (q.get("note") or [""])[0].strip().replace("\n", " ")
         person = sess.partition("-")[0].capitalize()

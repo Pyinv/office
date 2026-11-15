@@ -418,6 +418,16 @@
     border-radius:11px;opacity:0;transition:all .22s;pointer-events:none;box-shadow:var(--shadow)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .toast.err{background:#c2412d;color:#fff}
+  .upbar{position:fixed;left:50%;bottom:1.3rem;transform:translateX(-50%) translateY(10px);z-index:300;width:min(380px,calc(100vw - 32px));
+    background:var(--ink);color:var(--bg);font-size:.8rem;padding:.55rem .8rem .6rem;border-radius:11px;box-shadow:var(--shadow);
+    opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+  .upbar.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .upbar .ur{display:flex;gap:.6rem;align-items:baseline}
+  .upbar .ut{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .upbar .un{opacity:.75;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .upbar .ug{margin-top:.4rem;height:4px;border-radius:2px;background:color-mix(in srgb,var(--bg) 25%,transparent);overflow:hidden}
+  .upbar .uf{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+  .toast:has(~ .upbar.show){bottom:4.6rem}
   .toast.tap{pointer-events:auto;cursor:pointer;background:var(--accent);color:var(--on-accent)}
   .toast.tap::after{content:" ›";opacity:.75;font-weight:700}
 
@@ -677,6 +687,8 @@
     .sec-in{height:2.4rem}
     .sec-btn{height:2.4rem;padding:.45rem .95rem}
     .toast{bottom:6.2rem}
+    .upbar{bottom:6.2rem}
+    .toast:has(~ .upbar.show){bottom:9.5rem}
     .recentrow{margin-top:.9rem}          /* Nadia moved to the bottom: nothing above it to tuck under any more */
   }
   /* ── the terminal: beside it on a laptop, the desks as a chat list (who, how long ago, what's going on) ── */
@@ -823,6 +835,7 @@
   </form>
 </aside>
 <div class="toast" id="toast"></div>
+<div class="upbar" id="upbar" role="status" aria-live="polite"><div class="ur"><span class="ut"></span><span class="un"></span></div><div class="ug"><i class="uf"></i></div></div>
 <div class="ptr" id="ptr"></div>
 <div class="modal" id="modal">
   <div class="mbox">
@@ -1248,7 +1261,7 @@ function composing(){
 function toast(msg,err,session){ const t=document.getElementById("toast"); t.textContent=msg;
   t.className="toast show"+(err?" err":"")+(session?" tap":"");
   t.onclick = session ? (()=>{ if(typeof flashCard==="function") flashCard(session); }) : null;
-  clearTimeout(t._h); t._h=setTimeout(()=>{ t.className="toast"; t.onclick=null; }, session?6000:1900); }
+  clearTimeout(t._h); t._h=setTimeout(()=>{ t.className="toast"; t.onclick=null; }, session?6000:err?5000:1900); }
 
 async function post(body, okmsg, inputEl){
   // your message shows the moment you send it (its bubble, then "replying…"), like any chat; a send
@@ -1498,34 +1511,73 @@ async function asJpegIfHeic(file){
     return new File([blob], (file.name||"image").replace(/\.hei[cf]$/i,"")+".jpg", {type:"image/jpeg"});
   }catch(_){ return file; }
 }
-async function uploadToAgent(file){
-  file=await asJpegIfHeic(file);
+// a file goes up with XHR (fetch can't report upload progress) and the bar at the bottom shows how far
+function uploadToAgent(file, session, onp){
   const stamp=new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
   const name=(file.name && !/^image\.(png|jpe?g)$/i.test(file.name)) ? file.name : `paste-${stamp}${EXT[file.type]||""}`;
-  const r=await fetch(`/api/upload?session=${encodeURIComponent(MODAL_SESSION)}&name=${encodeURIComponent(name)}`,{method:"POST",body:file});
-  const j=await r.json().catch(()=>({}));
-  if(!r.ok) throw new Error(j.error||`upload failed (${r.status})`);
-  return j.path;
+  return new Promise((ok,fail)=>{
+    const x=new XMLHttpRequest();
+    x.open("POST",`/api/upload?session=${encodeURIComponent(session)}&name=${encodeURIComponent(name)}`);
+    x.upload.onprogress=e=>{ if(e.lengthComputable) onp(e.loaded); };
+    x.onload=()=>{ let j={}; try{ j=JSON.parse(x.responseText); }catch(_){}
+      if(x.status>=200 && x.status<300 && j.path) ok(j.path); else fail(new Error(j.error||`upload failed (${x.status})`)); };
+    x.onerror=()=>fail(new Error("upload failed: no connection"));
+    x.send(file);
+  });
 }
+const UPLOAD_MAX=300*1024*1024;     // the server's limit
+const UPLOADS=new Set();          // every paste/drop still going up, so two at once share one bar
+function mb(n){ return n>=1048576 ? (n/1048576).toFixed(1)+" MB" : Math.max(1,Math.round(n/1024))+" KB"; }
+function paintUploads(){
+  const bar=document.getElementById("upbar");
+  if(!UPLOADS.size){ bar.classList.remove("show"); return; }
+  let sent=0,total=0,files=0,who=new Set(),name="";
+  for(const u of UPLOADS){ sent+=u.sent; total+=u.total; files+=u.files.length; who.add(u.who); name=u.name; }
+  const pct=total ? Math.min(100,Math.floor(sent*100/total)) : 0;
+  const what=files===1 ? name : `${files} files`;
+  bar.querySelector(".ut").textContent=`Uploading ${what} to ${[...who].join(", ")}`;
+  bar.querySelector(".un").textContent=total ? `${pct}% · ${mb(sent)} of ${mb(total)}` : "getting ready…";
+  bar.querySelector(".uf").style.width=pct+"%";
+  bar.classList.add("show");
+}
+function personOf(session){ const p=(session||"").split("-")[0]; return p.charAt(0).toUpperCase()+p.slice(1); }
 async function insertUploads(files){
-  if(!MODAL_SESSION || !files.length) return;
-  toast(`uploading ${files.length===1?"…":files.length+" files…"}`);
+  // the agent is fixed when you paste: switching chats or closing the terminal while it goes up
+  // doesn't stop it, and the path still lands with the agent you pasted it to
+  const session=MODAL_SESSION;
+  if(!session || !files.length) return;
+  const big=files.filter(f=>f.size>UPLOAD_MAX);             // said at once, not after minutes of nothing
+  if(big.length){ toast(`${big[0].name||"That file"} is ${mb(big[0].size)}: the Office takes up to 300 MB`, true); files=files.filter(f=>f.size<=UPLOAD_MAX); if(!files.length) return; }
+  const job={who:personOf(session),files,name:files[0].name||"picture",sent:0,total:0};
+  UPLOADS.add(job); paintUploads();
   const paths=[];
-  for(const f of files){ try{ paths.push(await uploadToAgent(f)); }catch(e){ toast(e.message, true); } }
+  try{
+    const ready=[]; for(const f of files) ready.push(await asJpegIfHeic(f));
+    job.total=ready.reduce((n,f)=>n+(f.size||0),0); paintUploads();
+    let done=0;
+    for(const f of ready){
+      job.name=f.name||job.name;
+      try{ paths.push(await uploadToAgent(f, session, n=>{ job.sent=done+n; paintUploads(); })); }
+      catch(e){ toast(e.message, true); }
+      done+=f.size||0; job.sent=done; paintUploads();
+    }
+  } finally { UPLOADS.delete(job); paintUploads(); }
   if(!paths.length) return;
   const text=paths.join(" ")+" ";
+  const here=MODAL_OPEN && MODAL_SESSION===session;
   const say=document.getElementById("say");
   const bar=document.getElementById("phonebar");
-  if(say && bar && getComputedStyle(bar).display!=="none"){        // phone: into the message box, at the cursor
+  if(here && say && bar && getComputedStyle(bar).display!=="none"){   // phone, still in that chat: into the message box, at the cursor
     const a=say.selectionStart ?? say.value.length, b=say.selectionEnd ?? a;
     const pre=say.value.slice(0,a), sep=pre && !/\s$/.test(pre) ? " " : "";
     say.value=pre+sep+text+say.value.slice(b);
     say.selectionStart=say.selectionEnd=(pre+sep+text).length;
     say.dispatchEvent(new Event("input")); say.focus();
-  } else {                                                           // laptop: typed into the terminal, not sent
-    try{ await fetch("/api/paste",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,text})}); }catch(_){}
+  } else {                                                           // laptop, or you moved on: typed into that agent's terminal, not sent
+    try{ await fetch("/api/paste",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session,text})}); }catch(_){}
   }
-  toast(paths.length===1 ? `📎 ${paths[0]}` : `📎 ${paths.length} files saved to inbox/`);
+  const what=paths.length===1 ? `📎 ${paths[0]}` : `📎 ${paths.length} files saved to inbox/`;
+  if(here) toast(what); else toast(`${what} · typed into ${personOf(session)}'s box`, false, session);
 }
 function acceptDrops(el){
   el.addEventListener("dragover", e=>{ if([...(e.dataTransfer?.types||[])].includes("Files")){ e.preventDefault(); e.dataTransfer.dropEffect="copy"; } }, true);

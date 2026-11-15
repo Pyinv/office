@@ -200,6 +200,27 @@ class Floor(BrowserCase):
         self.assertTrue(self.js("document.getElementById('viewdlg').open"))
         self.assertEqual(self.js("document.getElementById('vw-name').textContent"), "Screen shot 1.png")
 
+    def test_a_paste_shows_how_far_it_has_gone_and_still_lands_with_its_agent_after_you_switch(self):
+        held, typed = [], []
+        self.page.route("**/api/upload?*", lambda r: held.append(r))           # still going up
+        self.page.route("**/api/paste", lambda r: (typed.append(json.loads(r.request.post_data)),
+                                                    r.fulfill(status=200, content_type="application/json", body='{"ok":true}')))
+        self.open_floor()
+        self.page.evaluate("openTermByName('zed-alpha')")
+        self.page.evaluate("()=>{ insertUploads([new File([new Uint8Array(4096)], 'shot.png', {type:'image/png'})]); }")   # not awaited: it waits on the upload
+        self.page.wait_for_function("document.getElementById('upbar').classList.contains('show')")
+        self.assertEqual(self.js("document.querySelector('#upbar .ut').textContent"), "Uploading shot.png to Zed")
+        self.page.wait_for_function("document.querySelector('#upbar .un').textContent.includes('of')")
+        self.page.wait_for_timeout(100)
+        self.assertEqual(len(held), 1)
+        self.assertIn("session=zed-alpha", held[0].request.url)
+        self.page.evaluate("openTermByName('amy-beta')")                        # you move on while it uploads
+        held[0].fulfill(status=200, content_type="application/json", body='{"ok":true,"path":"inbox/shot.png"}')
+        self.page.wait_for_function("!document.getElementById('upbar').classList.contains('show')")
+        self.page.wait_for_timeout(200)
+        self.assertEqual(typed, [{"session": "zed-alpha", "text": "inbox/shot.png "}])
+        self.assertIn("Zed", self.js("document.getElementById('toast').textContent"))
+
     def test_what_you_send_shows_at_once_with_replying_under_it(self):
         held = []
         self.page.unroute("**/api/say")
