@@ -9,6 +9,7 @@ settings:
   base:
     MARKETING_VERSION: "1.2"
     CURRENT_PROJECT_VERSION: "5"
+    DEVELOPMENT_TEAM: ${OFFICE_TEAM}     # from ios/team.txt, set by make.sh
 targets:
   Office:
     type: application

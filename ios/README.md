@@ -14,8 +14,10 @@ On a Mac with Xcode installed:
     sh ios/make.sh
 
 That installs `xcodegen` (via Homebrew) if needed, generates `Office.xcodeproj` and opens
-it. In Xcode: **Signing & Capabilities → Team** (your Apple ID or developer team), change
-the bundle identifier if you like, plug in the iPhone, press **Run**. With a free Apple ID
+it. The signing team comes from your keychain's Apple Development certificates: one is
+used as it is, with several it asks once. The choice is kept in `ios/team.txt` (not in git;
+delete it to pick again), so a rebuild keeps the team on both targets. Plug in the iPhone
+and press **Run**. With a free Apple ID
 the app expires after 7 days and must be re-run from Xcode; with a paid developer account
 it stays for a year, or ship it to yourself through TestFlight.
 
