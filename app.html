@@ -356,6 +356,7 @@
   .composer button:disabled{opacity:.4}
   .composer button.hist{background:var(--panel2);color:var(--faint);border:1px solid var(--line);font-size:1rem}
   .composer button.hist:not(.has){display:none}
+  .composer button.attach{background:var(--panel2);color:var(--ink);border:1px solid var(--line);font-size:1.4rem;line-height:1}
   .composer button.ask{background:#b7791f}          /* the agent is asking a question: a send now would answer it */
   .histdlg .hist-list{display:flex;flex-direction:column;gap:.4rem;max-height:55vh;overflow:auto;margin-top:.6rem}
   .histdlg .hist-item{font:inherit;text-align:left;padding:.55rem .7rem;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer;
@@ -673,6 +674,8 @@
     font:inherit;font-size:.95rem;line-height:1.4;color:var(--ink);max-height:160px}
   .dp-compose textarea:focus{outline:none;border-color:var(--line);background:var(--panel)}
   .dp-compose button{width:40px;height:40px;flex:0 0 40px;border-radius:12px;border:0;background:var(--accent);color:var(--on-accent);font-size:1.1rem;cursor:pointer}
+  .attach{font-weight:300}
+  .dp-compose button.attach{background:var(--panel2);color:var(--ink);font-size:1.5rem;line-height:1}
   /* ── Nadia's front desk: at the bottom of the floor on a laptop, always in reach ── */
   @media (min-width:601px){
     .secretary{position:sticky;bottom:.9rem;z-index:6;margin:1.4rem auto 0;max-width:860px;padding:.6rem .7rem .6rem .75rem;align-items:center;
@@ -830,11 +833,13 @@
   </div>
   <div class="dp-body" id="dp-body"></div>
   <form class="dp-compose" id="dp-compose" autocomplete="off">
+    <button type="button" class="attach" data-attach="panel" title="attach a photo or file" aria-label="attach a photo or file">+</button>
     <textarea id="dp-in" rows="1" placeholder="Reply…" autocomplete="off" autocorrect="on" autocapitalize="sentences" enterkeyhint="send"></textarea>
     <button type="submit" id="dp-send" title="send" aria-label="send">↑</button>
   </form>
 </aside>
 <div class="toast" id="toast"></div>
+<input type="file" id="attachpick" multiple tabindex="-1" aria-hidden="true" style="position:fixed;left:-200px;top:0;width:1px;height:1px;opacity:0">
 <div class="upbar" id="upbar" role="status" aria-live="polite"><div class="ur"><span class="ut"></span><span class="un"></span></div><div class="ug"><i class="uf"></i></div></div>
 <div class="ptr" id="ptr"></div>
 <div class="modal" id="modal">
@@ -963,6 +968,7 @@
 </div>
 <div class="composer" id="composer">
   <button id="sayhist" class="hist" title="sent messages" aria-label="sent messages">↺</button>
+  <button type="button" class="attach" data-attach="term" title="attach a photo or file" aria-label="attach a photo or file">+</button>
   <textarea id="say" rows="1" placeholder="Message…" autocomplete="off" autocorrect="on" autocapitalize="sentences" enterkeyhint="enter"></textarea>
   <button id="saysend" title="send" aria-label="send">↑</button>
 </div>
@@ -1541,10 +1547,9 @@ function paintUploads(){
   bar.classList.add("show");
 }
 function personOf(session){ const p=(session||"").split("-")[0]; return p.charAt(0).toUpperCase()+p.slice(1); }
-async function insertUploads(files){
+async function insertUploads(files, session=MODAL_SESSION, panel=false){
   // the agent is fixed when you paste: switching chats or closing the terminal while it goes up
   // doesn't stop it, and the path still lands with the agent you pasted it to
-  const session=MODAL_SESSION;
   if(!session || !files.length) return;
   const big=files.filter(f=>f.size>UPLOAD_MAX);             // said at once, not after minutes of nothing
   if(big.length){ toast(`${big[0].name||"That file"} is ${mb(big[0].size)}: the Office takes up to 300 MB`, true); files=files.filter(f=>f.size<=UPLOAD_MAX); if(!files.length) return; }
@@ -1564,15 +1569,16 @@ async function insertUploads(files){
   } finally { UPLOADS.delete(job); paintUploads(); }
   if(!paths.length) return;
   const text=paths.join(" ")+" ";
-  const here=MODAL_OPEN && MODAL_SESSION===session;
-  const say=document.getElementById("say");
+  const here=panel ? DESK===session : MODAL_OPEN && MODAL_SESSION===session;
   const bar=document.getElementById("phonebar");
-  if(here && say && bar && getComputedStyle(bar).display!=="none"){   // phone, still in that chat: into the message box, at the cursor
+  const say=panel ? document.getElementById("dp-in")
+          : getComputedStyle(bar).display!=="none" ? document.getElementById("say") : null;
+  if(here && say){                                                   // the panel, or the phone's terminal: into its message box, at the cursor
     const a=say.selectionStart ?? say.value.length, b=say.selectionEnd ?? a;
     const pre=say.value.slice(0,a), sep=pre && !/\s$/.test(pre) ? " " : "";
     say.value=pre+sep+text+say.value.slice(b);
     say.selectionStart=say.selectionEnd=(pre+sep+text).length;
-    say.dispatchEvent(new Event("input")); say.focus();
+    say.dispatchEvent(new Event("input")); if(!panel || !PHONE) say.focus();
   } else {                                                           // laptop, or you moved on: typed into that agent's terminal, not sent
     try{ await fetch("/api/paste",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session,text})}); }catch(_){}
   }
@@ -2492,6 +2498,18 @@ function deskMenu(m){
     e.preventDefault(); if(!DESK || !inp.value.trim()) return;
     say(DESK,inp.value,inp); setTimeout(grow,0);
   });
+  inp.addEventListener("paste", e=>{ const fs=filesOf(e.clipboardData); if(fs.length && DESK){ e.preventDefault(); insertUploads(fs, DESK, true); } });
+}
+// + beside a message box: the phone offers Photo Library, Take Photo or Choose File; the laptop a file
+// picker. What you pick goes to that agent's inbox/ and its path into the box, like a paste
+{ const pick=document.getElementById("attachpick"); let into=null;
+  document.querySelectorAll("[data-attach]").forEach(b=>b.addEventListener("click", e=>{
+    e.preventDefault();
+    into=b.dataset.attach==="panel" ? {session:DESK, panel:true} : {session:MODAL_SESSION, panel:false};
+    if(!into.session) return;
+    pick.value=""; pick.click();
+  }));
+  pick.addEventListener("change", ()=>{ const fs=[...pick.files]; if(fs.length && into) insertUploads(fs, into.session, into.panel); });
 }
 
 // phone: the filter rows and the secretary fold away (remembered per device, in office.prefs)

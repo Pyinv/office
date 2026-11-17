@@ -221,6 +221,23 @@ class Floor(BrowserCase):
         self.assertEqual(typed, [{"session": "zed-alpha", "text": "inbox/shot.png "}])
         self.assertIn("Zed", self.js("document.getElementById('toast').textContent"))
 
+    def test_the_plus_in_the_panel_attaches_a_file_and_puts_its_path_in_the_reply_box(self):
+        asked = []
+        self.page.route("**/api/upload?*", lambda r: (asked.append(r.request.url), r.fulfill(
+            status=200, content_type="application/json", body='{"ok":true,"path":"inbox/shot.png"}')))
+        self.page.route("**/api/paste", self._catch)
+        self.open_floor()
+        self.open_panel("zed-alpha")
+        self.page.fill("#dp-in", "look at")
+        with self.page.expect_file_chooser() as fc:
+            self.page.click("#dp-compose .attach")
+        fc.value.set_files(files=[{"name": "shot.png", "mimeType": "image/png", "buffer": b"\x89PNG" + bytes(100)}])
+        self.page.wait_for_function("document.getElementById('dp-in').value.includes('inbox/')")
+        self.assertEqual(self.js("document.getElementById('dp-in').value"), "look at inbox/shot.png ")
+        self.assertIn("session=zed-alpha", asked[0])
+        self.assertEqual([w for w in self.writes if w[0] == "paste"], [])            # nothing typed into the terminal
+        self.assertEqual(self.writes, [])                                            # and nothing sent
+
     def test_what_you_send_shows_at_once_with_replying_under_it(self):
         held = []
         self.page.unroute("**/api/say")

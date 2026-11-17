@@ -8,7 +8,7 @@ options:
 settings:
   base:
     MARKETING_VERSION: "1.2"
-    CURRENT_PROJECT_VERSION: "4"
+    CURRENT_PROJECT_VERSION: "5"
 targets:
   Office:
     type: application
@@ -34,6 +34,7 @@ targets:
             UIWindowSceneSessionRoleApplication:
               - UISceneConfigurationName: Default
                 UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+        NSCameraUsageDescription: Take a photo to send to an agent.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
     settings:
