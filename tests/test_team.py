@@ -251,5 +251,25 @@ class Gist(unittest.TestCase):
         self.assertEqual(team.gist(""), "")
 
 
+
+class Doing(unittest.TestCase):
+    """The panel's "what it is doing now" comes from the transcript's tool calls, never the screen."""
+    def test_a_tool_call_reads_as_one_short_step(self):
+        d = team._doing
+        self.assertEqual(d({"name": "Bash", "input": {"command": "make", "description": "Build the app"}}), "Build the app")
+        self.assertEqual(d({"name": "Bash", "input": {"command": "make"}}), "Running a command")
+        self.assertEqual(d({"name": "Read", "input": {"file_path": "/x/y/app.py"}}), "Reading app.py")
+        self.assertEqual(d({"name": "Edit", "input": {"file_path": "/x/y/app.py"}}), "Editing app.py")
+        self.assertEqual(d({"name": "WebFetch", "input": {"url": "https://example.com/a"}}), "Reading example.com")
+        self.assertEqual(d({"name": "Agent", "input": {"description": "Find the bug"}}), "A helper agent: Find the bug")
+        self.assertEqual(d({"name": "mcp__mail__send_message", "input": {}}), "Using send message")
+
+    def test_the_spinner_word_is_taken_only_from_the_spinner_line(self):
+        v = lambda l: (team._VERB.match(l) or [None, None])[1]
+        self.assertEqual(v("✻ Metamorphosing… (3m 1s · ↓ 11.0k tokens)"), "Metamorphosing…")
+        self.assertEqual(v("* Beboppin'… (2s)"), "Beboppin'…")
+        self.assertIsNone(v("  Opus med | week 32% ↻Mon…"))        # the status bar, not a spinner
+
+
 if __name__ == "__main__":
     unittest.main()

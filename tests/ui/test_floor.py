@@ -238,6 +238,19 @@ class Floor(BrowserCase):
         self.assertEqual([w for w in self.writes if w[0] == "paste"], [])            # nothing typed into the terminal
         self.assertEqual(self.writes, [])                                            # and nothing sent
 
+    def test_while_it_works_the_panel_shows_its_spinner_word_the_time_and_its_latest_step(self):
+        bo = next(m for m in TEAM if m["session"] == "bo-gamma")
+        team = [dict(m, you_at=NOW - 75, verb="Metamorphosing…", doing="Run the full test suite") if m is bo else m for m in TEAM]
+        self.page.unroute("**/api/floor")
+        self.page.route("**/api/floor", lambda r: r.fulfill(status=200, content_type="application/json",
+                                                          body=json.dumps({"team": team, "version": "test"})))
+        self.open_floor()
+        self.open_panel("bo-gamma")
+        self.page.wait_for_selector("#dp-body .working-note")
+        self.assertEqual(self.js("document.querySelector('#dp-body .working-note .vb').textContent"), "Metamorphosing…")
+        self.assertEqual(self.js("document.querySelector('#dp-body .working-note .el').textContent"), "1m 15s")
+        self.assertEqual(self.js("document.querySelector('#dp-body .doing').textContent"), "Run the full test suite")
+
     def test_what_you_send_shows_at_once_with_replying_under_it(self):
         held = []
         self.page.unroute("**/api/say")
@@ -247,12 +260,13 @@ class Floor(BrowserCase):
         self.page.fill("#dp-in", "ship it")
         self.page.keyboard.press("Enter")
         self.page.wait_for_timeout(200)
-        order = "[...document.querySelectorAll('#dp-body .dp-you, #dp-body .sent-note')].map(e=>e.className+':'+e.textContent.trim())"
-        self.assertEqual(self.js(order)[-2:], ["dp-you:ship it", "sent-note:Sent, Zed is replying…"])
+        order = "[...document.querySelectorAll('#dp-body .dp-you, #dp-body .working-note, #dp-body .doing')].map(e=>e.className)"
+        self.assertEqual(self.js(order)[-3:], ["dp-you", "working-note", "doing"])
+        self.assertEqual(self.js("document.querySelector('#dp-body .doing').textContent"), "Sent, waiting for it to start")
         self.assertEqual(self.js("document.getElementById('dp-in').value"), "")
         held[0].fulfill(status=200, content_type="application/json", body='{"error":"not running"}')
         self.page.wait_for_timeout(300)                           # a failed send takes it back
-        self.assertEqual(self.js("document.querySelectorAll('#dp-body .sent-note').length"), 0)
+        self.assertEqual(self.js("document.querySelectorAll('#dp-body .working-note').length"), 0)
         self.assertEqual(self.js("document.getElementById('dp-in').value"), "ship it")
 
     def test_an_icon_you_pick_for_one_desk(self):

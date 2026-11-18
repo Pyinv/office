@@ -12,6 +12,7 @@ Person + project come from the tmux session name (`lena-payments` -> Lena / paym
 tmux is the single source of truth for identity; no roster file.
 """
 import subprocess, re, os, json, glob, time
+from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor
 
 HOME = os.path.expanduser("~")
@@ -152,6 +153,42 @@ def _text_of(msg):
             out.append(b.get("text", ""))
     return " ".join(out)
 
+def _doing(block):
+    """One line for a tool call Claude just made, from the transcript's own tool_use block:
+    the Bash description Claude writes, or the tool and its file / query. Never read off the screen."""
+    name, inp = block.get("name") or "", block.get("input") or {}
+    if not isinstance(inp, dict):
+        inp = {}
+    base = lambda k: os.path.basename(str(inp.get(k) or "").rstrip("/"))
+    if name == "Bash":
+        d = str(inp.get("description") or "").strip()
+        return d or "Running a command"
+    if name in ("Read", "NotebookRead"):
+        return "Reading " + (base("file_path") or base("notebook_path") or "a file")
+    if name in ("Edit", "MultiEdit", "NotebookEdit"):
+        return "Editing " + (base("file_path") or base("notebook_path") or "a file")
+    if name == "Write":
+        return "Writing " + (base("file_path") or "a file")
+    if name in ("Grep", "Glob"):
+        q = str(inp.get("pattern") or "").strip()
+        return "Searching" + (f" for {q[:60]}" if q else " the code")
+    if name == "WebSearch":
+        q = str(inp.get("query") or "").strip()
+        return "Searching the web" + (f": {q[:80]}" if q else "")
+    if name == "WebFetch":
+        u = urlparse(str(inp.get("url") or ""))
+        return "Reading " + (u.netloc or "a web page")
+    if name in ("Task", "Agent"):
+        d = str(inp.get("description") or "").strip()
+        return "A helper agent" + (f": {d}" if d else " is on it")
+    if name in ("TodoWrite", "TaskCreate", "TaskUpdate"):
+        return "Updating its to-do list"
+    if name == "Skill":
+        return "Using the " + str(inp.get("skill") or "a").strip() + " skill"
+    if name.startswith("mcp__"):
+        return "Using " + name.split("__")[-1].replace("_", " ")
+    return ("Using " + name) if name else ""
+
 def _is_yours(o):
     """A message you sent, as the transcript itself marks it (origin.kind "human"). Skill text,
     command output, task notifications, other sessions and compaction summaries carry another
@@ -208,6 +245,7 @@ def _parse_one(f):
         return None
     cwd = last_asst = last_role = last_ts = asst_ts = None
     pending_user = you = you_ts = None            # you = the prompt the last answer responds to
+    doing = ""                                    # Claude's latest step since your message: its last tool call
     for line in tail:
         try:
             o = json.loads(line)
@@ -224,14 +262,21 @@ def _parse_one(f):
             if txt.strip():
                 last_asst = txt.strip()
                 you = pending_user        # pair this answer with the prompt before it
+            c = o.get("message", {}).get("content")
+            for b in c if isinstance(c, list) else []:
+                if isinstance(b, dict) and b.get("type") == "tool_use":
+                    doing = _doing(b) or doing
+                elif isinstance(b, dict) and b.get("type") == "text" and b.get("text", "").strip():
+                    doing = "Writing"
         elif t == "user":
             if _is_yours(o):
                 last_role = "user"
                 pending_user = _text_of(o.get("message", {})).strip()
                 you_ts = o.get("timestamp") or you_ts
+                doing = ""
             last_ts = o.get("timestamp") or last_ts
     res = {"cwd": cwd, "asst": last_asst, "role": last_role, "ts": last_ts,
-           "asst_ts": asst_ts, "you": you, "you_ts": you_ts, "file": f}
+           "asst_ts": asst_ts, "you": you, "you_ts": you_ts, "file": f, "doing": doing}
     _TCACHE[f] = (mt, res)
     return res
 
@@ -319,7 +364,9 @@ def _ask_of(meta):
 _ACTIVE = re.compile(r'esc to interrupt|\(\d+[ms]\b|[A-Z][a-zA-Z-]{3,}…')
 _PLACEHOLDER = re.compile(r'^(Try |Ask |Write |/ for |>_|Update )', re.I)
 _PROMPT = re.compile(r'^[❯›](.*)$')
-_VERB = re.compile(r'([A-Z][a-zA-Z-]+…)')   # spinner verb, e.g. "Caramelizing…", "Razzle-dazzling…"
+# the spinner line: a glyph, then the word, e.g. "✻ Caramelizing… (3m 1s · ↓ 11.0k tokens)". Only
+# that line: the status bar under the box can end in "↻Mon…" too
+_VERB = re.compile(r"^\s*[·✢✳✶✻✽*]\s+([A-Z][a-zA-Z'-]+…)")
 
 _SGR = re.compile(r'\x1b\[[0-9;]*m')
 # Claude Code pre-fills an idle input box with a DIM suggestion of your next prompt (SGR 2). It is
@@ -339,7 +386,7 @@ def _pane(name):
     verb = ""
     if working:
         for l in reversed(lines[-12:]):
-            m = _VERB.search(l)
+            m = _VERB.match(l)
             if m:
                 verb = m.group(1)   # includes the trailing …
                 break
@@ -451,7 +498,7 @@ def snapshot():
     kids = _children()
     live = sessions()
     # one tmux capture per agent, side by side. Only the restart button reads it (a new Claude
-    # Code waiting, the permission mode, a draft to retype); nothing on the floor is read off the screen.
+    # Code waiting, the permission mode, a draft to retype) and the panel its spinner word; no state is read off the screen.
     with ThreadPoolExecutor(max_workers=12) as ex:
         panes = dict(zip(live, ex.map(_pane, live)))
     for name, (attached, path, activity, created, pid) in live.items():
@@ -482,9 +529,14 @@ def snapshot():
             "ask": ask["ask"] if ask else "", "asks": ask["kind"] if ask else "",
             "more": ask["more"] if ask else 0, "detail": ask["detail"] if ask else "", "full": full[-2000:] if full else "",
             "gist": gist(full),
+            # while it works: its latest step (the last tool call in the transcript), for the panel
+            "doing": ((rec or {}).get("doing") or "") if state == "working" else "",
             "you": you[:400] if you else "",
             "options": ask["options"] if ask else [],
-            "typed": None, "ghost": ghost, "running": running, "verb": "",
+            "typed": None, "ghost": ghost, "running": running,
+            # the word on its spinner line ("Metamorphosing…"), copied from its screen as you asked:
+            # shown while it works so it doesn't look dead. The state itself still comes from the JSON.
+            "verb": _v if state == "working" else "",
             # recency for sort + the "ago" label: the time of the last real message in the
             # matched transcript — your prompt OR Claude's reply. It advances only on an actual
             # exchange, never on merely opening/attaching the tmux session. Falls back to the

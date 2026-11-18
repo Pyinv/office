@@ -218,6 +218,13 @@
   .sent-note,.working-note{font-size:.82rem;color:var(--work);font-weight:600;display:flex;align-items:center;gap:.45rem}
   .sent-note .dots,.working-note .dots{width:9px;height:9px;border-radius:50%;background:var(--work);flex:0 0 9px;
     box-shadow:0 0 0 0 var(--work);animation:pulse 1.2s infinite}
+  .working-note{margin-top:.9rem}
+  .working-note{color:#d77757}          /* Claude Code's own spinner colour, as in the terminal */
+  .working-note .wspin{display:inline-block;width:1em;text-align:center;font-size:1rem;animation:spin 2.4s linear infinite}
+  .working-note .el{color:var(--faint);font-weight:500;font-variant-numeric:tabular-nums}
+  .doing{font-size:.78rem;color:var(--dim);margin:.2rem 0 0 1.45rem;line-height:1.35;overflow-wrap:anywhere}
+  .doing:empty{display:none}
+  @media (prefers-reduced-motion:reduce){.working-note .wspin{animation:none}}
   .typedline{font-size:.82rem;color:var(--pend);font-family:var(--mono);line-height:1.4;
     background:var(--pend2);border:1px solid color-mix(in srgb,var(--pend) 45%,transparent);
     border-radius:9px;padding:.4rem .55rem;word-break:break-word}
@@ -2316,6 +2323,26 @@ function deskLine(m){
 const NOTES={question:"Answer", permission:"Allow", dialog:"Waiting"};
 const noteOf=m=>m._sent || m.state!=="waiting" ? "" : NOTES[m.asks]||"";
 const deskState=m=>m._sent ? "working" : m.typed ? "typed" : (m.state||"review");
+// while an agent works the panel says so like its terminal does: its spinner word, how long since
+// your message, and its latest step (the last tool call in the transcript, the floor's "doing")
+// the word is the agent's own spinner word, copied from its terminal ("Metamorphosing…"), and it
+// changes when the terminal's does; until one is seen it says "Working…"
+const spinWord=m=>(m.verb||"Working…").replace(/…$/,"");
+function took(s){ s=Math.max(0,Math.floor(s)); return s<60?s+"s":s<3600?Math.floor(s/60)+"m "+(s%60)+"s":Math.floor(s/3600)+"h "+Math.floor(s%3600/60)+"m"; }
+function workSince(m){ const s=SENT[m.session]; return s ? s.at/1000 : (m.you_at||0); }
+function workNote(m){
+  const since=workSince(m);
+  return `<div class="working-note"><span class="wspin" aria-hidden="true">✻</span><span class="vb">${esc(spinWord(m))}…</span>`
+    +(since?`<span class="el">${took(Date.now()/1000-since)}</span>`:"")+`</div>`
+    +`<div class="doing" dir="auto">${esc(m.doing||(m._sent?"Sent, waiting for it to start":""))}</div>`;
+}
+setInterval(()=>{                     // the time ticks, the word changes and the step follows, without redrawing the panel
+  const n=document.querySelector("#dp-body .working-note"); if(!n || !DESK) return;
+  const m=LAST.find(x=>x.session===DESK); if(!m) return;
+  n.querySelector(".vb").textContent=spinWord(m)+"…";
+  const el=n.querySelector(".el"), since=workSince(m); if(el && since) el.textContent=took(Date.now()/1000-since);
+  const d=n.nextElementSibling; if(d && d.classList.contains("doing")) d.textContent=m.doing||(m._sent?"Sent, waiting for it to start":"");
+},1000);
 const deskSig=m=>[sigOf(m),m.ghost?1:0,m.group,m.emoji||"",m.person||"",m.asks||"",m.more||0,m.detail||"",(m.options||[]).join("\u0001")].join("\u0002");
 function deskHtml(m){
   const who=m.person||m.project, note=noteOf(m), task=taskLines(m.task)[0];
@@ -2425,7 +2452,7 @@ function refreshDesk(force){
   const sent=m._sent && SENT[m.session], last=list[list.length-1];
   if(sent && sent.text && !(last && last.you && (last.you.trim()===sent.text.trim() || (last.ts||0)*1000>=sent.at-5000)))
     h+=youBubble(sent.text, m);
-  if(m._sent) h+=`<div class="sent-note"><span class="dots"></span> Sent, ${esc(who)} is replying…</div>`;
+  if(m._sent || m.state==="working") h+=workNote(m);
   else if(!list.some(t=>t.said.length))
     h+=`<div class="dp-empty">${esc(m.attached?"You're in its terminal right now.":m.ghost?"Not running. Open the terminal to start it again.":"Nothing to read yet.")}</div>`;
   // An open question or permission prompt is a menu in the terminal. A button presses that menu's
