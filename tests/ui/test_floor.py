@@ -266,6 +266,19 @@ class Floor(BrowserCase):
         self.page.wait_for_timeout(4000)
         self.assertEqual(len(loads), 2)                                   # and not again and again
 
+    def test_a_desk_whose_icon_is_a_logo_shows_the_logo_on_its_card_and_in_its_panel(self):
+        team = [dict(m, emoji="img:alpha.svg") if m["session"] == "zed-alpha" else m for m in TEAM]
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="red"/></svg>'
+        self.page.unroute("**/api/floor")
+        self.page.route("**/api/floor", lambda r: r.fulfill(status=200, content_type="application/json",
+                                                          body=json.dumps({"team": team, "version": "test"})))
+        self.page.route("**/logos/alpha.svg", lambda r: r.fulfill(status=200, content_type="image/svg+xml", body=svg))
+        self.open_floor()
+        self.assertEqual(self.js("document.querySelector('[data-session=zed-alpha] img.facelogo').getAttribute('src')"), "/logos/alpha.svg")
+        self.assertIsNone(self.js("document.querySelector('[data-session=amy-beta] img.facelogo')"))   # an emoji stays an emoji
+        self.open_panel("zed-alpha")
+        self.assertEqual(self.js("document.querySelector('#dp-av img.facelogo').getAttribute('src')"), "/logos/alpha.svg")
+
     def test_what_you_send_shows_at_once_with_replying_under_it(self):
         held = []
         self.page.unroute("**/api/say")

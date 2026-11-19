@@ -303,6 +303,17 @@ def save_pins(p):
 # ── an icon you picked for a desk (overrides the project-keyword guess) ──────
 ICONS_FILE = os.path.join(ROOT, "icons.json")
 
+# a desk's icon can be a logo: logos/<name>.png|svg|jpg|webp (not in git), saved in icons.json as "img:<name>"
+ICON_DIR = os.path.join(ROOT, "logos")
+_ICON_FILE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,60}\.(png|svg|jpg|webp)$")
+
+def icon_ok(v):
+    """An emoji (up to 16 characters) or img:<file> for a logo in logos/ that is really there."""
+    if v.startswith("img:"):
+        n = v[4:]
+        return bool(_ICON_FILE.match(n)) and os.path.isfile(os.path.join(ICON_DIR, n))
+    return 0 < len(v) <= 16
+
 def load_icons():
     try:
         with open(ICONS_FILE, encoding="utf-8") as f:
@@ -1036,6 +1047,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._serve_html(os.path.join(ROOT, "status", "index.html"))
         if cfg("OFFICE_DEMO") and self.path.split("?")[0] == "/status/data.json":
             return self._demo_status()
+        if self.path.startswith("/logos/"):
+            return self._icon_file(self.path.split("?")[0][len("/logos/"):])
         if self.path == "/terminal" or self.path.startswith("/terminal/"):
             if not self._origin_ok():
                 return self._json({"error": "forbidden origin"}, 403)
@@ -1266,8 +1279,13 @@ class Handler(SimpleHTTPRequestHandler):
             for label, sess in rows:
                 person, _, proj = sess.partition("-")
                 low = proj.lower()
-                out.append({"label": label, "session": sess, "person": person.capitalize(), "project": proj,
-                            "emoji": icons.get(sess) or next((e for k, e in emoji.items() if k in low), "👤")})
+                ic = icons.get(sess) or ""
+                guess = next((e for k, e in emoji.items() if k in low), "👤")
+                row = {"label": label, "session": sess, "person": person.capitalize(), "project": proj,
+                       "emoji": guess if ic.startswith("img:") or not ic else ic}
+                if ic.startswith("img:"):
+                    row["image"] = "/logos/" + ic[4:]      # a logo: the sheet shows the emoji until it can draw this
+                out.append(row)
             return self._json({"agents": out})
         if "lines=1" in self.path:
             # one label per line — a Shortcuts "Choose from List" keeps this order, whereas it
@@ -1463,7 +1481,9 @@ class Handler(SimpleHTTPRequestHandler):
         sess = str(data.get("session", ""))
         if not sess or sess not in live_sessions():
             return self._json({"error": f"no live session '{sess}'"}, 409)
-        emoji = str(data.get("emoji", "")).strip()[:16]
+        emoji = str(data.get("emoji", "")).strip()
+        if emoji and not icon_ok(emoji):
+            return self._json({"error": "an icon is an emoji or img:<a logo in logos/>"}, 400)
         icons = load_icons()
         if emoji:
             icons[sess] = emoji
@@ -1471,6 +1491,26 @@ class Handler(SimpleHTTPRequestHandler):
             icons.pop(sess, None)
         save_icons(icons)
         return self._json({"ok": True, "session": sess, "emoji": emoji})
+
+    def _icon_file(self, name):
+        # a desk's logo; only plain names out of logos/, and an SVG can't run anything
+        if not _ICON_FILE.match(name):
+            return self._json({"error": "not found"}, 404)
+        f = os.path.join(ICON_DIR, name)
+        try:
+            with open(f, "rb") as fh:
+                body = fh.read()
+        except OSError:
+            return self._json({"error": "not found"}, 404)
+        ctype = {"png": "image/png", "svg": "image/svg+xml", "jpg": "image/jpeg", "webp": "image/webp"}[name.rsplit(".", 1)[1]]
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "max-age=3600")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy", "default-src 'none'; img-src data:; style-src 'unsafe-inline'")
+        self.end_headers()
+        self.wfile.write(body)
 
     def _mute(self, data):
         # 🔕 on a card: no phone pushes for this session until unmuted

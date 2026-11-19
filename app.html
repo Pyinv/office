@@ -426,6 +426,11 @@
     border-radius:11px;opacity:0;transition:all .22s;pointer-events:none;box-shadow:var(--shadow)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .toast.err{background:#c2412d;color:#fff}
+  /* a logo as a desk's face: whole (never cropped) on white, inset so a round face doesn't cut its corners */
+  img.facelogo{width:72%;height:72%;object-fit:contain;display:block;margin:auto;pointer-events:none}
+  /* every face is white, emoji or logo (asked for 2026-11-19): a brand reads in its own colours in either theme */
+  :is(.av,.f,#dp-av)[style*="--h"], #dp-av, .rail .rp .av, .mchip .f{background:#fff !important;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+  :is(.av,.f,#dp-av):has(> img.facelogo){display:flex;align-items:center;justify-content:center}
   .upbar{position:fixed;left:50%;bottom:1.3rem;transform:translateX(-50%) translateY(10px);z-index:300;width:min(380px,calc(100vw - 32px));
     background:var(--ink);color:var(--bg);font-size:.8rem;padding:.55rem .8rem .6rem;border-radius:11px;box-shadow:var(--shadow);
     opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
@@ -1021,6 +1026,10 @@ const EMOJI = Object.assign(
   { web:"🌐", app:"📱", api:"🔌", bot:"🤖", site:"🌐", docs:"📄", data:"📊", db:"🗄️" },
   {{OFFICE_EMOJI_JSON}}
 );
+// a desk's face: its icon (an emoji, or img:<file> for a logo in logos/) or the project-keyword guess
+function faceOf(m){ const e=m.emoji||"";
+  if(e.startsWith("img:")) return `<img class="facelogo" src="/logos/${encodeURIComponent(e.slice(4))}" alt="" draggable="false">`;
+  return esc(e||emojiFor(m.project)); }
 function emojiFor(p){ p=(p||"").toLowerCase(); for(const k in EMOJI) if(p.includes(k)) return EMOJI[k]; return "👤"; }
 // drop header links whose URL isn't configured (OFFICE_STATUS_URL / OFFICE_FILES_URL empty)
 document.querySelectorAll("a.navlink, a.ac-full").forEach(a=>{const h=a.getAttribute("href"); if(!h||h.startsWith("{{")) a.remove();});
@@ -1877,7 +1886,7 @@ function paintRail(session, force){
   const fold=!!pref("railFold");
   const row=m=>{ const st=deskState(m), dot=m.state==="waiting"&&!m._sent?"w":st==="working"?"k":m.unread?"u":"";
     return `<button class="rp${m.session===session?" on":""}" data-s="${esc(m.session)}" title="${esc(tabTitle(m))}">`
-      +`<span class="who"><span class="av" style="--h:${hueFor(m.person||m.project)}">${esc(m.emoji||emojiFor(m.project))}${dot?`<i class="${dot}"></i>`:""}</span>`
+      +`<span class="who"><span class="av" style="--h:${hueFor(m.person||m.project)}">${faceOf(m)}${dot?`<i class="${dot}"></i>`:""}</span>`
       +`<span class="pn">${esc(m.person||"")}</span></span>`
       +`<span class="rt"><span class="r1"><span class="rn">${esc(projTitle(m))}</span><span class="ra">${esc(agoText(m.ts))}</span></span>`
       +`<span class="r2" dir="auto">${railLine(m)}</span></span></button>`; };
@@ -2372,7 +2381,7 @@ function deskHtml(m){
   const who=m.person||m.project, note=noteOf(m), task=taskLines(m.task)[0];
   return (note?`<span class="note${m.typed?" draft":""}">${note}</span>`:"")
     +(m.pinned?`<span class="pinhead" title="pinned"></span>`:"")
-    +`<div class="av" style="--h:${hueFor(who)}">${esc(m.emoji||emojiFor(m.project))}</div>`
+    +`<div class="av" style="--h:${hueFor(who)}">${faceOf(m)}</div>`
     +`<div class="nm"><div class="who"><span class="wn">${esc(who)}</span>`
     +(deskState(m)==="working"?`<span class="wdot" title="working"></span>`:"")
     +(m.unread?`<span class="att" title="a reply you haven't seen"></span>`:"")
@@ -2451,7 +2460,7 @@ function refreshDesk(force){
   if(!DESK) return;
   const m=LAST.find(x=>x.session===DESK); if(!m){ closeDesk(); return; }
   const who=m.person||m.project, st=m.ghost?"ghost":deskState(m);
-  const av=DP("dp-av"); av.textContent=m.emoji||emojiFor(m.project); av.style.setProperty("--h",hueFor(who));
+  const av=DP("dp-av"); av.innerHTML=faceOf(m); av.style.setProperty("--h",hueFor(who));
   DP("dp-name").textContent=who;
   DP("dp-proj").textContent=m.project+" · "+roomName(m.group);
   const se=DP("dp-state"); se.className="dp-state "+st;
@@ -2620,7 +2629,7 @@ function renderRecent(team){
   const box=document.getElementById("recent"); box.innerHTML="";
   if(!wait.length) return;
   const l=document.createElement("span"); l.className="rl"; l.textContent="Your move"; box.appendChild(l);
-  const face=m=>`<span class="f" style="--h:${hueFor(m.person||m.project)}">${esc(m.emoji||emojiFor(m.project))}</span>`;
+  const face=m=>`<span class="f" style="--h:${hueFor(m.person||m.project)}">${faceOf(m)}</span>`;
   wait.forEach(m=>{
     const b=document.createElement("button"); b.className="mchip"; b.title=tabTitle(m)+" — open";
     b.innerHTML=`${face(m)}${esc(m.person||m.project)} <em>${(noteOf(m)||"answer").toLowerCase()}</em>`;
@@ -2840,7 +2849,7 @@ function renderSugg(){
   SUGSEL=Math.min(SUGSEL, Math.max(0,SUGG.length-1));
   if(!SUGG.length){ box.innerHTML=`<div class="hint">no one matches “${esc(q)}”</div>`; box.classList.add("show"); return; }
   box.innerHTML=SUGG.map((m,i)=>`<div class="row${i===SUGSEL?" sel":""}" data-i="${i}" role="option">
-      <span class="av" style="--h:${hueOf(m)}">${esc(m.emoji||emojiFor(m.project))}</span>
+      <span class="av" style="--h:${hueOf(m)}">${faceOf(m)}</span>
       <span class="nm">${hl(m.person||m.project,q)}</span><span class="pj">${hl(m.project,q)}</span>
       <span class="st ${esc(m.state||"")}">${esc(pillOf(m))}</span><span class="ago">${esc(agoText(m.ts))}</span></div>`).join("")
     +`<div class="hint"><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>⏎</kbd> open terminal</span><span><kbd>esc</kbd> clear</span></div>`;
