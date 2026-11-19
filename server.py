@@ -887,6 +887,16 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self, *a):
         pass  # quiet
 
+    def _host_ok(self):
+        # DNS rebinding: a page on some other site can point its own name at our tailnet IP and then
+        # read us as "same origin" (a GET carries no Origin). Only our own names are answered.
+        h = (self.headers.get("Host") or "").strip()
+        try:
+            name = urlparse("//" + h).hostname or ""
+        except ValueError:
+            return False
+        return name in ALLOWED_HOSTS
+
     def _origin_ok(self):
         # No Origin header => not a browser cross-site request (curl / same-origin
         # GET). Present => must be one of our own hosts. evil.com can't forge it.
@@ -1040,7 +1050,13 @@ class Handler(SimpleHTTPRequestHandler):
             html = html.replace("{{" + k + "}}", v)
         self._send(html.encode("utf-8"), "text/html; charset=utf-8")
 
+    def do_HEAD(self):
+        # the base class would answer HEAD for any file in the folder (.env, state): nothing here
+        self.send_response(405); self.send_header("Content-Length", "0"); self.end_headers()
+
     def do_GET(self):
+        if not self._host_ok():
+            return self._json({"error": "unknown host"}, 421)
         if self.path == "/" or self.path.startswith("/?"):
             return self._serve_html(os.path.join(ROOT, "app.html"))
         if self.path.split("?")[0] in ("/status/", "/status/index.html"):
@@ -1168,6 +1184,8 @@ class Handler(SimpleHTTPRequestHandler):
         return self._json({"error": "not found"}, 404)
 
     def do_POST(self):
+        if not self._host_ok():
+            return self._json({"error": "unknown host"}, 421)
         if not self._origin_ok():   # CSRF gate: reject cross-site POST
             return self._json({"error": "forbidden origin"}, 403)
         _FLOOR["at"] = 0.0          # whatever this changes shows on the very next floor
