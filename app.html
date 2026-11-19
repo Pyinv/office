@@ -1727,6 +1727,30 @@ onPref("termFont", ()=>{ try{ const t=document.getElementById("termframe").conte
 // open. The Enter is only ever sent after ttyd has reported the close and before it reports a new
 // connection — and ttyd discards input while its socket is closed — so nothing typed into the
 // terminal can be submitted by this. Other close codes ttyd retries on its own.
+// Switching desks quickly could leave the new terminal black until you switched again: each terminal
+// draws with a WebGL context, the browser keeps only so many, and a removed one lingers until garbage
+// collection. So the old one's context is given back the moment it goes, a context the new one loses
+// is answered with a reload, and a terminal that still shows nothing is repainted, then reloaded.
+function freeGL(frame){
+  try{ frame.contentWindow.term.dispose(); }catch(_){}
+  try{ frame.contentDocument.querySelectorAll("canvas").forEach(c=>{
+    const gl=c.getContext("webgl2")||c.getContext("webgl"); const x=gl&&gl.getExtension("WEBGL_lose_context"); if(x) x.loseContext(); }); }catch(_){}
+}
+function watchBlank(frame){
+  let win; try{ win=frame.contentWindow; }catch(e){ return; }
+  if(!win || win.__blank) return; win.__blank=true;
+  const session=MODAL_SESSION, t0=Date.now();
+  const report=why=>{ let d={why, session, ms:Date.now()-t0, ua:navigator.userAgent.slice(0,120)};
+    try{ const t=win.term; d.term=!!t; if(t){ d.rows=t.rows; d.cols=t.cols; d.lines=t.buffer.active.length; }
+      d.canvases=win.document.querySelectorAll("canvas").length; d.frame=frame.clientWidth+"x"+frame.clientHeight; d.hidden=document.hidden; }catch(e){ d.err=String(e); }
+    try{ fetch("/api/termdiag",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)}); }catch(_){} };
+  const reload=why=>{ if(frame.dataset.reloaded || !frame.isConnected) return; frame.dataset.reloaded="1"; report(why); try{ win.location.reload(); }catch(_){} };   // once per terminal
+  win.addEventListener("webglcontextlost", ()=>reload("webgl context lost"), true);
+  const empty=()=>{ const t=win.term; if(!t || !t.buffer) return true; const b=t.buffer.active;
+    for(let i=0;i<b.length;i++){ const l=b.getLine(i); if(l && l.translateToString(true).trim()) return false; } return true; };
+  setTimeout(()=>{ try{ if(frame.isConnected && win.term) win.term.refresh(0, win.term.rows-1); }catch(_){} }, 900);
+  setTimeout(()=>{ if(frame.isConnected && empty()) reload("blank after 3.5s"); }, 3500);
+}
 function injectReconnect(frame){
   let win; try{ win=frame.contentWindow; }catch(e){ return; }
   if(!win || win.__reconnect) return; win.__reconnect=true;
@@ -1814,12 +1838,12 @@ function openTerm(session, who, title){
   MODAL_SESSION=session;
   if(location.pathname!=="/"+session) history.pushState({session}, "", "/"+session);   // address bar = the terminal; refresh/share lands here
   const box=document.querySelector(".mrow");
-  const old=document.getElementById("termframe"); if(old) old.remove();
+  const old=document.getElementById("termframe"); if(old){ freeGL(old); old.remove(); }
   paintRail(session);
   const f=document.createElement("iframe"); f.id="termframe";
   f.allow="clipboard-read; clipboard-write";
   f.src=`/terminal/#arg=${encodeURIComponent(session)}`;   // same-origin ttyd; one address for every agent, so its page is cached once
-  f.addEventListener("load", ()=>{ for(const fn of [termFont, injectReconnect, injectAutoCopy, injectFileDrops, injectTouchScroll, injectLinks]){ try{ fn(f); }catch(_){} } });   // smaller type on the phone, select-to-copy, swipe-to-scroll, clickable links
+  f.addEventListener("load", ()=>{ for(const fn of [termFont, injectReconnect, injectAutoCopy, injectFileDrops, injectTouchScroll, injectLinks, watchBlank]){ try{ fn(f); }catch(_){} } });   // smaller type on the phone, select-to-copy, swipe-to-scroll, clickable links
   box.appendChild(f);
   const mt=document.getElementById("mtitle"); mt.textContent=title||who; mt.title=session;   // the same name as the browser tab
   document.getElementById("say").placeholder="Message "+who+"…";

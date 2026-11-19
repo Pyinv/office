@@ -1189,6 +1189,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json({"ok": True} if ok else {"error": "bad token"}, 200 if ok else 400)
         if path == "/api/key":   return self._key(data)
         if path == "/api/paste": return self._paste(data)
+        if path == "/api/termdiag": return self._termdiag(data)
         if path == "/api/menu":  return self._menu(data)
         if path == "/api/restart": return self._restart(data)
         if path == "/api/buffer":return self._buffer(data)
@@ -2019,6 +2020,22 @@ class Handler(SimpleHTTPRequestHandler):
         pipe(cli, up)
         try: up.close()
         except Exception: pass
+
+    def _termdiag(self, data):
+        # a terminal that came up blank says what it saw (the page found it, then reloaded it); one
+        # line each in termdiag.log, kept under 200 KB, so the cause can be read instead of guessed
+        if not isinstance(data, dict):
+            return self._json({"error": "bad"}, 400)
+        line = time.strftime("%Y-%m-%d %H:%M:%S ") + json.dumps({k: str(v)[:200] for k, v in list(data.items())[:20]})
+        f = os.path.join(ROOT, "termdiag.log")
+        try:
+            if os.path.exists(f) and os.path.getsize(f) > 200_000:
+                os.replace(f, f + ".1")
+            with open(f, "a") as fh:
+                fh.write(line + "\n")
+        except OSError:
+            pass
+        return self._json({"ok": True})
 
     def _say(self, data):
         sess = str(data.get("session", ""))

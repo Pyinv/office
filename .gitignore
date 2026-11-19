@@ -39,3 +39,5 @@ ios/Office/Info.plist
 # phones registered for the app's notifications, and the APNs key
 devices.json
 *.p8
+termdiag.log
+termdiag.log.1

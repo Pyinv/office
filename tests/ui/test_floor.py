@@ -251,6 +251,21 @@ class Floor(BrowserCase):
         self.assertEqual(self.js("document.querySelector('#dp-body .working-note .el').textContent"), "1m 15s")
         self.assertEqual(self.js("document.querySelector('#dp-body .doing').textContent"), "Run the full test suite")
 
+    def test_a_terminal_that_stays_blank_is_reloaded_once_and_reported(self):
+        loads, diag = [], []
+        self.page.unroute("**/terminal/**")
+        self.page.route("**/terminal/**", lambda r: (loads.append(r.request.url), r.fulfill(
+            status=200, content_type="text/html", body="<html><body></body></html>")))      # never draws anything
+        self.page.route("**/api/termdiag", lambda r: (diag.append(json.loads(r.request.post_data)), r.fulfill(
+            status=200, content_type="application/json", body='{"ok":true}')))
+        self.open_floor()
+        self.page.evaluate("openTermByName('zed-alpha')")
+        self.page.wait_for_timeout(4200)
+        self.assertEqual(len(loads), 2)                                   # reloaded once
+        self.assertEqual([(d["why"], d["session"]) for d in diag], [("blank after 3.5s", "zed-alpha")])
+        self.page.wait_for_timeout(4000)
+        self.assertEqual(len(loads), 2)                                   # and not again and again
+
     def test_what_you_send_shows_at_once_with_replying_under_it(self):
         held = []
         self.page.unroute("**/api/say")
