@@ -271,11 +271,12 @@
   .mdtable th,.mdtable td{border:1px solid var(--line);padding:.18rem .5rem;text-align:start;white-space:nowrap}
   .mdtable th{background:var(--panel);color:var(--ink);font-weight:600}
   .mdtable .r{text-align:right}
-  .modal{position:fixed;inset:0;background:rgba(18,18,17,.62);backdrop-filter:blur(4px);
-    z-index:100;display:none;align-items:center;justify-content:center;padding:2.5vh 2vw}
+  /* the terminal takes the whole window: it is where the work happens */
+  .modal{position:fixed;inset:0;background:#111312;
+    z-index:100;display:none;align-items:stretch;justify-content:stretch;padding:0}
   .modal.open{display:flex}
-  .mbox{width:96vw;max-width:1300px;height:95vh;background:#111312;border:1px solid var(--line);
-    border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .mbox{width:100%;height:100%;background:#111312;border:0;
+    border-radius:0;overflow:hidden;display:flex;flex-direction:column}
   .mbar{display:flex;align-items:center;gap:.6rem;padding:.5rem .8rem;background:var(--panel);
     border-bottom:1px solid var(--line);flex:0 0 auto}
   .mbar .mtitle{font-weight:700;font-size:.9rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}  /* takes the slack so ↗ and ✕ stay on the right, hint or no hint */
@@ -858,7 +859,7 @@
   <div class="mbox">
     <div class="mbar">
       <span class="mtitle" id="mtitle"></span>
-      <span class="mhint">Esc or click outside to close · full interactive terminal</span>
+      <span class="mhint">Esc to close · full interactive terminal</span>
       <button class="mx" id="mpop" title="open in a new tab (run two side by side)">↗</button>
       <button class="mx" id="mx" title="close">✕</button>
     </div>
