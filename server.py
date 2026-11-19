@@ -2501,14 +2501,20 @@ def main():
     if name:
         ALLOWED_HOSTS.add(name)   # live tailnet DNS name (rename-proof)
     os.chdir(ROOT)
-    httpd = ThreadingHTTPServer((ip, PORT), Handler)
+    # the reverse proxy is the one way in (TLS, your host name): the server listens on this machine only, so
+    # nothing on the network reaches it past the proxy. OFFICE_BIND_TAILNET=1 also listens on the tailnet
+    # address, for the switch-over while the proxy still points there.
+    httpd = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    if cfg("OFFICE_BIND_TAILNET", "0") == "1":
+        also = ThreadingHTTPServer((ip, PORT), Handler)
+        threading.Thread(target=also.serve_forever, daemon=True).start()
     threading.Thread(target=_drop_ticker, daemon=True).start()
     threading.Thread(target=_floor_ticker, daemon=True).start()
     _opener()                               # have the greeting ready before the first tap
     _opener(ASK_OPENER)
     threading.Thread(target=_WARM.warm, daemon=True).start()   # and her models already running
     threading.Thread(target=_ASK.warm, daemon=True).start()
-    sys.stderr.write(f"office/server: http://{ip}:{PORT}/  ({name or 'office'}:{PORT})\n")
+    sys.stderr.write(f"office/server: http://127.0.0.1:{PORT}/" + (f" and http://{ip}:{PORT}/" if cfg("OFFICE_BIND_TAILNET", "0") == "1" else "") + "\n")
     httpd.serve_forever()
 
 if __name__ == "__main__":
