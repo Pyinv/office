@@ -24,8 +24,8 @@ GHOST_AFTER = 3600   # a no-transcript session older than this is a ghost; newer
 
 def _tmux(*a):
     try:
-        return subprocess.run(["tmux", *a], capture_output=True, text=True).stdout
-    except (FileNotFoundError, OSError):
+        return subprocess.run(["tmux", *a], capture_output=True, text=True, timeout=5).stdout
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):   # a hung tmux must not hang every poll
         return ""      # no tmux (or it errored) -> empty; the floor just shows nothing
 
 def sessions():
@@ -278,6 +278,9 @@ def _parse_one(f):
     res = {"cwd": cwd, "asst": last_asst, "role": last_role, "ts": last_ts,
            "asst_ts": asst_ts, "you": you, "you_ts": you_ts, "file": f, "doing": doing}
     _TCACHE[f] = (mt, res)
+    if len(_TCACHE) > 400:                       # old conversations stop being asked for: keep the newest
+        for k in sorted(_TCACHE, key=lambda k: _TCACHE[k][0])[:len(_TCACHE) - 300]:
+            _TCACHE.pop(k, None)
     return res
 
 def _parse_latest(dirpath):

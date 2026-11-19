@@ -116,6 +116,13 @@ INBOX_PICS = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", 
               ".webp": "image/webp", ".heic": "image/heic"}
 _SIDS = {}          # session -> its conversation id, from the last floor: where /api/turns reads
 _FLOOR_LOCK = threading.Lock()
+# groups, pins, mutes, tasks and icons are each read, changed and written back by request threads
+# and the restart job; one lock keeps two of those from overwriting each other
+_STATE_LOCK = threading.RLock()
+
+def _tmpname(path):
+    """A temp file next to path that no other thread is writing (os.replace then swaps it in)."""
+    return f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
 # what the snapshot carries for the server's own bookkeeping (restore, restart) — the page never reads it
 _FLOOR_PRIVATE = {"dir", "sid", "mode", "draft", "menu", "update", "verb"}
 
@@ -181,17 +188,24 @@ def notify_changes(snap):
                     _NOTIFIED[s] = "working"
             elif st not in ("waiting", "review"):
                 _NOTIFIED.pop(s, None)
+        muted = load_mutes()
         for s in list(_NOTIFIED):
             if s not in live:                       # was on the floor, now isn't: closed, crashed, killed
                 _NOTIFIED.pop(s, None)
-                if "gone" in PUSH_EVENTS and not quiet:
+                if "gone" in PUSH_EVENTS and not quiet and s not in muted:
                     threading.Thread(target=PUSH.send, args=(push_title(s), "session is gone (closed, crashed or killed)"), daemon=True).start()
+
+def forget_notified(session):
+    """You closed or renamed it yourself: no "session is gone" push for that."""
+    with _NOTIFY_LOCK:
+        _NOTIFIED.pop(session, None)
 
 def notify_event(person, session, text):
     # the Secretary's follow-ups ("ping me when Mara's done") also reach the phone
     if not PUSH.ready or "secretary" not in PUSH_EVENTS or session in load_mutes():
         return
     push(session, "follow-up: " + text)
+_EVENTS = []        # follow-ups that fired in the last two minutes, for every page to show once
 _WATCHES = []       # follow-ups: [{session,person,act,prev,ts}] — fire when a session finishes
 _WATCHES_LOCK = threading.Lock()   # serialize watch fire+remove across concurrent /api/floor polls
 
@@ -251,9 +265,12 @@ def _menu_open(sess):
     return len(_MENU_RE.findall(tail)) >= 2
 
 def live_sessions():
-    return set(subprocess.run(
-        ["tmux", "list-sessions", "-F", "#{session_name}"],
-        capture_output=True, text=True).stdout.split())
+    try:
+        return set(subprocess.run(
+            ["tmux", "list-sessions", "-F", "#{session_name}"],
+            capture_output=True, text=True, timeout=5).stdout.split())
+    except (subprocess.TimeoutExpired, OSError):     # a hung tmux: nothing is live rather than every request hanging
+        return set()
 
 # ── categories you assign (clients / ventures / personal) ────────────────
 import re as _re
@@ -268,7 +285,7 @@ def load_groups():
         return {}
 
 def save_groups(g):
-    tmp = GROUPS_FILE + ".tmp"
+    tmp = _tmpname(GROUPS_FILE)
     with open(tmp, "w") as f:
         json.dump(g, f, indent=2, sort_keys=True)
     os.replace(tmp, GROUPS_FILE)
@@ -295,7 +312,7 @@ def load_pins():
         return set()
 
 def save_pins(p):
-    tmp = PINS_FILE + ".tmp"
+    tmp = _tmpname(PINS_FILE)
     with open(tmp, "w") as f:
         json.dump(sorted(p), f, indent=2)
     os.replace(tmp, PINS_FILE)
@@ -322,7 +339,7 @@ def load_icons():
         return {}
 
 def save_icons(d):
-    tmp = ICONS_FILE + ".tmp"
+    tmp = _tmpname(ICONS_FILE)
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(d, f, indent=2, sort_keys=True, ensure_ascii=False)
     os.replace(tmp, ICONS_FILE)
@@ -340,7 +357,7 @@ def load_seen():
         return None                      # no file yet: the floor starts with everything seen
 
 def save_seen(d):
-    tmp = SEEN_FILE + ".tmp"
+    tmp = _tmpname(SEEN_FILE)
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(d, f, indent=2, sort_keys=True)
     os.replace(tmp, SEEN_FILE)
@@ -551,7 +568,10 @@ def _speak(text, now=False):
 def _claim(h):
     """True for the one caller that gets to make this mp3; everyone else waits on _spoken."""
     with _speaking_lock:
-        if h in _SPEAKING or os.path.exists(os.path.join(BRIEF_DIR, h + ".mp3")):
+        if os.path.exists(os.path.join(BRIEF_DIR, h + ".mp3")):
+            return False
+        ev = _SPEAKING.get(h)
+        if ev is not None and not ev.is_set():      # someone is making it right now
             return False
         _SPEAKING[h] = threading.Event()
         return True
@@ -589,6 +609,12 @@ def _synth(h, out=None):
         print(f"brief: speech failed: {e}", file=sys.stderr, flush=True)
     finally:
         _SPEAKING[h].set()
+        with _speaking_lock:                    # done (or failed): a later ask may make it again
+            if _SPEAKING.get(h) is not None and _SPEAKING[h].is_set():
+                _SPEAKING.pop(h, None)
+            if len(_PENDING) > 200:
+                for k in list(_PENDING)[:-100]:
+                    _PENDING.pop(k, None)
 
 def _voice_rules(arabic_only=False):
     """How everything she says out loud must sound: the briefing and her spoken answers share it.
@@ -633,7 +659,7 @@ def load_mutes():
         return set()
 
 def save_mutes(m):
-    tmp = MUTES_FILE + ".tmp"
+    tmp = _tmpname(MUTES_FILE)
     with open(tmp, "w") as f:
         json.dump(sorted(m), f, indent=2)
     os.replace(tmp, MUTES_FILE)
@@ -677,7 +703,7 @@ def record_history(snap):
         _hist_written = now
         if not changed:
             return
-        tmp = HISTORY_FILE + ".tmp"
+        tmp = _tmpname(HISTORY_FILE)
         with open(tmp, "w") as f:
             json.dump(h, f, indent=2, sort_keys=True)
         os.replace(tmp, HISTORY_FILE)
@@ -693,7 +719,7 @@ def load_live():
         return {}
 
 def _save_live(st):
-    tmp = LIVE_FILE + ".tmp"
+    tmp = _tmpname(LIVE_FILE)
     with open(tmp, "w") as f:
         json.dump(dict(st, ts=int(time.time())), f, indent=2, sort_keys=True)
     os.replace(tmp, LIVE_FILE)
@@ -740,7 +766,7 @@ def _claude_pid(sess):
     return 0
 
 def _has_session(sess):
-    return subprocess.run(["tmux", "has-session", "-t", "=" + sess], capture_output=True).returncode == 0
+    return subprocess.run(["tmux", "has-session", "-t", "=" + sess], capture_output=True, timeout=5).returncode == 0
 
 def _wait(pred, secs):
     end = time.time() + secs
@@ -781,7 +807,8 @@ def _spawn(name, d, grp, resume="", mode=""):
     launch = _launch_cmd(resume, mode) + "; exec " + shlex.quote(_login_shell())
     subprocess.run(["tmux", "new-session", "-d", "-s", name, "-c", d, launch], check=True)
     if grp in VALID_GROUPS:
-        g = load_groups(); g[name] = grp; save_groups(g)
+        with _STATE_LOCK:
+            g = load_groups(); g[name] = grp; save_groups(g)
 
 def _restart_job(wanted, update):
     try:
@@ -807,7 +834,7 @@ def _restart_job(wanted, update):
         _JOB["running"] = False; _JOB["done"] = int(time.time())
 
 def _prompt_shown(s):
-    raw = subprocess.run(["tmux", "capture-pane", "-p", "-t", s], capture_output=True, text=True).stdout
+    raw = subprocess.run(["tmux", "capture-pane", "-p", "-t", s], capture_output=True, text=True, timeout=5).stdout
     return any(l.lstrip().startswith(("❯", "›")) for l in raw.splitlines())
 
 def _restart_one(s, sid, mode):
@@ -831,7 +858,7 @@ def _restart_one(s, sid, mode):
     if not _has_session(s):
         # the pane ran claude with no shell underneath (a session made by hand), so /exit took
         # the whole tmux session with it — make it again, this time with a shell to fall back on
-        info = (_live_cache or {}).get(s) or load_history().get(s) or {}
+        info = load_history().get(s) or {}
         d = info.get("dir") or DEV_ROOT
         if not os.path.isdir(d):
             _log(f"✗ {s}: its tmux session closed on /exit and its folder is gone ({d})" + (f"; your draft was: {draft}" if draft else "")); return
@@ -860,7 +887,7 @@ def load_tasks():
         return {}
 
 def save_tasks(t):
-    tmp = TASKS_FILE + ".tmp"
+    tmp = _tmpname(TASKS_FILE)
     with open(tmp, "w") as f:
         json.dump(t, f, indent=2, sort_keys=True)
     os.replace(tmp, TASKS_FILE)
@@ -996,9 +1023,14 @@ class Handler(SimpleHTTPRequestHandler):
                             pass
                     elif tm:
                         w["prev"] = cur
+        # a fired follow-up stays on the floor for two minutes, so every page sees it (by id, once)
+        for ev in events:
+            _EVENTS.append(dict(ev, id=f"{now}-{ev['session']}", at=now))
+        while _EVENTS and now - _EVENTS[0]["at"] > 120:
+            _EVENTS.pop(0)
         team_out = [{k: v for k, v in m.items() if k not in _FLOOR_PRIVATE} for m in snap]
         return json.dumps({"team": team_out, "groups": VALID_GROUPS,
-                           "watch_events": events, "version": __version__,
+                           "watch_events": list(_EVENTS), "version": __version__,
                            "build": _build_id()}).encode()
 
     def _send(self, body, ctype, code=200, cache=None):
@@ -1150,12 +1182,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self._send(json.dumps({"turns": team.turns(paths[0]) if paths else []}).encode(),
                               "application/json")
         if self.path.split("?")[0] == "/api/floor":
-            with _FLOOR_LOCK:
-                if time.time() - _FLOOR["at"] > FLOOR_TTL or not _FLOOR["body"]:
-                    _FLOOR["body"] = self._floor()
-                    _FLOOR["at"] = time.time()
-                body = _FLOOR["body"]
-            return self._send(body, "application/json")
+            return self._send(floor_now(), "application/json")
         if self.path.split("?")[0] == "/favicon.ico":
             # Site-root favicon. The office and status pages carry their own inline
             # icons, so this only reaches tabs whose page has none: files opened
@@ -1204,11 +1231,16 @@ class Handler(SimpleHTTPRequestHandler):
         if path in ("/api/say", "/api/key", "/api/paste") and isinstance(data, dict):
             mark_seen(str(data.get("session") or ""))
         if path == "/api/say":   return self._say(data)
-        if path == "/api/group": return self._group(data)
-        if path == "/api/pin":   return self._pin(data)
-        if path == "/api/mute":  return self._mute(data)
-        if path == "/api/icon":  return self._icon(data)
-        if path == "/api/task":  return self._task(data)
+        if path == "/api/group":
+            with _STATE_LOCK: return self._group(data)
+        if path == "/api/pin":
+            with _STATE_LOCK: return self._pin(data)
+        if path == "/api/mute":
+            with _STATE_LOCK: return self._mute(data)
+        if path == "/api/icon":
+            with _STATE_LOCK: return self._icon(data)
+        if path == "/api/task":
+            with _STATE_LOCK: return self._task(data)
         if path == "/api/secretary": return self._secretary(data)
         if path == "/api/brief": return self._brief(data)
         if path == "/api/account":
@@ -1224,9 +1256,18 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/menu":  return self._menu(data)
         if path == "/api/restart": return self._restart(data)
         if path == "/api/buffer":return self._buffer(data)
-        if path == "/api/kill":  return self._kill(data)
-        if path == "/api/erase": return self._erase(data)
-        if path == "/api/rename":return self._rename(data)
+        if path == "/api/kill":
+            with _STATE_LOCK: r = self._kill(data)
+            forget_notified(str((data or {}).get("session", "")) if isinstance(data, dict) else "")
+            return r
+        if path == "/api/erase":
+            with _STATE_LOCK: r = self._erase(data)
+            forget_notified(str((data or {}).get("session", "")) if isinstance(data, dict) else "")
+            return r
+        if path == "/api/rename":
+            with _STATE_LOCK: r = self._rename(data)
+            forget_notified(str((data or {}).get("session", "")) if isinstance(data, dict) else "")
+            return r
         if path == "/api/new":   return self._new(data)
         return self._json({"error": "not found"}, 404)
 
@@ -1400,13 +1441,14 @@ class Handler(SimpleHTTPRequestHandler):
         # Paste or drag an image/file into an agent's terminal or message box: it is saved to that
         # agent's inbox/ and only its path comes back — the page inserts it where you are typing.
         q = parse_qs(urlparse(self.path).query)
-        sess, d = self._drop_target((q.get("session") or [""])[0])
-        if not sess:
-            return
         n = int(self.headers.get("Content-Length", 0) or 0)
         if n <= 0 or n > self.DROP_MAX:
             return self._json({"error": "empty or too big (300 MB max)"}, 413)
-        rel = self._drop_save(d, unquote((q.get("name") or [""])[0]), self.rfile.read(n))
+        body = self.rfile.read(n)                  # read first: an error sent mid-upload reaches the page as "no connection"
+        sess, d = self._drop_target((q.get("session") or [""])[0])
+        if not sess:
+            return
+        rel = self._drop_save(d, unquote((q.get("name") or [""])[0]), body)
         return self._json({"ok": True, "path": rel})
 
     def _drop(self):
@@ -1560,7 +1602,7 @@ class Handler(SimpleHTTPRequestHandler):
     def _brief(self, data):
         """POST /api/brief: the secretary's spoken briefing. {items:[{session,name,kind,line}],
         working:[names], text, audio} (audio: a token for GET /api/brief.mp3, "" when speech is off)."""
-        snap = json.loads(self._floor())["team"]
+        snap = json.loads(floor_now())["team"]
         items, working = brief_items(snap)
         key = json.dumps([[i["session"], i["kind"], i.get("ask", ""), i.get("reply", "")[-200:]] for i in items]
                          + [sorted(working)], ensure_ascii=False)
@@ -2170,7 +2212,7 @@ class Handler(SimpleHTTPRequestHandler):
             h = load_history()
             if old in h:
                 h[new] = h.pop(old)
-                tmp = HISTORY_FILE + ".tmp"
+                tmp = _tmpname(HISTORY_FILE)
                 with open(tmp, "w") as f:
                     json.dump(h, f, indent=2, sort_keys=True)
                 os.replace(tmp, HISTORY_FILE)
@@ -2333,7 +2375,7 @@ class Handler(SimpleHTTPRequestHandler):
         with _hist_lock:
             h = load_history()
             if h.pop(sess, None) is not None:
-                tmp = HISTORY_FILE + ".tmp"
+                tmp = _tmpname(HISTORY_FILE)
                 with open(tmp, "w") as f:
                     json.dump(h, f, indent=2, sort_keys=True)
                 os.replace(tmp, HISTORY_FILE); done.append("office history")
@@ -2423,6 +2465,24 @@ def _drop_stuck(sess, count):
 
 DROPS = dropbatch.Batches(_drop_deliver, _drop_stuck)
 
+def floor_now(max_age=None):
+    """The floor as JSON bytes, built at most every FLOOR_TTL seconds whoever asks."""
+    with _FLOOR_LOCK:
+        if time.time() - _FLOOR["at"] > (FLOOR_TTL if max_age is None else max_age) or not _FLOOR["body"]:
+            _FLOOR["body"] = Handler._floor(None)
+            _FLOOR["at"] = time.time()
+        return _FLOOR["body"]
+
+def _floor_ticker():
+    # phone pushes, "ping me when X is done" and the restore list all hang off a floor snapshot;
+    # with no page open (laptop shut, phone locked) nobody asks for one, so the server keeps it current
+    while True:
+        time.sleep(4)
+        try:
+            floor_now(3)
+        except Exception as e:
+            sys.stderr.write(f"office/floor: {e}\n")
+
 def _drop_ticker():
     while True:
         time.sleep(1)
@@ -2443,6 +2503,7 @@ def main():
     os.chdir(ROOT)
     httpd = ThreadingHTTPServer((ip, PORT), Handler)
     threading.Thread(target=_drop_ticker, daemon=True).start()
+    threading.Thread(target=_floor_ticker, daemon=True).start()
     _opener()                               # have the greeting ready before the first tap
     _opener(ASK_OPENER)
     threading.Thread(target=_WARM.warm, daemon=True).start()   # and her models already running

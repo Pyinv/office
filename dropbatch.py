@@ -97,6 +97,9 @@ class Batches:
                         self.pending.pop(session, None)
                     return delivered
                 b = q[0]
+                if b.get("sending"):                     # the ticker and a request thread can both get here:
+                    return delivered                     # one delivers, the other leaves it alone
+                b["sending"] = True
                 msg = self.message(b)
             try:
                 ok = bool(self.deliver(session, msg))
@@ -104,8 +107,10 @@ class Batches:
                 ok = False
             stuck = 0
             with self.lock:
+                b["sending"] = False
                 if ok:
-                    q.pop(0)
+                    if b in q:
+                        q.remove(b)
                     delivered = True
                     continue
                 b["blocked"] = b["blocked"] or self.now()

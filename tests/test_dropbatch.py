@@ -184,5 +184,31 @@ class SharedText(unittest.TestCase):
         self.assertFalse(shared_text("Image", b"\x89PNG\r\n\x1a\n\x00"))
 
 
+class Concurrent(unittest.TestCase):
+    """The 1 s ticker and a request thread can flush the same agent at once: each batch goes out once."""
+    def test_a_batch_is_delivered_once_when_two_threads_flush_together(self):
+        import threading
+        sent, gate = [], threading.Event()
+
+        def deliver(session, msg):
+            sent.append(msg)
+            gate.wait(1)                     # hold the first delivery so the second flush runs meanwhile
+            return True
+        b = Batches(deliver, on_stuck=lambda s, c: None, now=Clock())
+        with b.lock:
+            b.pending["zed-alpha"] = [{"items": [(1, "text", "one")], "note": "", "n": 1, "last": 0, "blocked": None,
+                                       "warned": False, "closed": True},
+                                      {"items": [(1, "text", "two")], "note": "", "n": 1, "last": 0, "blocked": None,
+                                       "warned": False, "closed": True}]
+        t = threading.Thread(target=b._flush, args=("zed-alpha",)); t.start()
+        while not sent:
+            pass
+        b._flush("zed-alpha")                # the ticker arrives while the first is still sending
+        gate.set(); t.join()
+        self.assertEqual(len(sent), 2)
+        self.assertNotEqual(sent[0], sent[1])
+        self.assertEqual(b.pending.get("zed-alpha"), None)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1243,6 +1243,8 @@ const FILTERS = [           // status axis
   {id:"working",label:"🔵 Working",   test:m=>m.state==="working"},
   {id:"review", label:"🟢 Finished",  test:m=>m.state==="review"},
 ];
+// follow-ups that fired: the floor carries the last two minutes of them, each shown once per page
+const EV_SEEN=new Set(); let EV_READY=false;
 let FILTER="all", CATFILTER="all", SEARCH="", LAST=[], FROZEN=false, CARDS={}, LAYOUT="", SENT={};
 const stateTest=()=>(FILTERS.find(x=>x.id===FILTER)||FILTERS[0]).test;
 const catTest=m=>CATFILTER==="all"||m.group===CATFILTER;
@@ -2060,12 +2062,12 @@ async function sendKey(key){
     document.getElementById("histdlg").showModal();
   });
   async function sendSay(){
-    const t=say.value.replace(/\s+$/,""); if(!t || !MODAL_SESSION) return;
+    const t=say.value.replace(/\s+$/,""), session=MODAL_SESSION; if(!t || !session) return;   // the agent you sent to, even if you switch meanwhile
     sendBtn.disabled=true;
     histAdd(t);                                   // kept first — even a failed send is recoverable
     let ok=false;
     try{
-      const r=await fetch("/api/paste",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,text:t,guard:true})});
+      const r=await fetch("/api/paste",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session,text:t,guard:true})});
       if(r.ok) ok=true;
       else{
         const j=await r.json().catch(()=>({}));
@@ -2074,8 +2076,9 @@ async function sendKey(key){
       }
     }catch(_){ toast("Send failed — message kept in the box", true); }
     if(ok){
-      try{ await fetch("/api/key",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:MODAL_SESSION,key:"enter"})}); }catch(_){}
-      say.value=""; ls.del(DKEY(MODAL_SESSION)); grow();
+      try{ await fetch("/api/key",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session,key:"enter"})}); }catch(_){}
+      ls.del(DKEY(session));
+      if(MODAL_SESSION===session){ say.value=""; grow(); }
     }
     sendBtn.disabled=false; say.focus();
   }
@@ -2417,7 +2420,7 @@ async function loadTurns(session, sig){
     if(DESK!==session || TURNS.sig!==sig) return;
     const first=TURNS.session!==session;
     TURNS={session, sig, list:j.turns||[]}; DESK_SIG=""; refreshDesk(first);
-  }catch(_){ if(TURNS.sig===sig) TURNS.sig=""; }
+  }catch(_){ if(TURNS.sig===sig){ TURNS.sig=""; DESK_SIG=""; } }   // failed: the next floor update tries again
 }
 try{ REOPEN=sessionStorage.getItem("office.desk")||""; }catch(_){}
 const DP=id=>document.getElementById(id);
@@ -2809,7 +2812,8 @@ async function load(){
   // feature: ping me when a session newly flips to "your turn"
   LAST.forEach(m=>{ if(m.state==="waiting" && _prev[m.session] && _prev[m.session]!=="waiting") notifyUser("🖐 "+(m.person||m.project)+" needs you", m.project, m.session); });
   // feature: follow-up watches that just fired (always shown; chime if notifications on)
-  (data.watch_events||[]).forEach(ev=>{ const o=document.getElementById("sec-reply"); if(o){ o.className="sec-reply ok"; o.textContent="🔔 "+ev.reply; } notifyUser("✅ "+ev.person+" finished", ev.reply, ev.session); });
+  (data.watch_events||[]).forEach(ev=>{ if(EV_SEEN.has(ev.id)) return; EV_SEEN.add(ev.id); if(!EV_READY) return; const o=document.getElementById("sec-reply"); if(o){ o.className="sec-reply ok"; o.textContent="🔔 "+ev.reply; } notifyUser("✅ "+ev.person+" finished", ev.reply, ev.session); });
+  EV_READY=true;                                   // from the second floor on, a new one is news
   const w=LAST.filter(t=>t.state==="waiting").length, p=LAST.filter(t=>t.state==="typed").length;
   document.getElementById("sub").innerHTML=
     `<span class="needdot"></span><b class="needn">${w}</b> need you · ${LAST.length} desks`+(p?` · ${p} unsent`:"");
