@@ -2790,8 +2790,16 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) load();
 // unlocked screen stops counting. Said every second; that agent's pushes stay off your phone meanwhile.
 const LOOK={page:Math.random().toString(36).slice(2,12), sent:"", at:0, active:Date.now()};
 const TOUCH=matchMedia("(pointer: coarse)").matches;
-["pointermove","pointerdown","keydown","wheel","touchstart","scroll"].forEach(e=>
-  addEventListener(e, ()=>{ LOOK.active=Date.now(); }, {capture:true, passive:true}));
+const LOOK_EVENTS=["pointermove","pointerdown","keydown","wheel","touchstart","scroll"];
+function markActive(){ LOOK.active=Date.now(); }
+LOOK_EVENTS.forEach(e=>addEventListener(e, markActive, {capture:true, passive:true}));
+// typing in a terminal happens inside its frame (same origin): count that too, or two minutes of only
+// typing there would look like you walked away
+document.addEventListener("load", ev=>{
+  const f=ev.target;
+  if(!f || f.tagName!=="IFRAME") return;
+  try{ LOOK_EVENTS.forEach(e=>f.contentWindow.addEventListener(e, markActive, {capture:true, passive:true})); }catch(_){}
+}, true);
 function lookingAt(){
   if(document.hidden || (!TOUCH && !document.hasFocus()) || Date.now()-LOOK.active>120000) return "";
   return (MODAL_OPEN && MODAL_SESSION) || DESK || "";

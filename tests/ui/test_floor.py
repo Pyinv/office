@@ -269,6 +269,14 @@ class Floor(BrowserCase):
         self.assertEqual(self.looks[-1]["session"], "")
         self.assertEqual(len({l["page"] for l in self.looks}), 1)
 
+    def test_typing_in_the_terminal_counts_as_you_being_there(self):
+        self.open_floor()
+        self.page.evaluate("openTermByName('amy-beta')")
+        self.page.wait_for_timeout(600)
+        self.page.evaluate("LOOK.active=0")                            # long since you touched the page itself
+        self.page.frame_locator("#termframe").locator("html").press("a")
+        self.assertGreater(self.page.evaluate("LOOK.active"), 0)
+
     def test_a_terminal_that_stays_blank_is_reloaded_once_and_reported(self):
         loads, diag = [], []
         self.page.unroute("**/terminal/**")

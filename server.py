@@ -150,8 +150,10 @@ _NOTIFY_SEEDED = False   # the first snapshot after a (re)start only records sta
 def push(session, body, title="", since=0):
     """A notification in the background, so a poll never waits on Apple. `since` = when the state
     it reports began (Claude's status file), so push.log shows the whole delay."""
+    now = time.time()
+    looking = [f"{ss} {now - t:.0f}s ago" for ss, t in list(_LOOKING.values())]
     threading.Thread(target=PUSH.send, args=(title or push_title(session), body, session),
-                     kwargs={"since": since}, daemon=True).start()
+                     kwargs={"since": since, "looking": looking}, daemon=True).start()
 
 def push_title(session):
     # "ibrahim-countrol-edi" -> "Countrol Edi | Ibrahim": the project leads, like the browser tab
@@ -172,7 +174,8 @@ def notify_changes(snap):
         for m in snap:
             s = m["session"]; live.add(s)
             st = m.get("state")
-            if m.get("muted") or looking_at(s, m.get("since", 0)):     # 🔕, or open in front of you: track state silently
+            seen_s = not m.get("muted") and looking_at(s, m.get("since", 0))
+            if m.get("muted") or seen_s:            # 🔕, or open in front of you: track state silently
                 quiet_s = True
             else:
                 quiet_s = quiet
@@ -182,9 +185,11 @@ def notify_changes(snap):
                 if _NOTIFIED.get(s) != key:
                     _NOTIFIED[s] = key
                     if not quiet_s: push(s, "needs you: " + ask[:400], since=m.get("since", 0))
+                    elif seen_s and not quiet: PUSH._log(f"{s} not pushed (needs you): you're looking at it")
             elif st == "review" and "review" in PUSH_EVENTS and str(_NOTIFIED.get(s, "")).startswith("working"):
                 _NOTIFIED[s] = "review"
                 if not quiet_s: push(s, "done: " + (m.get("gist") or "your move"), since=m.get("since", 0))
+                elif seen_s and not quiet: PUSH._log(f"{s} not pushed (done): you're looking at it")
             elif st == "working":
                 if not str(_NOTIFIED.get(s, "")).startswith("working"):
                     _NOTIFIED[s] = "working"

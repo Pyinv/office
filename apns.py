@@ -107,7 +107,7 @@ class Pusher:
         except OSError:
             pass
 
-    def send(self, title, body, session="", subtitle="", since=0):
+    def send(self, title, body, session="", subtitle="", since=0, looking=None):
         """One notification to every registered phone; a tap opens `session`'s terminal (the floor if empty)."""
         if not self.ready:
             return
@@ -123,6 +123,8 @@ class Pusher:
         except Exception as e:
             sys.stderr.write(f"office/apns: can't sign with the key: {e}\n")
             return
+        if looking is not None:            # what the pages said just then, to explain a push you didn't want
+            self._log(f"{session} pushing; pages looking at: {', '.join(looking) or 'nothing'}")
         for token, d in self.devices().items():
             t0 = time.time()
             url = f"{HOSTS.get(d.get('env'), HOSTS['production'])}/3/device/{token}"

@@ -21,7 +21,8 @@ class Notify(unittest.TestCase):
         self.sent = []
         patches = [mock.patch.object(server, "push", lambda s, body, **k: self.sent.append(body)),
                    mock.patch.object(type(server.PUSH), "ready", new_callable=mock.PropertyMock, return_value=True),
-                   mock.patch.object(server, "load_mutes", lambda: set())]
+                   mock.patch.object(server, "load_mutes", lambda: set()),
+                   mock.patch.object(server.PUSH, "_log", lambda line: None)]
         for p in patches:
             p.start(); self.addCleanup(p.stop)
 
