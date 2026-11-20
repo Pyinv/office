@@ -537,6 +537,8 @@ def snapshot():
             "you": you[:400] if you else "",
             "options": ask["options"] if ask else [],
             "typed": None, "ghost": ghost, "running": running,
+            # when Claude's status file last changed state: lets push.log time a late notification
+            "since": ((meta or {}).get("statusUpdatedAt") or 0) / 1000,
             # the word on its spinner line ("Metamorphosing…"), copied from its screen as you asked:
             # shown while it works so it doesn't look dead. The state itself still comes from the JSON.
             "verb": _v if state == "working" else "",

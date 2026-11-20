@@ -8,7 +8,7 @@ options:
 settings:
   base:
     MARKETING_VERSION: "1.2"
-    CURRENT_PROJECT_VERSION: "5"
+    CURRENT_PROJECT_VERSION: "6"
     DEVELOPMENT_TEAM: ${OFFICE_TEAM}     # from ios/team.txt, set by make.sh
 targets:
   Office:
@@ -22,6 +22,7 @@ targets:
       properties:
         com.apple.security.application-groups: [group.com.pyinv.office]   # the Office address, shared with OfficeShare
         aps-environment: development   # notifications; Xcode switches it to production for TestFlight / App Store
+        com.apple.developer.usernotifications.time-sensitive: true   # an agent needing you gets through Focus / Scheduled Summary
     info:
       path: Office/Info.plist
       properties:

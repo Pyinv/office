@@ -12,6 +12,7 @@ notification straight to Apple, signed with your APNs auth key (.p8). Standard l
 import base64
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -92,14 +93,30 @@ class Pusher:
             _JWT.update(token=f"{head}.{body}.{_b64(_der_to_raw(der))}", at=time.time())
             return _JWT["token"]
 
-    def send(self, title, body, session="", subtitle=""):
+    def _log(self, line):
+        """push.log next to devices.json: when each push left and what Apple said, to time a late one."""
+        path = os.path.join(os.path.dirname(self.devices_path), "push.log")
+        try:
+            if os.path.getsize(path) > 200_000:
+                os.replace(path, path + ".1")
+        except OSError:
+            pass
+        try:
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(time.strftime("%Y-%m-%d %H:%M:%S ") + line + "\n")
+        except OSError:
+            pass
+
+    def send(self, title, body, session="", subtitle="", since=0):
         """One notification to every registered phone; a tap opens `session`'s terminal (the floor if empty)."""
         if not self.ready:
             return
         alert = {"title": title, "body": body[:900]}
         if subtitle:
             alert["subtitle"] = subtitle
-        payload = json.dumps({"aps": {"alert": alert, "sound": "default", "thread-id": session or "office"},
+        payload = json.dumps({"aps": {"alert": alert, "sound": "default", "thread-id": session or "office",
+                                      # breaks through Focus and Scheduled Summary (the app has the entitlement)
+                                      "interruption-level": "time-sensitive"},
                               "session": session})
         try:
             jwt = self._jwt()
@@ -107,18 +124,24 @@ class Pusher:
             sys.stderr.write(f"office/apns: can't sign with the key: {e}\n")
             return
         for token, d in self.devices().items():
+            t0 = time.time()
             url = f"{HOSTS.get(d.get('env'), HOSTS['production'])}/3/device/{token}"
             try:
                 r = subprocess.run(["curl", "-sS", "--http2", "-m", "10", "-o", "-", "-w", "\n%{http_code}",
                                     "-H", f"authorization: bearer {jwt}", "-H", f"apns-topic: {self.topic}",
                                     "-H", "apns-push-type: alert", "-H", "apns-priority: 10",
-                                    "--data-binary", "@-", url],
+                                    "-D", "/dev/stderr", "--data-binary", "@-", url],
                                    input=payload.encode(), capture_output=True, timeout=15)
                 out = r.stdout.decode(errors="replace").rsplit("\n", 1)
                 code, said = (out[-1].strip(), out[0]) if len(out) == 2 else ("", r.stderr.decode(errors="replace"))
             except Exception as e:
                 sys.stderr.write(f"office/apns: {e}\n")
+                self._log(f"{session} {d.get('env')} {token[:8]} failed: {e}")
                 continue
+            m = re.search(r"apns-id:\s*(\S+)", r.stderr.decode(errors="replace"), re.I)
+            lag = f" {t0 - since:.0f}s after the state changed" if since else ""
+            self._log(f"{session} {d.get('env')} {token[:8]} {code or 'no answer'} in {time.time() - t0:.1f}s{lag}"
+                      f" id={m.group(1) if m else '-'} | {body[:60]}")
             if code == "200":
                 continue
             reason = ""

@@ -147,9 +147,11 @@ _NOTIFIED = {}      # session -> key of the last state we pushed, so one questio
 _NOTIFY_LOCK = threading.Lock()
 _NOTIFY_SEEDED = False   # the first snapshot after a (re)start only records state: no burst of old questions
 
-def push(session, body, title=""):
-    """A notification in the background, so a poll never waits on Apple."""
-    threading.Thread(target=PUSH.send, args=(title or push_title(session), body, session), daemon=True).start()
+def push(session, body, title="", since=0):
+    """A notification in the background, so a poll never waits on Apple. `since` = when the state
+    it reports began (Claude's status file), so push.log shows the whole delay."""
+    threading.Thread(target=PUSH.send, args=(title or push_title(session), body, session),
+                     kwargs={"since": since}, daemon=True).start()
 
 def push_title(session):
     # "ibrahim-countrol-edi" -> "Countrol Edi | Ibrahim": the project leads, like the browser tab
@@ -179,10 +181,10 @@ def notify_changes(snap):
                 key = "waiting:" + ask[:200]
                 if _NOTIFIED.get(s) != key:
                     _NOTIFIED[s] = key
-                    if not quiet_s: push(s, "needs you: " + ask[:400])
+                    if not quiet_s: push(s, "needs you: " + ask[:400], since=m.get("since", 0))
             elif st == "review" and "review" in PUSH_EVENTS and str(_NOTIFIED.get(s, "")).startswith("working"):
                 _NOTIFIED[s] = "review"
-                if not quiet_s: push(s, "done: " + (m.get("gist") or "your move"))
+                if not quiet_s: push(s, "done: " + (m.get("gist") or "your move"), since=m.get("since", 0))
             elif st == "working":
                 if not str(_NOTIFIED.get(s, "")).startswith("working"):
                     _NOTIFIED[s] = "working"
