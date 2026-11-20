@@ -1848,6 +1848,7 @@ function tabTitle(m){
 }
 function openTerm(session, who, title){
   MODAL_SESSION=session;
+  lookSoon();
   if(location.pathname!=="/"+session) history.pushState({session}, "", "/"+session);   // address bar = the terminal; refresh/share lands here
   const box=document.querySelector(".mrow");
   const old=document.getElementById("termframe"); if(old){ freeGL(old); old.remove(); }
@@ -1926,6 +1927,7 @@ const BASE_TITLE=document.title;
 function closeTerm(){
   if(location.pathname!=="/") history.pushState(null, "", "/");
   document.getElementById("modal").classList.remove("open");
+  lookSoon();
   const dm=DESK && LAST.find(x=>x.session===DESK);
   document.title=dm ? tabTitle(dm) : BASE_TITLE;         // back to the panel that's still open, or the floor
   const f=document.getElementById("termframe"); if(f) f.remove();  // tear down ttyd fully -> detach tmux
@@ -2433,6 +2435,7 @@ function openDesk(session){
   const m=LAST.find(x=>x.session===session); if(!m) return;
   if(DESK!==session){ DP("dp-in").value=""; DP("dp-menu").hidden=true; }
   DESK=session; DESK_SIG=""; try{ sessionStorage.setItem("office.desk", session); }catch(_){}
+  lookSoon();
   if(!MODAL_OPEN) document.title=tabTitle(m);           // the tab says whose panel is open, like a terminal
   if(m.unread){ m.unread=false; if(typeof render==="function") try{ render(); }catch(_){} }
   DP("desk").hidden=false; document.body.classList.add("deskopen");
@@ -2442,6 +2445,7 @@ function openDesk(session){
 function closeDesk(){
   if(!DESK) return;
   DESK=""; try{ sessionStorage.removeItem("office.desk"); }catch(_){}
+  lookSoon();
   if(!MODAL_OPEN) document.title=BASE_TITLE;
   DP("desk").hidden=true; DP("dp-menu").hidden=true; document.body.classList.remove("deskopen"); markSel();
 }
@@ -2780,6 +2784,31 @@ function checkVersion(v){
 }
 window.addEventListener("online", ()=>{ NET.diag=null; load(); });
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) load(); });
+// Tell the server which chat you're looking at (the terminal in front, else the open chat) while you
+// really are: the page visible, its window focused (a phone has no other window, and the app's web view
+// doesn't always report focus) and you touched it in the last two minutes, so a tab left open on an
+// unlocked screen stops counting. Said every second; that agent's pushes stay off your phone meanwhile.
+const LOOK={page:Math.random().toString(36).slice(2,12), sent:"", at:0, active:Date.now()};
+const TOUCH=matchMedia("(pointer: coarse)").matches;
+["pointermove","pointerdown","keydown","wheel","touchstart","scroll"].forEach(e=>
+  addEventListener(e, ()=>{ LOOK.active=Date.now(); }, {capture:true, passive:true}));
+function lookingAt(){
+  if(document.hidden || (!TOUCH && !document.hasFocus()) || Date.now()-LOOK.active>120000) return "";
+  return (MODAL_OPEN && MODAL_SESSION) || DESK || "";
+}
+function sayLooking(force){
+  const s=lookingAt();
+  if(!force && s===LOOK.sent && !s) return;
+  LOOK.sent=s; LOOK.at=Date.now();
+  const body=JSON.stringify({page:LOOK.page, session:s});
+  // keepalive: still goes out when the page is being closed
+  try{ fetch("/api/looking",{method:"POST",headers:{"Content-Type":"application/json"},body,keepalive:true}).catch(()=>{}); }catch(_){}
+}
+setInterval(()=>sayLooking(false), 1000);
+// focus moving into the terminal's frame blurs this window for an instant: read it a moment later
+function lookSoon(){ setTimeout(()=>sayLooking(true), 60); }   // hoisted: openDesk may run before this line
+["focus","blur","pagehide"].forEach(e=>window.addEventListener(e, lookSoon));
+document.addEventListener("visibilitychange", lookSoon);
 
 async function load(){
   if(FROZEN || composing()){

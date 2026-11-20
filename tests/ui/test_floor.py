@@ -31,6 +31,9 @@ class Floor(BrowserCase):
                                                           body=json.dumps({"team": TEAM, "version": "test"})))
         for api in ("say", "pin", "mute", "group", "task", "kill", "rename", "key", "icon", "brief"):
             self.page.route(f"**/api/{api}", self._catch)
+        self.looks = []                    # which chat the page says you're looking at
+        self.page.route("**/api/looking", lambda r: (self.looks.append(json.loads(r.request.post_data)), r.fulfill(
+            status=200, content_type="application/json", body='{"ok":true}')))
         # a terminal is a blank page here: no test ever attaches to a real one
         self.page.route("**/terminal/**", lambda r: r.fulfill(status=200, content_type="text/html", body="<html></html>"))
 
@@ -250,6 +253,21 @@ class Floor(BrowserCase):
         self.assertEqual(self.js("document.querySelector('#dp-body .working-note .vb').textContent"), "Metamorphosing…")
         self.assertEqual(self.js("document.querySelector('#dp-body .working-note .el').textContent"), "1m 15s")
         self.assertEqual(self.js("document.querySelector('#dp-body .doing').textContent"), "Run the full test suite")
+
+    def test_the_page_says_which_chat_you_are_looking_at_so_its_pushes_stay_off_the_phone(self):
+        self.open_floor()
+        self.page.evaluate("window.focus()")
+        self.open_panel("zed-alpha")
+        self.page.wait_for_timeout(1300)
+        self.assertEqual(self.looks[-1]["session"], "zed-alpha")
+        self.page.evaluate("openTermByName('amy-beta')")              # the terminal in front wins
+        self.page.wait_for_timeout(1300)
+        self.assertEqual(self.looks[-1]["session"], "amy-beta")
+        self.page.evaluate("Object.defineProperty(document,'hidden',{value:true,configurable:true});"
+                           "document.dispatchEvent(new Event('visibilitychange'))")   # tab hidden, phone locked
+        self.page.wait_for_timeout(300)
+        self.assertEqual(self.looks[-1]["session"], "")
+        self.assertEqual(len({l["page"] for l in self.looks}), 1)
 
     def test_a_terminal_that_stays_blank_is_reloaded_once_and_reported(self):
         loads, diag = [], []

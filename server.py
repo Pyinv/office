@@ -172,7 +172,7 @@ def notify_changes(snap):
         for m in snap:
             s = m["session"]; live.add(s)
             st = m.get("state")
-            if m.get("muted"):                      # 🔕: track state silently so unmuting doesn't replay
+            if m.get("muted") or looking_at(s, m.get("since", 0)):     # 🔕, or open in front of you: track state silently
                 quiet_s = True
             else:
                 quiet_s = quiet
@@ -196,6 +196,19 @@ def notify_changes(snap):
                 _NOTIFIED.pop(s, None)
                 if "gone" in PUSH_EVENTS and not quiet and s not in muted:
                     threading.Thread(target=PUSH.send, args=(push_title(s), "session is gone (closed, crashed or killed)"), daemon=True).start()
+
+# Which chat each open page is showing right now, while you look at it (tab visible and focused,
+# or the app in front): page id -> (session, time). The page says so every few seconds; an
+# agent you're looking at doesn't push its "done" / "needs you" to the phone: you've seen it.
+_LOOKING = {}
+LOOK_FOR = 4        # seconds a page's word lasts (it repeats it every second), so a closed laptop stops counting
+
+def looking_at(session, since=0):
+    """You're looking at it now, and were when its state changed (`since`, from Claude's status file):
+    a question that comes after you locked the phone still pushes, though the page couldn't say goodbye."""
+    now = time.time()
+    return any(s == session and now - t < LOOK_FOR and (not since or since <= t + 1.5)
+               for s, t in list(_LOOKING.values()))
 
 def forget_notified(session):
     """You closed or renamed it yourself: no "session is gone" push for that."""
@@ -1217,8 +1230,9 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json({"error": "unknown host"}, 421)
         if not self._origin_ok():   # CSRF gate: reject cross-site POST
             return self._json({"error": "forbidden origin"}, 403)
-        _FLOOR["at"] = 0.0          # whatever this changes shows on the very next floor
         path = self.path.split("?")[0]
+        if path != "/api/looking":
+            _FLOOR["at"] = 0.0      # whatever this changes shows on the very next floor
         if path == "/api/drop":      # raw file body, not JSON
             return self._drop()
         if path == "/api/share":     # multipart from the app's share sheet
@@ -1233,6 +1247,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path in ("/api/say", "/api/key", "/api/paste") and isinstance(data, dict):
             mark_seen(str(data.get("session") or ""))
         if path == "/api/say":   return self._say(data)
+        if path == "/api/looking": return self._looking(data)
         if path == "/api/group":
             with _STATE_LOCK: return self._group(data)
         if path == "/api/pin":
@@ -1573,6 +1588,25 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Security-Policy", "default-src 'none'; img-src data:; style-src 'unsafe-inline'")
         self.end_headers()
         self.wfile.write(body)
+
+    def _looking(self, data):
+        # {page, session}: this page shows `session` to you now; session "" = it doesn't any more
+        page = str((data or {}).get("page", ""))[:40] if isinstance(data, dict) else ""
+        if not page:
+            return self._json({"error": "no page"}, 400)
+        sess = str(data.get("session") or "")[:120]
+        now = time.time()
+        with _NOTIFY_LOCK:
+            for k, (_s, t) in list(_LOOKING.items()):      # pages that went quiet
+                if now - t > 60:
+                    _LOOKING.pop(k, None)
+            if sess:
+                _LOOKING[page] = (sess, now)
+                while len(_LOOKING) > 64:                   # never more than a handful of real pages
+                    _LOOKING.pop(min(_LOOKING, key=lambda k: _LOOKING[k][1]))
+            else:
+                _LOOKING.pop(page, None)
+        return self._json({"ok": True})
 
     def _mute(self, data):
         # 🔕 on a card: no phone pushes for this session until unmuted
