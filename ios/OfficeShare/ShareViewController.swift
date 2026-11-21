@@ -40,7 +40,7 @@ private struct Agent: Decodable {
 }
 
 final class ShareSheetController: UIViewController, UITableViewDataSource, UITableViewDelegate,
-                                  UISearchBarDelegate, UITextFieldDelegate {
+                                  UISearchBarDelegate, UITextViewDelegate {
     weak var context: NSExtensionContext?
     private var agents: [Agent] = []
     private var shown: [Agent] = []
@@ -58,7 +58,9 @@ final class ShareSheetController: UIViewController, UITableViewDataSource, UITab
     private let bar = UIView()
     private let toLabel = UILabel()
     private let noteBox = UIView()
-    private let note = UITextField()
+    private let note = UITextView()        // several lines: the keyboard key is a new line, ↑ sends
+    private let notePlaceholder = UILabel()
+    private var noteHeight: NSLayoutConstraint!
     private let sendButton = UIButton(type: .system)
 
     override func viewDidLoad() {
@@ -89,10 +91,16 @@ final class ShareSheetController: UIViewController, UITableViewDataSource, UITab
         noteBox.layer.cornerRadius = 19
         noteBox.layer.borderWidth = 1 / UIScreen.main.scale
         noteBox.layer.borderColor = UIColor.separator.cgColor
-        note.placeholder = "Add a note…"
-        note.clearButtonMode = .whileEditing
-        note.returnKeyType = .done
+        note.font = .preferredFont(forTextStyle: .body)
+        note.adjustsFontForContentSizeCategory = true
+        note.backgroundColor = .clear
+        note.textContainerInset = UIEdgeInsets(top: 9, left: 0, bottom: 9, right: 0)
+        note.textContainer.lineFragmentPadding = 0
+        note.isScrollEnabled = false
         note.delegate = self
+        notePlaceholder.text = "Add a note…"
+        notePlaceholder.font = note.font
+        notePlaceholder.textColor = .placeholderText
         var sc = UIButton.Configuration.filled()
         sc.image = UIImage(systemName: "arrow.up", withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .bold))
         sc.cornerStyle = .capsule
@@ -106,9 +114,10 @@ final class ShareSheetController: UIViewController, UITableViewDataSource, UITab
         let stack = UIStackView(arrangedSubviews: [status, waitNote, search])
         stack.axis = .vertical
         stack.spacing = 6
-        for v in [stack, table, bar, hairline, toLabel, noteBox, note, sendButton] as [UIView] { v.translatesAutoresizingMaskIntoConstraints = false }
+        for v in [stack, table, bar, hairline, toLabel, noteBox, note, notePlaceholder, sendButton] as [UIView] { v.translatesAutoresizingMaskIntoConstraints = false }
         view.addSubview(stack); view.addSubview(table); view.addSubview(bar)
-        bar.addSubview(hairline); bar.addSubview(toLabel); bar.addSubview(noteBox); bar.addSubview(sendButton); noteBox.addSubview(note)
+        bar.addSubview(hairline); bar.addSubview(toLabel); bar.addSubview(noteBox); bar.addSubview(sendButton); noteBox.addSubview(note); noteBox.addSubview(notePlaceholder)
+        noteHeight = noteBox.heightAnchor.constraint(equalToConstant: 38)
         let g = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: g.topAnchor, constant: 6),
@@ -132,13 +141,16 @@ final class ShareSheetController: UIViewController, UITableViewDataSource, UITab
             noteBox.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 12),
             noteBox.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8),
             noteBox.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -8),
-            noteBox.heightAnchor.constraint(equalToConstant: 38),
+            noteHeight,
             note.leadingAnchor.constraint(equalTo: noteBox.leadingAnchor, constant: 14),
             note.trailingAnchor.constraint(equalTo: noteBox.trailingAnchor, constant: -8),
             note.topAnchor.constraint(equalTo: noteBox.topAnchor),
             note.bottomAnchor.constraint(equalTo: noteBox.bottomAnchor),
+            notePlaceholder.leadingAnchor.constraint(equalTo: note.leadingAnchor),
+            notePlaceholder.trailingAnchor.constraint(equalTo: note.trailingAnchor),
+            notePlaceholder.topAnchor.constraint(equalTo: noteBox.topAnchor, constant: 9),
             sendButton.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -12),
-            sendButton.centerYAnchor.constraint(equalTo: noteBox.centerYAnchor),
+            sendButton.bottomAnchor.constraint(equalTo: noteBox.bottomAnchor),
             sendButton.widthAnchor.constraint(equalToConstant: 38),
             sendButton.heightAnchor.constraint(equalToConstant: 38),
         ])
@@ -148,7 +160,14 @@ final class ShareSheetController: UIViewController, UITableViewDataSource, UITab
         Task { await start() }
     }
 
-    func textFieldShouldReturn(_ textField: UITextField) -> Bool { textField.resignFirstResponder(); return true }
+    // the note grows with what you type, up to about five lines, then scrolls
+    func textViewDidChange(_ textView: UITextView) {
+        notePlaceholder.isHidden = !textView.text.isEmpty
+        let fit = textView.sizeThatFits(CGSize(width: textView.bounds.width, height: .greatestFiniteMagnitude)).height
+        let h = min(max(38, ceil(fit)), 130)
+        textView.isScrollEnabled = fit > 130
+        if noteHeight.constant != h { noteHeight.constant = h; view.layoutIfNeeded() }
+    }
 
     @objc private func cancel() {
         try? FileManager.default.removeItem(at: tmp)

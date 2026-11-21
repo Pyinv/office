@@ -428,6 +428,27 @@ class PhoneFloor(BrowserCase):
         self.page.wait_for_timeout(800)
         self.assertEqual(self.js("Math.round(scrollY)"), 400)
 
+    def test_in_the_reply_box_the_keyboard_key_is_a_new_line_and_the_arrow_sends(self):
+        said = []
+        self.page.route("**/api/floor", lambda r: r.fulfill(status=200, content_type="application/json",
+                                                          body=json.dumps({"team": TEAM, "version": "test"})))
+        self.page.route("**/api/say", lambda r: (said.append(r.request.post_data), r.fulfill(
+            status=200, content_type="application/json", body='{"ok":true}')))
+        self.page.route("**/api/looking", lambda r: r.fulfill(status=200, content_type="application/json", body='{"ok":true}'))
+        self.open_floor()
+        self.js("openDesk('zed-alpha')")
+        self.assertEqual(self.js("document.getElementById('dp-in').getAttribute('enterkeyhint')"), "enter")
+        self.page.focus("#dp-in")
+        self.page.keyboard.type("line one")
+        self.page.keyboard.press("Enter")
+        self.page.keyboard.type("line two")
+        self.page.wait_for_timeout(200)
+        self.assertEqual(said, [])
+        self.assertEqual(self.js("document.getElementById('dp-in').value"), "line one\nline two")
+        self.page.click("#dp-send")
+        self.page.wait_for_timeout(200)
+        self.assertEqual(json.loads(said[0])["text"], "line one\nline two")
+
     def test_three_seats_a_row_and_the_panel_fills_the_screen(self):
         self.page.route("**/api/floor", lambda r: r.fulfill(status=200, content_type="application/json",
                                                           body=json.dumps({"team": TEAM, "version": "test"})))
@@ -457,3 +478,4 @@ class PhoneFloor(BrowserCase):
         self.page.wait_for_timeout(300)
         self.assertEqual(self.js("DESK"), "zed-alpha")
         self.assertFalse(self.js("document.getElementById('desk').hidden"))
+

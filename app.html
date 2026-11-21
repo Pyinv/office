@@ -2558,10 +2558,13 @@ function deskMenu(m){
     else if(act==="kill") killCard(m.session,who);
     else if(act==="erase") eraseCard(m.session,who);
   });
-  // the reply box: Enter sends, Shift-Enter is a new line; it grows with what you type
+  // the reply box: on a keyboard Enter sends and Shift-Enter is a new line; on a phone the keyboard's key
+  // is a new line and ↑ sends, as in a messenger. It grows with what you type
   const inp=DP("dp-in"), grow=()=>{ inp.style.height="auto"; inp.style.height=Math.min(inp.scrollHeight,160)+"px"; };
+  const phoneKeys=matchMedia("(pointer: coarse)").matches;
+  if(phoneKeys) inp.setAttribute("enterkeyhint","enter");
   inp.addEventListener("input",grow);
-  inp.addEventListener("keydown",e=>{ if(e.key==="Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); DP("dp-compose").requestSubmit(); } });
+  inp.addEventListener("keydown",e=>{ if(e.key==="Enter" && !e.shiftKey && !e.isComposing && !phoneKeys){ e.preventDefault(); DP("dp-compose").requestSubmit(); } });
   DP("dp-compose").addEventListener("submit",e=>{
     e.preventDefault(); if(!DESK || !inp.value.trim()) return;
     say(DESK,inp.value,inp); setTimeout(grow,0);
